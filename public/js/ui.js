@@ -25,6 +25,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <a class="nav-link ${currentPath.includes('upload.html') ? 'active' : ''}" href="/pages/upload.html">Upload</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link ${currentPath.includes('search.html') ? 'active' : ''}" href="/pages/search.html">Search</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link ${currentPath.includes('payments.html') ? 'active' : ''}" href="/pages/payments.html">Payments</a>
                     </li>
                     ${isAdmin ? `
@@ -54,4 +57,66 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Insert at the beginning of body
     document.body.insertAdjacentHTML('afterbegin', navHtml);
+
+    // Global Notification Container
+    const toastContainer = document.createElement('div');
+    toastContainer.id = 'toast-container';
+    document.body.appendChild(toastContainer);
+
+    // Global Shortcuts
+    document.addEventListener('keydown', (e) => {
+        // Focus search with '/'
+        if (e.key === '/' && document.activeElement.tagName !== 'INPUT' && document.activeElement.tagName !== 'TEXTAREA') {
+            e.preventDefault();
+            const searchInput = document.getElementById('driverSearchInput');
+            if (searchInput) {
+                searchInput.focus();
+                // Smooth scroll to top if needed
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        }
+        
+        // Close modals with Escape
+        if (e.key === 'Escape') {
+            const modals = document.querySelectorAll('.modal.show');
+            modals.forEach(m => {
+                const bModal = bootstrap.Modal.getInstance(m);
+                if (bModal) bModal.hide();
+            });
+        }
+    });
 });
+
+// Global UI Utilities
+const ui = {
+    toast: (message, type = 'info') => {
+        const container = document.getElementById('toast-container');
+        if (!container) return;
+
+        const toast = document.createElement('div');
+        toast.className = `toast-premium ${type}`;
+        
+        const icon = type === 'success' ? 'check-circle' : (type === 'error' ? 'exclamation-circle' : 'info-circle');
+        
+        toast.innerHTML = `
+            <div class="d-flex align-items-center">
+                <i class="fas fa-${icon} me-3"></i>
+                <div class="small fw-semibold">${message}</div>
+            </div>
+            <button type="button" class="btn-close ms-3" style="font-size: 0.7rem;"></button>
+        `;
+
+        container.appendChild(toast);
+
+        // Auto-dismiss
+        const timer = setTimeout(() => {
+            toast.style.animation = 'fadeOut 0.3s ease-out forwards';
+            setTimeout(() => toast.remove(), 300);
+        }, 4000);
+
+        toast.querySelector('.btn-close').onclick = () => {
+            clearTimeout(timer);
+            toast.remove();
+        };
+    }
+};

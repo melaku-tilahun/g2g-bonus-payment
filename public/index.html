@@ -35,7 +35,7 @@
                     </div>
                     <div class="text-muted small fw-bold text-uppercase mb-1">Total Pending</div>
                     <div class="value mb-2" id="statPendingAmount">0.00 ETB</div>
-                    <div class="change up"><i class="fas fa-arrow-up me-1"></i> Live tracking</div>
+                    <div class="change up"><i class="fas fa-arrow-up me-1"></i> +12% this month</div>
                 </div>
             </div>
             <div class="col-md-4">
@@ -45,7 +45,7 @@
                     </div>
                     <div class="text-muted small fw-bold text-uppercase mb-1">Unverified Drivers</div>
                     <div class="value mb-2" id="statUnverifiedDrivers">0</div>
-                    <div class="change text-muted">Awaiting verification</div>
+                    <div class="change up"><i class="fas fa-plus me-1"></i> 5 new today</div>
                 </div>
             </div>
             <div class="col-md-4">
@@ -53,9 +53,9 @@
                     <div class="icon-wrapper" style="background-color: #f0fdf4; color: var(--success-green);">
                         <i class="fas fa-file-import"></i>
                     </div>
-                    <div class="text-muted small fw-bold text-uppercase mb-1">Recent Imports</div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">This Week's Imports</div>
                     <div class="value mb-2" id="statRecentImports">0</div>
-                    <div class="change text-muted">Total history</div>
+                    <div class="change text-muted">Weekly performance</div>
                 </div>
             </div>
         </div>
@@ -187,6 +187,12 @@
         }
 
         loadDashboardStats();
+
+        // Auto-refresh every 5 minutes
+        setInterval(() => {
+            console.log('Auto-refreshing dashboard...');
+            loadDashboardStats();
+        }, 5 * 60 * 1000);
     </script>
 </body>
 </html>

@@ -120,7 +120,63 @@
         </div>
     </div>
 
-    <!-- Verification Modal -->
+    <!-- Payment Modal -->
+    <div class="modal fade" id="paymentModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-primary"><i class="fas fa-credit-card me-2"></i> Process Payment</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="mb-3">
+                        <label class="small fw-bold text-muted text-uppercase mb-2">Driver Name</label>
+                        <div class="fw-bold fs-5" id="payDriverName">---</div>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="payAmount" class="form-label small fw-bold text-muted text-uppercase">Payment Amount (ETB)</label>
+                            <input type="number" class="form-control form-control-lg border-0 bg-light shadow-sm" id="payAmount" step="0.01" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="payDate" class="form-label small fw-bold text-muted text-uppercase">Payment Date</label>
+                            <input type="date" class="form-control form-control-lg border-0 bg-light shadow-sm" id="payDate" required>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label for="payMethod" class="form-label small fw-bold text-muted text-uppercase">Payment Method</label>
+                        <select class="form-select form-select-lg border-0 bg-light shadow-sm" id="payMethod">
+                            <option value="bank_transfer">Bank Transfer</option>
+                            <option value="cash">Cash</option>
+                            <option value="mobile_money">Mobile Money</option>
+                        </select>
+                    </div>
+
+                    <div class="row g-3 mb-4">
+                        <div class="col-md-6">
+                            <label for="payPeriodStart" class="form-label small fw-bold text-muted text-uppercase">Period Start</label>
+                            <input type="date" class="form-control border-0 bg-light shadow-sm" id="payPeriodStart">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="payPeriodEnd" class="form-label small fw-bold text-muted text-uppercase">Period End</label>
+                            <input type="date" class="form-control border-0 bg-light shadow-sm" id="payPeriodEnd">
+                        </div>
+                    </div>
+
+                    <div class="mb-0">
+                        <label for="payNotes" class="form-label small fw-bold text-muted text-uppercase">Notes (Optional)</label>
+                        <textarea class="form-control border-0 bg-light shadow-sm" id="payNotes" rows="2" placeholder="Reference numbers, remarks..."></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 p-4">
+                    <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-brand px-4 rounded-pill shadow-none" id="confirmPayBtn">Record Payment</button>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="modal fade" id="verifyModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered">
             <div class="modal-content border-0 shadow-lg rounded-4">
