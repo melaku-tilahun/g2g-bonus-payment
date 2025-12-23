@@ -31,22 +31,23 @@ document.addEventListener('DOMContentLoaded', async () => {
     };
 
     document.getElementById('confirmVerifyBtn').onclick = async () => {
-        const password = document.getElementById('confirmPassword').value;
+        const confirmValue = document.getElementById('confirmInput').value.trim().toLowerCase();
         const date = document.getElementById('verificationDate').value;
         
-        if (!password) {
-            ui.toast('Password is required', 'error');
+        if (confirmValue !== 'yes') {
+            ui.toast('Please type "yes" to confirm', 'error');
             return;
         }
 
+        const btn = document.getElementById('confirmVerifyBtn');
         try {
-            const btn = document.getElementById('confirmVerifyBtn');
             btn.disabled = true;
             btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying...';
 
-            await api.post(`/drivers/${driverId}/verify`, { password, verificationDate: date });
+            await api.put(`/drivers/${driverId}/verify`, { verificationDate: date });
             
             ui.toast('Driver verified successfully!', 'success');
+            if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
             modal.hide();
             setTimeout(() => window.location.reload(), 1500);
         } catch (error) {
@@ -71,17 +72,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         const periodEnd = document.getElementById('payPeriodEnd').value;
         const notes = document.getElementById('payNotes').value;
 
+        const btn = document.getElementById('confirmPayBtn');
         try {
-            const btn = document.getElementById('confirmPayBtn');
             btn.disabled = true;
-            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Recording...';
 
-            // For now, we simulate the payment success until the backend is updated
-            // await api.post(`/payments/driver/${driverId}`, { amount, method, periodStart, periodEnd, notes });
+            await api.post('/payments', { 
+                driver_id: driverId,
+                total_amount: amount, 
+                payment_method: method, 
+                bonus_period_start: periodStart, 
+                bonus_period_end: periodEnd, 
+                notes: notes 
+            });
             
             ui.toast('Payment recorded successfully!', 'success');
+            if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
             payModal.hide();
-            // Optional: refresh or update UI
+            // Reload page to show updated status
+            setTimeout(() => window.location.reload(), 1000);
         } catch (error) {
             ui.toast(error.message || 'Payment failed', 'error');
             btn.disabled = false;
@@ -114,7 +123,7 @@ function renderDriver(driver, bonuses) {
         document.getElementById('markVerifiedBtn').classList.add('d-none');
         document.getElementById('processPaymentBtn').classList.remove('d-none');
         document.getElementById('verificationInfoSection').classList.remove('d-none');
-        document.getElementById('verifiedDateText').textContent = new Date(driver.verified_at).toLocaleDateString();
+        document.getElementById('verifiedDateText').textContent = new Date(driver.verified_date).toLocaleDateString();
         document.getElementById('summaryStatus').textContent = 'Verified for Payment';
     }
 
@@ -148,7 +157,7 @@ function renderBonusList(bonuses) {
                 </div>
                 <div class="text-end">
                     <div class="h5 fw-bold text-primary mb-0">${parseFloat(b.net_payout).toLocaleString()} ETB</div>
-                    <div class="small text-muted">Ref: ${b.import_id}</div>
+                    <div class="small text-muted">Ref: ${b.file_name || 'Manual Import'}</div>
                 </div>
             </div>
         `;

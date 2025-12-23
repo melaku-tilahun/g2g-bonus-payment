@@ -4,14 +4,33 @@ const AuditService = require("../services/auditService");
 const driverController = {
   search: async (req, res) => {
     try {
-      const { q } = req.query;
-      if (!q) return res.json([]);
+      const { q, page = 1, limit = 25 } = req.query;
+      if (!q) return res.json({ drivers: [], total: 0 });
 
-      const [rows] = await pool.query(
-        "SELECT * FROM drivers WHERE full_name LIKE ? OR driver_id LIKE ? LIMIT 20",
-        [`%${q}%`, `%${q}%`]
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+      const limitNum = parseInt(limit);
+
+      // Get Total Count
+      const [countRows] = await pool.query(
+        "SELECT COUNT(*) as total FROM drivers WHERE full_name LIKE ? OR driver_id LIKE ? OR phone_number LIKE ?",
+        [`%${q}%`, `%${q}%`, `%${q}%`]
       );
-      res.json(rows);
+
+      // Get Data
+      const [rows] = await pool.query(
+        "SELECT * FROM drivers WHERE full_name LIKE ? OR driver_id LIKE ? OR phone_number LIKE ? LIMIT ? OFFSET ?",
+        [`%${q}%`, `%${q}%`, `%${q}%`, limitNum, offset]
+      );
+      
+      res.json({
+          drivers: rows,
+          total: countRows[0].total,
+          pagination: {
+              page: parseInt(page),
+              limit: limitNum,
+              total_pages: Math.ceil(countRows[0].total / limitNum)
+          }
+      });
     } catch (error) {
       console.error("Search drivers error:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -37,33 +56,18 @@ const driverController = {
   verify: async (req, res) => {
     try {
       const { id } = req.params;
-      const { verified_date, password } = req.body;
+      const { verified_date } = req.body;
 
-      if (!password) {
-        return res
-          .status(400)
-          .json({ message: "Password is required to confirm verification" });
-      }
+      // Password check removed as per user request (replaced with 'yes' confirmation on frontend)
 
-      // Verify password
-      const [users] = await pool.query(
-        "SELECT password_hash FROM users WHERE id = ?",
-        [req.user.id]
-      );
-      const bcrypt = require("bcrypt");
-      const isMatch = await bcrypt.compare(password, users[0].password_hash);
 
-      if (!isMatch) {
-        return res
-          .status(401)
-          .json({ message: "Invalid password. Verification cancelled." });
-      }
-
+      console.log(`Verifying driver ${id} by user ${req.user.id}`);
+      
       await pool.query(
         "UPDATE drivers SET verified = TRUE, verified_date = ?, verified_by = ? WHERE driver_id = ?",
         [verified_date || new Date(), req.user.id, id]
       );
-
+      
       await AuditService.log(req.user.id, "Verify Driver", "driver", id, {
         verified_date,
       });

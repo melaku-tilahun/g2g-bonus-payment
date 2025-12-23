@@ -3,10 +3,13 @@ const API_URL = '/api';
 const api = {
   async request(endpoint, options = {}) {
     const token = localStorage.getItem('token');
-    const headers = {
-      'Content-Type': 'application/json',
-      ...options.headers,
-    };
+    
+    const headers = { ...options.headers };
+    
+    // Set default Content-Type to JSON unless it's FormData (browser sets boundary) or already set
+    if (!headers['Content-Type'] && !(options.body instanceof FormData)) {
+        headers['Content-Type'] = 'application/json';
+    }
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -39,9 +42,10 @@ const api = {
   },
 
   post(endpoint, body) {
+    const isFormData = body instanceof FormData;
     return this.request(endpoint, {
       method: 'POST',
-      body: JSON.stringify(body),
+      body: isFormData ? body : JSON.stringify(body),
     });
   },
 

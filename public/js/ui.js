@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
     <nav class="navbar navbar-expand-lg navbar-modern mb-5 sticky-top">
         <div class="container">
             <a class="navbar-brand d-flex align-items-center" href="/index.html">
-                <span class="me-2">📊</span> BonusTracker
+                <span class="me-2"></span> BonusTracker
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">

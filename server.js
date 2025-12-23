@@ -10,6 +10,7 @@ const bonusRoutes = require('./src/routes/bonuses');
 const uploadRoutes = require('./src/routes/uploads');
 const paymentRoutes = require('./src/routes/payments');
 const logRoutes = require('./src/routes/logs');
+const dashboardRoutes = require('./src/routes/dashboard');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +20,7 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // API Routes
 app.use('/api/auth', authRoutes);
@@ -28,6 +30,7 @@ app.use('/api/bonuses', bonusRoutes);
 app.use('/api/uploads', uploadRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/logs', logRoutes);
+app.use('/api/dashboard', dashboardRoutes);
 
 // Serve Frontend - Catch-all middleware
 app.use((req, res) => {

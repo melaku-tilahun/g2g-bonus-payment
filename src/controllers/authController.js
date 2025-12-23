@@ -1,4 +1,3 @@
-```javascript
 const User = require('../models/User');
 const AuthService = require('../services/authService');
 const pool = require('../config/database');
@@ -86,4 +85,3 @@ const authController = {
 };
 
 module.exports = authController;
-```

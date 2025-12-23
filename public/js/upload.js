@@ -52,19 +52,24 @@ document.addEventListener('DOMContentLoaded', () => {
             formData.append('file', file);
 
             // Fetch validation from backend
-            const result = await api.post('/uploads/validate', formData);
+            const response = await api.post('/uploads/validate', formData);
+            const stats = response.validation_results;
             
-            updateItem('readable', true);
-            updateItem('sheet', result.sheetCount === 1);
-            updateItem('columns', result.columnsValid);
-            updateItem('data', result.dataValid);
+            updateItem('readable', stats.file_readable);
+            updateItem('sheet', stats.single_sheet);
+            updateItem('columns', stats.columns_valid);
+            updateItem('data', stats.has_data);
 
-            if (result.valid) {
+            if (response.ready_for_import) {
                 uploadBtn.disabled = false;
                 ui.toast('File validated successfully!', 'success');
             } else {
                 uploadBtn.disabled = true;
-                ui.toast('Validation failed. Please check the file.', 'error');
+                let msg = 'Validation failed.';
+                if (stats.suggestions && stats.suggestions.length > 0) {
+                     msg += ' ' + stats.suggestions[0];
+                }
+                ui.toast(msg, 'error');
             }
         } catch (error) {
             console.error(error);
@@ -78,17 +83,21 @@ document.addEventListener('DOMContentLoaded', () => {
         const weekDate = document.getElementById('weekDate').value;
 
         if (!file || !weekDate) return;
+        
+        // Append time to date to ensure timezone consistency if needed, 
+        // but input type="date" value is YYYY-MM-DD. 
+        // Backend parses new Date(week_date).
 
         try {
             uploadBtn.disabled = true;
             uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
 
             const formData = new FormData();
+            formData.append('week_date', weekDate); // Backend expects week_date (snake_case)
             formData.append('file', file);
-            formData.append('weekDate', weekDate);
 
             // Progress Bar simulation (real progress requires XHR)
-            const result = await api.post('/uploads/import', formData);
+            const result = await api.post('/uploads/excel', formData);
 
             showResults(result);
         } catch (error) {
@@ -102,10 +111,10 @@ document.addEventListener('DOMContentLoaded', () => {
         document.querySelector('.row.g-4').classList.add('d-none');
         document.getElementById('importResults').classList.remove('d-none');
         
-        document.getElementById('resTotal').textContent = data.summary.totalRows;
-        document.getElementById('resSuccess').textContent = data.summary.imported;
-        document.getElementById('resSkipped').textContent = data.summary.skipped;
-        document.getElementById('resErrors').textContent = data.summary.errors;
+        document.getElementById('resTotal').textContent = data.total_records;
+        document.getElementById('resSuccess').textContent = data.success_count;
+        document.getElementById('resSkipped').textContent = data.skipped_count;
+        document.getElementById('resErrors').textContent = data.error_count;
 
         if (data.errors && data.errors.length > 0) {
             document.getElementById('errorDetailsSection').classList.remove('d-none');
@@ -164,11 +173,16 @@ async function loadHistory() {
         history.forEach(h => {
             const tr = document.createElement('tr');
             tr.innerHTML = `
-                <td class="ps-4">${new Date(h.created_at).toLocaleDateString()}</td>
-                <td class="fw-semibold">${h.file_name}</td>
+                <td class="ps-4">${new Date(h.imported_at).toLocaleDateString()}</td>
+                <td class="fw-semibold">
+                    ${h.file_path ? `<a href="/uploads/${h.file_path}" target="_blank" class="text-decoration-none"><i class="fas fa-download me-1"></i> ${h.file_name}</a>` : h.file_name}
+                </td>
                 <td>${new Date(h.week_date).toLocaleDateString()}</td>
-                <td class="text-center"><span class="badge bg-light text-dark border">${h.total_rows}</span></td>
-                <td><span class="small text-muted">${h.uploader_name || 'Admin'}</span></td>
+                <td class="text-center"><span class="badge bg-light text-dark border">${h.total_records}</span></td>
+                <td class="text-center"><span class="badge bg-success bg-opacity-10 text-success">${h.success_count}</span></td>
+                <td class="text-center"><span class="badge bg-warning bg-opacity-10 text-warning">${h.skipped_count}</span></td>
+                <td class="text-center"><span class="badge bg-danger bg-opacity-10 text-danger">${h.error_count}</span></td>
+                <td><span class="small text-muted">${h.imported_by_name || 'Admin'}</span></td>
             `;
             tbody.appendChild(tr);
         });

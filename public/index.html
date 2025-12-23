@@ -15,12 +15,12 @@
         <div class="row align-items-center mb-5">
             <div class="col-md-7">
                 <h1 class="display-6 mb-1">Welcome back! 👋</h1>
-                <p class="text-muted fs-5">Here's what's happening with driver bonuses today.</p>
+                <p class="text-muted fs-5">Take care and stay organized. Your attention matters!</p>
             </div>
             <div class="col-md-5">
                 <div class="search-container-modern ms-auto">
                     <i class="fas fa-search"></i>
-                    <input type="text" id="driverSearchInput" class="form-control shadow-sm border-0 py-3" placeholder="Search driver by name or ID...">
+                    <input type="text" id="driverSearchInput" class="form-control shadow-sm border-0 py-3" placeholder="Search driver by name, ID, or phone...">
                     <div id="searchResults" class="list-group position-absolute shadow-lg w-100 d-none mt-2 rounded-3 overflow-hidden" style="z-index: 1000;"></div>
                 </div>
             </div>
@@ -63,7 +63,7 @@
         <!-- Main Table Section -->
         <div class="card-premium p-4">
             <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="h4 mb-0">Unverified Drivers with Pending Bonuses</h2>
+                <h2 class="h4 mb-0">Unverified Drivers</h2>
                 <a href="/pages/upload.html" class="btn btn-brand btn-sm px-4">
                     <i class="fas fa-plus me-2"></i> New Import
                 </a>
@@ -73,8 +73,8 @@
                 <table class="table table-premium">
                     <thead>
                         <tr>
+                            <th>#</th>
                             <th>Driver</th>
-                            <th>Driver ID</th>
                             <th>Weeks</th>
                             <th>Total Pending</th>
                             <th>Latest Bonus</th>
@@ -85,7 +85,23 @@
                         <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
                     </tbody>
                 </table>
+                </div>
+            
+            <!-- Dashboard Pagination -->
+            <div class="d-flex justify-content-between align-items-center mt-4">
+                <span class="text-muted small" id="paginationInfo">Showing 0-0 of 0</span>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0">
+                        <li class="page-item disabled" id="prevPageItem">
+                            <button class="page-link" id="prevPageBtn">Previous</button>
+                        </li>
+                        <li class="page-item disabled" id="nextPageItem">
+                            <button class="page-link" id="nextPageBtn">Next</button>
+                        </li>
+                    </ul>
+                </nav>
             </div>
+        </div>
         </div>
     </div>
 
@@ -103,6 +119,12 @@
             clearTimeout(debounceTimer);
             debounceTimer = setTimeout(async () => {
                 const q = searchInput.value.trim();
+                
+                // Trigger Dashboard Table Filter
+                if (typeof loadDashboardStats === 'function') {
+                    loadDashboardStats(1);
+                }
+
                 if (q.length < 2) {
                     searchResults.classList.add('d-none');
                     return;
@@ -145,53 +167,111 @@
             }
         });
 
-        async function loadDashboardStats() {
-            try {
-                const pending = await api.get('/bonuses/pending');
-                const totalAmount = pending.reduce((sum, d) => sum + parseFloat(d.total_bonus || 0), 0);
-                
-                document.getElementById('statPendingAmount').textContent = `${totalAmount.toLocaleString()} ETB`;
-                document.getElementById('statUnverifiedDrivers').textContent = pending.length;
-                
-                const imports = await api.get('/uploads/history');
-                document.getElementById('statRecentImports').textContent = imports.length;
+        let currentPage = 1;
+        const limit = 25;
 
+        async function loadDashboardStats(page = 1) {
+            try {
+                // Use the main global search input
+                const searchInput = document.getElementById('driverSearchInput');
+                const query = searchInput ? searchInput.value.trim() : '';
+                
+                // Load Pending Bonuses
+                const params = new URLSearchParams({ page, limit, q: query });
+                const pendingResponse = await api.get(`/bonuses/pending?${params.toString()}`);
+                
+                const pendingDrivers = Array.isArray(pendingResponse) ? pendingResponse : (pendingResponse.pending_drivers || []);
+                const pagination = pendingResponse.pagination || { page: 1, total_pages: 1, limit: limit };
+                const totalDrivers = pendingResponse.total_drivers || pendingDrivers.length;
+                
+                // Load Real-time Stats
+                const statsResponse = await api.get('/dashboard/stats');
+                
+                // Only update Top Metrics if NO filter is applied (to show true global state)
+                if (!query) {
+                    document.getElementById('statPendingAmount').textContent = `${parseFloat(statsResponse.pending_amount || 0).toLocaleString()} ETB`;
+                    
+                    // Update Pending Growth
+                    const growth = parseFloat(statsResponse.pending_growth || 0);
+                    const growthEl = document.querySelector('#statPendingAmount').parentElement.querySelector('.change');
+                    growthEl.className = `change ${growth >= 0 ? 'up' : 'down'}`;
+                    growthEl.innerHTML = `<i class="fas fa-arrow-${growth >= 0 ? 'up' : 'down'} me-1"></i> ${Math.abs(growth)}% this month`;
+
+                    document.getElementById('statUnverifiedDrivers').textContent = statsResponse.unverified_drivers;
+                    
+                    // Update Unverified Subtext (New Today)
+                    const newToday = statsResponse.new_drivers_today || 0;
+                    document.querySelector('#statUnverifiedDrivers').parentElement.querySelector('.change').innerHTML = 
+                        `<i class="fas fa-plus me-1"></i> ${newToday} new today`;
+
+                    document.getElementById('statRecentImports').textContent = statsResponse.weekly_imports;
+                    
+                     // Update Imports Subtext
+                     document.querySelector('#statRecentImports').parentElement.querySelector('.change').textContent = 'This week';
+                }
+
+                // Render Table
                 const tbody = document.getElementById('pendingDriversTableBody');
                 tbody.innerHTML = '';
-                if (pending.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No pending bonuses found</td></tr>';
+                
+                if (pendingDrivers.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-5 text-muted">No drivers found matching your search</td></tr>';
+                    document.getElementById('paginationInfo').textContent = 'Showing 0 results';
                     return;
                 }
 
-                pending.forEach(d => {
+                pendingDrivers.forEach((d, index) => {
+                    const rowNumber = (page - 1) * limit + index + 1;
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
+                        <td class="text-muted small align-middle">${rowNumber}</td>
                         <td>
                             <div class="fw-bold">${d.full_name}</div>
                             <div class="small text-muted">${d.phone_number || 'No phone'}</div>
                         </td>
-                        <td class="small text-muted font-monospace">${d.driver_id.substring(0, 12)}...</td>
-                        <td class="fw-semibold">${d.weeks_count || 0}</td>
-                        <td class="fw-bold text-primary fs-5">${parseFloat(d.total_bonus || 0).toLocaleString()} <small class="fw-normal fs-6">ETB</small></td>
-                        <td>${new Date(d.last_week || d.latest_bonus_date).toLocaleDateString()}</td>
-                        <td class="text-end">
+                        <td class="fw-semibold align-middle">${d.weeks_pending || 0}</td>
+                        <td class="fw-bold text-primary fs-5 align-middle">${parseFloat(d.total_pending || 0).toLocaleString()} <small class="fw-normal fs-6">ETB</small></td>
+                        <td class="align-middle">${new Date(d.last_week || d.latest_bonus_date).toLocaleDateString()}</td>
+                        <td class="text-end align-middle">
                             <a href="/pages/driver-detail.html?id=${d.driver_id}" class="btn btn-brand btn-sm px-3 shadow-none">View Details</a>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
+
+                // Update Pagination Controls
+                currentPage = page;
+                const start = (page - 1) * limit + 1;
+                const end = Math.min(page * limit, totalDrivers); // Adjust for filtered count
+                document.getElementById('paginationInfo').textContent = `Showing ${start}-${end} of ${totalDrivers}`;
+
+                document.getElementById('prevPageItem').classList.toggle('disabled', page <= 1);
+                document.getElementById('nextPageItem').classList.toggle('disabled', page >= pagination.total_pages);
+
             } catch (error) {
                 console.error('Error loading stats:', error);
-                document.getElementById('pendingDriversTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Failed to load dashboard data</td></tr>';
+                document.getElementById('pendingDriversTableBody').innerHTML = '<tr><td colspan="7" class="text-center text-danger">Failed to load data</td></tr>';
             }
         }
+        
+        // Pagination Event Listeners
+        document.getElementById('prevPageBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            if (currentPage > 1) loadDashboardStats(currentPage - 1);
+        });
 
-        loadDashboardStats();
+        document.getElementById('nextPageBtn').addEventListener('click', (e) => {
+            e.preventDefault();
+            loadDashboardStats(currentPage + 1);
+        });
+
+        // Initial Load
+        loadDashboardStats(1);
 
         // Auto-refresh every 5 minutes
         setInterval(() => {
             console.log('Auto-refreshing dashboard...');
-            loadDashboardStats();
+            loadDashboardStats(currentPage); // Refresh current page
         }, 5 * 60 * 1000);
     </script>
 </body>

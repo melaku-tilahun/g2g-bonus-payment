@@ -2,12 +2,16 @@ const auth = {
   async login(email, password) {
     try {
       const data = await api.post('/auth/login', { email, password });
-      localStorage.setItem('token', data.token);
-      localStorage.setItem('user', JSON.stringify(data.user));
+      this.setSession(data.token, data.user);
       window.location.href = '/index.html';
     } catch (error) {
       throw error;
     }
+  },
+
+  setSession(token, user) {
+    localStorage.setItem('token', token);
+    localStorage.setItem('user', JSON.stringify(user));
   },
 
   logout() {

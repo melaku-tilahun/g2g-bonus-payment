@@ -57,15 +57,20 @@ const uploadController = {
 
       // Create import log entry first to get ID
       const [importLogResult] = await connection.query(
-        'INSERT INTO import_logs (file_name, week_date, total_records, success_count, imported_by) VALUES (?, ?, ?, ?, ?)',
-        [req.file.originalname, week_date, parsedData.length, 0, req.user.id]
+        'INSERT INTO import_logs (file_name, file_path, week_date, total_records, success_count, imported_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [req.file.originalname, req.file.filename, week_date, parsedData.length, 0, req.user.id]
       );
       const importLogId = importLogResult.insertId;
 
       // Batch processing Setup
-      const driverIds = parsedData.map(r => r.driver_id);
-      const [existingDrivers] = await connection.query('SELECT driver_id, verified FROM drivers WHERE driver_id IN (?)', [driverIds]);
-      const driverMap = new Map(existingDrivers.map(d => [d.driver_id, d]));
+      // Batch processing Setup
+      const driverIds = parsedData.map(r => r.driver_id).filter(id => id);
+      const driverMap = new Map();
+      
+      if (driverIds.length > 0) {
+          const [existingDrivers] = await connection.query('SELECT driver_id, verified FROM drivers WHERE driver_id IN (?)', [driverIds]);
+          existingDrivers.forEach(d => driverMap.set(d.driver_id, d));
+      }
 
       const bonusesToInsert = [];
       const newDriversToInsert = [];
@@ -93,7 +98,11 @@ const uploadController = {
             existingDriversCount++;
         }
 
-        bonusesToInsert.push([row.driver_id, new Date(row.week_date || week_date), row.net_payout, importLogId]);
+        // Prioritize the date selected in the UI (form) over the one in the file
+        // This allows users to import files even if the internal date column is stale/wrong
+        const effectiveDate = new Date(week_date || row.week_date);
+        
+        bonusesToInsert.push([row.driver_id, effectiveDate, row.net_payout, importLogId]);
       }
 
       // Batch Insert Drivers
@@ -174,13 +183,13 @@ const uploadController = {
     } catch (error) {
       await connection.rollback();
       console.error('Import error:', error);
-      res.status(500).json({ message: error.message || 'Internal server error' });
-    } finally {
-      connection.release();
-      // Clean up uploaded file
+      // Clean up uploaded file ONLY ON ERROR
       if (fs.existsSync(filePath)) {
         fs.unlinkSync(filePath);
       }
+      res.status(500).json({ message: error.message || 'Internal server error' });
+    } finally {
+      connection.release();
     }
   },
 

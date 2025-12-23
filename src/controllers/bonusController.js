@@ -50,8 +50,11 @@ const bonusController = {
 
   getPending: async (req, res) => {
     try {
-      const { sortBy = 'amount', order = 'desc' } = req.query;
+      const { sortBy = 'amount', order = 'desc', page = 1, limit = 25, q } = req.query;
       
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+      const limitNum = parseInt(limit);
+
       const sortOptions = {
           amount: 'total_pending',
           driver: 'full_name',
@@ -59,6 +62,33 @@ const bonusController = {
       };
       const sortCol = sortOptions[sortBy] || 'total_pending';
       const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+
+      // Base WHERE clause
+      let whereClause = "d.verified = FALSE AND b.payment_id IS NULL";
+      const queryParams = [];
+
+      if (q) {
+          whereClause += " AND (d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)";
+          queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      }
+
+      // 1. Get Totals
+      // Re-use params for count query
+      const [totalRows] = await pool.query(`
+        SELECT 
+          COUNT(DISTINCT d.driver_id) as total_drivers,
+          SUM(b.net_payout) as total_amount
+        FROM drivers d
+        JOIN bonuses b ON d.driver_id = b.driver_id
+        WHERE ${whereClause}
+      `, queryParams);
+      
+      const totalDrivers = totalRows[0].total_drivers || 0;
+      const totalPendingAmount = totalRows[0].total_amount || 0;
+
+      // 2. Get Paginated Data
+      // Copy params for main query and add limit/offset
+      const mainQueryParams = [...queryParams, limitNum, offset];
 
       const [rows] = await pool.query(`
         SELECT 
@@ -70,18 +100,22 @@ const bonusController = {
           MAX(b.week_date) as latest_bonus_date
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
-        WHERE d.verified = FALSE AND b.payment_id IS NULL
+        WHERE ${whereClause}
         GROUP BY d.driver_id, d.full_name, d.phone_number
-        ORDER BY total_bonus DESC
-      `);
-
-      const totalAmount = rows.reduce((sum, row) => sum + parseFloat(row.total_bonus), 0);
+        ORDER BY ${sortCol} ${sortOrder}
+        LIMIT ? OFFSET ?
+      `, mainQueryParams);
 
       res.json({
         success: true,
         pending_drivers: rows,
-        total_pending_amount: totalAmount,
-        total_drivers: rows.length
+        total_pending_amount: totalPendingAmount,
+        total_drivers: totalDrivers,
+        pagination: {
+            page: parseInt(page),
+            limit: limitNum,
+            total_pages: Math.ceil(totalDrivers / limitNum)
+        }
       });
     } catch (error) {
       console.error('Get pending bonuses error:', error);
