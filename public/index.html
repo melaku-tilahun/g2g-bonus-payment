@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Driver Bonus Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="css/styles.css">
+</head>
+<body class="bg-light">
+    <!-- Header injected by ui.js -->
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-8">
+                <h1>Dashboard</h1>
+                <p>Welcome to the Driver Bonus Tracking Platform.</p>
+            </div>
+            <div class="col-md-4">
+                <div class="input-group mb-3">
+                    <input type="text" id="driverSearchInput" class="form-control" placeholder="Search driver by name or ID...">
+                    <button class="btn btn-primary" type="button" id="searchBtn">Search</button>
+                </div>
+                <div id="searchResults" class="list-group position-absolute shadow w-25 d-none" style="z-index: 1000;"></div>
+            </div>
+        </div>
+        
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="card bg-white shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Total Pending Bonuses</h5>
+                        <h2 class="card-text" id="statPendingAmount">0.00 ETB</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-white shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Unverified Drivers</h5>
+                        <h2 class="card-text" id="statUnverifiedDrivers">0</h2>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card bg-white shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title text-muted">Recent Imports</h5>
+                        <h2 class="card-text" id="statRecentImports">0</h2>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-12">
+                <div class="card shadow-sm">
+                    <div class="card-body">
+                        <h5 class="card-title">Unverified Drivers with Pending Bonuses</h5>
+                        <div class="table-responsive">
+                            <table class="table table-hover mt-3">
+                                <thead>
+                                    <tr>
+                                        <th>Driver Name</th>
+                                        <th>Driver ID</th>
+                                        <th>Weeks</th>
+                                        <th>Total Pending</th>
+                                        <th>Latest Bonus</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pendingDriversTableBody">
+                                    <tr><td colspan="6" class="text-center">Loading pending bonuses...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/ui.js"></script>
+    <script>
+        const searchInput = document.getElementById('driverSearchInput');
+        const searchResults = document.getElementById('searchResults');
+
+        let debounceTimer;
+        searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(async () => {
+                const q = searchInput.value.trim();
+                if (q.length < 2) {
+                    searchResults.classList.add('d-none');
+                    return;
+                }
+
+                try {
+                    const drivers = await api.get(`/drivers/search?q=${q}`);
+                    searchResults.innerHTML = '';
+                    if (drivers.length > 0) {
+                        drivers.forEach(driver => {
+                            const a = document.createElement('a');
+                            a.href = `/pages/driver-detail.html?id=${driver.driver_id}`;
+                            a.className = 'list-group-item list-group-item-action';
+                            a.innerHTML = `
+                                <div class="d-flex w-100 justify-content-between">
+                                    <h6 class="mb-1">${driver.full_name}</h6>
+                                    <small class="${driver.verified ? 'text-success' : 'text-warning'}">
+                                        ${driver.verified ? 'Verified' : 'Unverified'}
+                                    </small>
+                                </div>
+                                <small class="text-muted">${driver.driver_id}</small>
+                            `;
+                            searchResults.appendChild(a);
+                        });
+                        searchResults.classList.remove('d-none');
+                    } else {
+                        searchResults.classList.add('d-none');
+                    }
+                } catch (error) {
+                    console.error('Search error:', error);
+                }
+            }, 300);
+        });
+
+        document.addEventListener('click', (e) => {
+            if (!searchResults.contains(e.target) && e.target !== searchInput) {
+                searchResults.classList.add('d-none');
+            }
+        });
+
+        async function loadDashboardStats() {
+            try {
+                const pending = await api.get('/bonuses/pending');
+                const totalAmount = pending.reduce((sum, d) => sum + parseFloat(d.total_pending), 0);
+                
+                document.getElementById('statPendingAmount').textContent = `${totalAmount.toLocaleString()} ETB`;
+                document.getElementById('statUnverifiedDrivers').textContent = pending.length;
+                
+                const imports = await api.get('/uploads/history');
+                document.getElementById('statRecentImports').textContent = imports.length;
+
+                const tbody = document.getElementById('pendingDriversTableBody');
+                tbody.innerHTML = '';
+                if (pending.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No pending bonuses found</td></tr>';
+                    return;
+                }
+
+                pending.forEach(d => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${d.full_name}</td>
+                        <td>${d.driver_id}</td>
+                        <td>${d.weeks_pending}</td>
+                        <td class="fw-bold text-primary">${parseFloat(d.total_pending).toLocaleString()} ETB</td>
+                        <td>${new Date(d.latest_bonus_date).toLocaleDateString()}</td>
+                        <td>
+                            <a href="/pages/driver-detail.html?id=${d.driver_id}" class="btn btn-sm btn-outline-primary">View & Pay</a>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+            } catch (error) {
+                console.error('Error loading stats:', error);
+            }
+        }
+
+        loadDashboardStats();
+    </script>
+</body>
+</html>

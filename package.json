@@ -1,0 +1,38 @@
+{
+  "name": "g2g-bonus-payment",
+  "version": "1.0.0",
+  "description": "yango g2g unverified drivers payment facilitation system",
+  "keywords": [
+    "g2g",
+    "shuufare",
+    "driver"
+  ],
+  "homepage": "https://github.com/melaku-tilahun/g2g-bonus-payment#readme",
+  "bugs": {
+    "url": "https://github.com/melaku-tilahun/g2g-bonus-payment/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/melaku-tilahun/g2g-bonus-payment.git"
+  },
+  "license": "MIT",
+  "author": "Melaku Tilahun",
+  "type": "commonjs",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "bcrypt": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^17.2.3",
+    "exceljs": "^4.4.0",
+    "express": "^5.2.1",
+    "express-session": "^1.18.2",
+    "express-validator": "^7.3.1",
+    "jsonwebtoken": "^9.0.3",
+    "multer": "^2.0.2",
+    "mysql2": "^3.16.0"
+  }
+}

@@ -1,0 +1,107 @@
+CREATE DATABASE IF NOT EXISTS g2g_bonus_db;
+USE g2g_bonus_db;
+
+-- Users Table
+CREATE TABLE IF NOT EXISTS users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  full_name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin', 'staff') NOT NULL DEFAULT 'staff',
+  is_active BOOLEAN DEFAULT TRUE,
+  last_login TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by INT NULL,
+  INDEX idx_email (email),
+  INDEX idx_role (role),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
+
+-- Drivers Table
+CREATE TABLE IF NOT EXISTS drivers (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id VARCHAR(64) UNIQUE NOT NULL,
+  full_name VARCHAR(255) NOT NULL,
+  phone_number VARCHAR(20),
+  email VARCHAR(255),
+  verified BOOLEAN DEFAULT FALSE,
+  verified_date DATE NULL,
+  verified_by INT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  INDEX idx_driver_id (driver_id),
+  INDEX idx_verified (verified),
+  INDEX idx_name (full_name),
+  FOREIGN KEY (verified_by) REFERENCES users(id)
+);
+
+-- Import Logs Table
+CREATE TABLE IF NOT EXISTS import_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  file_name VARCHAR(255) NOT NULL,
+  week_date DATE NOT NULL,
+  total_records INT NOT NULL,
+  success_count INT NOT NULL,
+  skipped_count INT DEFAULT 0,
+  error_count INT DEFAULT 0,
+  new_drivers_count INT DEFAULT 0,
+  existing_drivers_count INT DEFAULT 0,
+  rejected_verified_count INT DEFAULT 0,
+  skipped_details JSON,
+  imported_by INT,
+  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status ENUM('success', 'partial', 'failed') DEFAULT 'success',
+  error_message TEXT,
+  FOREIGN KEY (imported_by) REFERENCES users(id),
+  INDEX idx_week_date (week_date)
+);
+
+-- Bonuses Table
+CREATE TABLE IF NOT EXISTS bonuses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id VARCHAR(64) NOT NULL,
+  week_date DATE NOT NULL,
+  net_payout DECIMAL(10, 2) NOT NULL,
+  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  import_log_id INT,
+  payment_id INT,
+  FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
+  FOREIGN KEY (import_log_id) REFERENCES import_logs(id),
+  FOREIGN KEY (payment_id) REFERENCES payments(id),
+  INDEX idx_driver_week (driver_id, week_date),
+  INDEX idx_week_date (week_date),
+  UNIQUE KEY unique_driver_week (driver_id, week_date)
+);
+
+-- Payments Table
+CREATE TABLE IF NOT EXISTS payments (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id VARCHAR(50) NOT NULL,
+  total_amount DECIMAL(10, 2) NOT NULL,
+  payment_date DATE NOT NULL,
+  payment_method VARCHAR(50),
+  bonus_period_start DATE,
+  bonus_period_end DATE,
+  processed_by INT,
+  notes TEXT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
+  FOREIGN KEY (processed_by) REFERENCES users(id),
+  INDEX idx_driver_id (driver_id),
+  INDEX idx_payment_date (payment_date)
+);
+
+-- Audit Logs Table
+CREATE TABLE IF NOT EXISTS audit_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  action VARCHAR(255) NOT NULL,
+  entity_type VARCHAR(50),
+  entity_id INT,
+  details JSON,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_created_at (created_at)
+);
