@@ -1,45 +1,51 @@
 document.addEventListener('DOMContentLoaded', () => {
-    const headerContainer = document.body;
-    const navElement = document.createElement('div');
-    
     auth.checkAuth();
     const user = auth.getUser();
     const isAdmin = user && user.role === 'admin';
     const currentPath = window.location.pathname;
 
+    // Modern Navigation HTML
     const navHtml = `
-    <nav class="navbar navbar-expand-lg navbar-dark bg-primary mb-4">
+    <nav class="navbar navbar-expand-lg navbar-modern mb-5 sticky-top">
         <div class="container">
-            <a class="navbar-brand" href="/index.html">Bonus Tracker</a>
+            <a class="navbar-brand d-flex align-items-center" href="/index.html">
+                <span class="me-2">📊</span> BonusTracker
+            </a>
+            
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
             </button>
+            
             <div class="collapse navbar-collapse" id="navbarNav">
-                <ul class="navbar-nav me-auto">
+                <ul class="navbar-nav ms-lg-4 me-auto">
                     <li class="nav-item">
                         <a class="nav-link ${currentPath === '/index.html' || currentPath === '/' ? 'active' : ''}" href="/index.html">Dashboard</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link ${currentPath.includes('upload.html') ? 'active' : ''}" href="/pages/upload.html">Import</a>
+                        <a class="nav-link ${currentPath.includes('upload.html') ? 'active' : ''}" href="/pages/upload.html">Upload</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${currentPath.includes('payments.html') ? 'active' : ''}" href="/pages/payments.html">Payments</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link ${currentPath.includes('help.html') ? 'active' : ''}" href="/pages/help.html">Help</a>
-                    </li>
                     ${isAdmin ? `
-                    <li class="nav-item">
-                        <a class="nav-link ${currentPath.includes('audit-logs.html') ? 'active' : ''}" href="/pages/audit-logs.html">Audit Logs</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link ${currentPath.includes('users.html') ? 'active' : ''}" href="/pages/users.html">Users</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">Admin</a>
+                        <ul class="dropdown-menu border-0 shadow-sm">
+                            <li><a class="dropdown-item" href="/pages/users.html">User Management</a></li>
+                            <li><a class="dropdown-item" href="/pages/audit-logs.html">Audit Trail</a></li>
+                        </ul>
                     </li>
                     ` : ''}
                 </ul>
+                
                 <div class="d-flex align-items-center">
-                    <span class="text-white me-3">${user ? user.full_name : ''}</span>
-                    <button class="btn btn-outline-light btn-sm" onclick="auth.logout()">Logout</button>
+                    <div class="user-profile-nav me-3 d-none d-md-flex">
+                        <div class="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; border-radius: 50%; font-weight: 700; font-size: 0.8rem;">
+                            ${user ? user.full_name.charAt(0) : 'U'}
+                        </div>
+                        <span class="small fw-semibold text-dark">${user ? user.full_name : 'User'}</span>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="auth.logout()">Logout</button>
                 </div>
             </div>
         </div>
@@ -47,5 +53,5 @@ document.addEventListener('DOMContentLoaded', () => {
     `;
     
     // Insert at the beginning of body
-    headerContainer.insertAdjacentHTML('afterbegin', navHtml);
+    document.body.insertAdjacentHTML('afterbegin', navHtml);
 });

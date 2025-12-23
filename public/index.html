@@ -6,80 +6,91 @@
     <title>Dashboard - Driver Bonus Platform</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </head>
-<body class="bg-light">
+<body>
     <!-- Header injected by ui.js -->
 
-    <div class="container mt-4">
-        <div class="row">
-            <div class="col-md-8">
-                <h1>Dashboard</h1>
-                <p>Welcome to the Driver Bonus Tracking Platform.</p>
+    <div class="container pb-5">
+        <div class="row align-items-center mb-5">
+            <div class="col-md-7">
+                <h1 class="display-6 mb-1">Welcome back! 👋</h1>
+                <p class="text-muted fs-5">Here's what's happening with driver bonuses today.</p>
             </div>
-            <div class="col-md-4">
-                <div class="input-group mb-3">
-                    <input type="text" id="driverSearchInput" class="form-control" placeholder="Search driver by name or ID...">
-                    <button class="btn btn-primary" type="button" id="searchBtn">Search</button>
+            <div class="col-md-5">
+                <div class="search-container-modern ms-auto">
+                    <i class="fas fa-search"></i>
+                    <input type="text" id="driverSearchInput" class="form-control shadow-sm border-0 py-3" placeholder="Search driver by name or ID...">
+                    <div id="searchResults" class="list-group position-absolute shadow-lg w-100 d-none mt-2 rounded-3 overflow-hidden" style="z-index: 1000;"></div>
                 </div>
-                <div id="searchResults" class="list-group position-absolute shadow w-25 d-none" style="z-index: 1000;"></div>
             </div>
         </div>
         
-        <div class="row mt-4">
+        <!-- Metrics Section -->
+        <div class="row g-4 mb-5">
             <div class="col-md-4">
-                <div class="card bg-white shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted">Total Pending Bonuses</h5>
-                        <h2 class="card-text" id="statPendingAmount">0.00 ETB</h2>
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #eff6ff; color: var(--primary-blue);">
+                        <i class="fas fa-money-bill-wave"></i>
                     </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Total Pending</div>
+                    <div class="value mb-2" id="statPendingAmount">0.00 ETB</div>
+                    <div class="change up"><i class="fas fa-arrow-up me-1"></i> Live tracking</div>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card bg-white shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted">Unverified Drivers</h5>
-                        <h2 class="card-text" id="statUnverifiedDrivers">0</h2>
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #fff7ed; color: var(--warning-orange);">
+                        <i class="fas fa-users"></i>
                     </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Unverified Drivers</div>
+                    <div class="value mb-2" id="statUnverifiedDrivers">0</div>
+                    <div class="change text-muted">Awaiting verification</div>
                 </div>
             </div>
             <div class="col-md-4">
-                <div class="card bg-white shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title text-muted">Recent Imports</h5>
-                        <h2 class="card-text" id="statRecentImports">0</h2>
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #f0fdf4; color: var(--success-green);">
+                        <i class="fas fa-file-import"></i>
                     </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Recent Imports</div>
+                    <div class="value mb-2" id="statRecentImports">0</div>
+                    <div class="change text-muted">Total history</div>
                 </div>
             </div>
         </div>
 
-        <div class="row mt-4">
-            <div class="col-12">
-                <div class="card shadow-sm">
-                    <div class="card-body">
-                        <h5 class="card-title">Unverified Drivers with Pending Bonuses</h5>
-                        <div class="table-responsive">
-                            <table class="table table-hover mt-3">
-                                <thead>
-                                    <tr>
-                                        <th>Driver Name</th>
-                                        <th>Driver ID</th>
-                                        <th>Weeks</th>
-                                        <th>Total Pending</th>
-                                        <th>Latest Bonus</th>
-                                        <th>Action</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="pendingDriversTableBody">
-                                    <tr><td colspan="6" class="text-center">Loading pending bonuses...</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+        <!-- Main Table Section -->
+        <div class="card-premium p-4">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h2 class="h4 mb-0">Unverified Drivers with Pending Bonuses</h2>
+                <a href="/pages/upload.html" class="btn btn-brand btn-sm px-4">
+                    <i class="fas fa-plus me-2"></i> New Import
+                </a>
+            </div>
+            
+            <div class="table-responsive">
+                <table class="table table-premium">
+                    <thead>
+                        <tr>
+                            <th>Driver</th>
+                            <th>Driver ID</th>
+                            <th>Weeks</th>
+                            <th>Total Pending</th>
+                            <th>Latest Bonus</th>
+                            <th class="text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="pendingDriversTableBody">
+                        <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
+    <!-- Modals and Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="js/api.js"></script>
     <script src="js/auth.js"></script>
     <script src="js/ui.js"></script>
@@ -104,15 +115,17 @@
                         drivers.forEach(driver => {
                             const a = document.createElement('a');
                             a.href = `/pages/driver-detail.html?id=${driver.driver_id}`;
-                            a.className = 'list-group-item list-group-item-action';
+                            a.className = 'list-group-item list-group-item-action border-0 py-3';
                             a.innerHTML = `
-                                <div class="d-flex w-100 justify-content-between">
-                                    <h6 class="mb-1">${driver.full_name}</h6>
-                                    <small class="${driver.verified ? 'text-success' : 'text-warning'}">
+                                <div class="d-flex w-100 justify-content-between align-items-center">
+                                    <div>
+                                        <h6 class="mb-0 fw-bold">${driver.full_name}</h6>
+                                        <small class="text-muted">${driver.driver_id.substring(0, 12)}...</small>
+                                    </div>
+                                    <span class="badge-status ${driver.verified ? 'badge-verified' : 'badge-unverified'}">
                                         ${driver.verified ? 'Verified' : 'Unverified'}
-                                    </small>
+                                    </span>
                                 </div>
-                                <small class="text-muted">${driver.driver_id}</small>
                             `;
                             searchResults.appendChild(a);
                         });
@@ -135,7 +148,7 @@
         async function loadDashboardStats() {
             try {
                 const pending = await api.get('/bonuses/pending');
-                const totalAmount = pending.reduce((sum, d) => sum + parseFloat(d.total_pending), 0);
+                const totalAmount = pending.reduce((sum, d) => sum + parseFloat(d.total_bonus || 0), 0);
                 
                 document.getElementById('statPendingAmount').textContent = `${totalAmount.toLocaleString()} ETB`;
                 document.getElementById('statUnverifiedDrivers').textContent = pending.length;
@@ -146,26 +159,30 @@
                 const tbody = document.getElementById('pendingDriversTableBody');
                 tbody.innerHTML = '';
                 if (pending.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="6" class="text-center">No pending bonuses found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No pending bonuses found</td></tr>';
                     return;
                 }
 
                 pending.forEach(d => {
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
-                        <td>${d.full_name}</td>
-                        <td>${d.driver_id}</td>
-                        <td>${d.weeks_pending}</td>
-                        <td class="fw-bold text-primary">${parseFloat(d.total_pending).toLocaleString()} ETB</td>
-                        <td>${new Date(d.latest_bonus_date).toLocaleDateString()}</td>
                         <td>
-                            <a href="/pages/driver-detail.html?id=${d.driver_id}" class="btn btn-sm btn-outline-primary">View & Pay</a>
+                            <div class="fw-bold">${d.full_name}</div>
+                            <div class="small text-muted">${d.phone_number || 'No phone'}</div>
+                        </td>
+                        <td class="small text-muted font-monospace">${d.driver_id.substring(0, 12)}...</td>
+                        <td class="fw-semibold">${d.weeks_count || 0}</td>
+                        <td class="fw-bold text-primary fs-5">${parseFloat(d.total_bonus || 0).toLocaleString()} <small class="fw-normal fs-6">ETB</small></td>
+                        <td>${new Date(d.last_week || d.latest_bonus_date).toLocaleDateString()}</td>
+                        <td class="text-end">
+                            <a href="/pages/driver-detail.html?id=${d.driver_id}" class="btn btn-brand btn-sm px-3 shadow-none">View Details</a>
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
             } catch (error) {
                 console.error('Error loading stats:', error);
+                document.getElementById('pendingDriversTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger">Failed to load dashboard data</td></tr>';
             }
         }
 
