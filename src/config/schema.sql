@@ -58,23 +58,6 @@ CREATE TABLE IF NOT EXISTS import_logs (
   INDEX idx_week_date (week_date)
 );
 
--- Bonuses Table
-CREATE TABLE IF NOT EXISTS bonuses (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  driver_id VARCHAR(64) NOT NULL,
-  week_date DATE NOT NULL,
-  net_payout DECIMAL(10, 2) NOT NULL,
-  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  import_log_id INT,
-  payment_id INT,
-  FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
-  FOREIGN KEY (import_log_id) REFERENCES import_logs(id),
-  FOREIGN KEY (payment_id) REFERENCES payments(id),
-  INDEX idx_driver_week (driver_id, week_date),
-  INDEX idx_week_date (week_date),
-  UNIQUE KEY unique_driver_week (driver_id, week_date)
-);
-
 -- Payments Table
 CREATE TABLE IF NOT EXISTS payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
@@ -91,6 +74,23 @@ CREATE TABLE IF NOT EXISTS payments (
   FOREIGN KEY (processed_by) REFERENCES users(id),
   INDEX idx_driver_id (driver_id),
   INDEX idx_payment_date (payment_date)
+);
+
+-- Bonuses Table
+CREATE TABLE IF NOT EXISTS bonuses (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id VARCHAR(64) NOT NULL,
+  week_date DATE NOT NULL,
+  net_payout DECIMAL(10, 2) NOT NULL,
+  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  import_log_id INT,
+  payment_id INT,
+  FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
+  FOREIGN KEY (import_log_id) REFERENCES import_logs(id),
+  FOREIGN KEY (payment_id) REFERENCES payments(id),
+  INDEX idx_driver_week (driver_id, week_date),
+  INDEX idx_week_date (week_date),
+  UNIQUE KEY unique_driver_week (driver_id, week_date)
 );
 
 -- Audit Logs Table
