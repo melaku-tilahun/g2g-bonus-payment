@@ -40,6 +40,7 @@ CREATE TABLE IF NOT EXISTS drivers (
 CREATE TABLE IF NOT EXISTS import_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   file_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(255) NULL,
   week_date DATE NOT NULL,
   total_records INT NOT NULL,
   success_count INT NOT NULL,
@@ -98,8 +99,9 @@ CREATE TABLE IF NOT EXISTS audit_logs (
   user_id INT,
   action VARCHAR(255) NOT NULL,
   entity_type VARCHAR(50),
-  entity_id INT,
+  entity_id VARCHAR(64),
   details JSON,
+  ip_address VARCHAR(45),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (user_id) REFERENCES users(id),
   INDEX idx_user_id (user_id),
