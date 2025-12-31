@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verified Drivers - Driver Bonus Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body class="bg-light">
+    <!-- Header injected by ui.js -->
+
+    <div class="container py-4 pb-5">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="display-6 mb-0">Verified Drivers</h1>
+        </div>
+
+        <!-- Search & Filter Bar -->
+        <div class="card-premium p-4 mb-5">
+            <div class="row g-3">
+                <div class="col-md-9">
+                    <div class="search-container-modern max-width-100" style="max-width: 100%;">
+                        <i class="fas fa-search"></i>
+                        <input type="text" id="mainSearchInput" class="form-control form-control-lg border-0 bg-light shadow-sm" placeholder="Search verified drivers by name, ID, or phone...">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <select id="sortFilter" class="form-select form-select-lg border-0 bg-light shadow-sm">
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                        <option value="newest">Recently Verified</option>
+                    </select>
+                </div>
+            </div>
+        </div>
+
+        <!-- Progress Indicator -->
+        <div id="searchLoader" class="text-center py-5 d-none">
+            <div class="spinner-border text-primary" role="status"></div>
+            <p class="text-muted mt-2">Loading drivers...</p>
+        </div>
+
+        <!-- Results Table -->
+        <div class="card-premium p-0 overflow-hidden mb-4">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Driver</th>
+                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Contact</th>
+                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Verified On</th>
+                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Pending Bonus</th>
+                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold text-end">Action</th>
+                        </tr>
+                    </thead>
+                    <tbody id="driversTableBody">
+                        <!-- Rows injected here -->
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Empty State (initially hidden) -->
+            <div id="emptySearchState" class="text-center py-5 d-none">
+                <div class="text-muted mb-3"><i class="fas fa-check-circle fs-1"></i></div>
+                <h5 class="fw-bold">No verified drivers found</h5>
+                <p class="text-muted">Drivers who have been verified will appear here.</p>
+            </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="paginationContainer" class="d-flex justify-content-center mt-5 d-none">
+            <!-- Injected by JS -->
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/ui.js"></script>
+    <script src="../js/verified-drivers.js"></script>
+</body>
+</html>

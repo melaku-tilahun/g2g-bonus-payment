@@ -34,18 +34,44 @@ const uploadController = {
       return res.status(400).json({ message: 'No file uploaded' });
     }
 
-    const { week_date } = req.body;
-    if (!week_date) {
-        return res.status(400).json({ message: 'Week date is required for import' });
-    }
-
     const filePath = req.file.path;
     const connection = await pool.getConnection();
 
     try {
-      await connection.beginTransaction();
-
+      // 1. Parse file FIRST to get the date
       const parsedData = await excelParser.parse(filePath);
+
+      if (parsedData.length === 0) {
+        throw new Error('Excel file contains no data rows.');
+      }
+
+      // 2. Extract week_date from the first row (assuming all rows belong to same week)
+      // Note: excelParser returns raw values, ensure date is handled correctly
+      const fileDate = parsedData[0].week_date; // Assuming all rows have same date or strictly enforcing first row's date
+      
+      if (!fileDate) {
+         throw new Error('Could not determine Week Date from the Excel file. Please ensure the Date column is filled.');
+      }
+
+      // Format date to YYYY-MM-DD for consistency
+      const week_date = new Date(fileDate).toISOString().split('T')[0];
+
+      // 3. Check for duplicate import using FILE date
+      const [existingLogs] = await connection.query(
+        "SELECT id FROM import_logs WHERE week_date = ? AND status IN ('success', 'partial') LIMIT 1",
+        [week_date]
+      );
+
+      if (existingLogs.length > 0) {
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+        return res.status(409).json({ 
+          message: `Bonuses for this date (${week_date}) have already been imported successfully.` 
+        });
+      }
+
+      await connection.beginTransaction();
       
       let successCount = 0;
       let skippedCount = 0;
@@ -62,7 +88,6 @@ const uploadController = {
       );
       const importLogId = importLogResult.insertId;
 
-      // Batch processing Setup
       // Batch processing Setup
       const driverIds = parsedData.map(r => r.driver_id).filter(id => id);
       const driverMap = new Map();
@@ -98,9 +123,8 @@ const uploadController = {
             existingDriversCount++;
         }
 
-        // Prioritize the date selected in the UI (form) over the one in the file
-        // This allows users to import files even if the internal date column is stale/wrong
-        const effectiveDate = new Date(week_date || row.week_date);
+        // Use the date from the file row (or the standardized week_date)
+        const effectiveDate = new Date(week_date);
         
         bonusesToInsert.push([row.driver_id, effectiveDate, row.net_payout, importLogId]);
       }

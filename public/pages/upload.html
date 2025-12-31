@@ -51,15 +51,30 @@
                                     <button type="button" id="removeFileBtn" class="btn btn-link text-danger p-0"><i class="fas fa-times"></i></button>
                                 </div>
 
-                                <h3 class="h5 mb-4 d-flex align-items-center">
-                                    <span class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px; font-size: 0.8rem;">2</span>
-                                    Set Week Date
-                                </h3>
-                                
-                                <div class="mb-4">
-                                    <label for="weekDate" class="form-label small fw-bold text-uppercase text-muted">Week Starting Date</label>
-                                    <input type="date" class="form-control form-control-lg border-0 shadow-sm" id="weekDate" required>
-                                    <div class="form-text mt-2 small">This date represents the Monday of the bonus week.</div>
+                                <!-- File Analysis Section (Replaces Date Picker) -->
+                                <div id="fileAnalysis" class="d-none mb-4">
+                                    <h5 class="fw-bold text-muted mb-3 small text-uppercase">File Analysis</h5>
+                                    <div class="p-4 bg-light rounded-3 border">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="bg-primary bg-opacity-10 text-primary rounded px-3 py-2 me-3">
+                                                <i class="fas fa-calendar-alt fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <div class="small text-muted fw-bold">DETECTED WEEK DATE</div>
+                                                <div class="h5 mb-0 fw-bold text-dark" id="detectedDateDisplay">Scanning...</div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-success bg-opacity-10 text-success rounded px-3 py-2 me-3">
+                                                <i class="fas fa-check-circle fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <div class="small text-muted fw-bold">VALIDATION STATUS</div>
+                                                <div class="h5 mb-0 fw-bold text-success">Ready to Import</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-text mt-2 small text-muted"><i class="fas fa-info-circle me-1"></i> The system detected this date from your file. Validations will be performed against this date.</div>
                                 </div>
 
                                 <button type="submit" id="uploadBtn" class="btn btn-brand w-100 py-3 shadow-none mt-2" disabled>

@@ -28,6 +28,9 @@ document.addEventListener('DOMContentLoaded', () => {
                         <a class="nav-link ${currentPath.includes('search.html') ? 'active' : ''}" href="/pages/search.html">Search</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link ${currentPath.includes('verified-drivers.html') ? 'active' : ''}" href="/pages/verified-drivers.html">Verified Drivers</a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link ${currentPath.includes('payments.html') ? 'active' : ''}" href="/pages/payments.html">Payments</a>
                     </li>
                     ${isAdmin ? `

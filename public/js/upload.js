@@ -61,6 +61,18 @@ document.addEventListener('DOMContentLoaded', () => {
             updateItem('data', stats.has_data);
 
             if (response.ready_for_import) {
+                // Show File Analysis
+                document.getElementById('fileAnalysis').classList.remove('d-none');
+                
+                // Format detected date nicely
+                const rawDate = stats.detected_date;
+                const dateObj = new Date(rawDate);
+                const formattedDate = !isNaN(dateObj) 
+                    ? dateObj.toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) 
+                    : rawDate;
+                
+                document.getElementById('detectedDateDisplay').textContent = formattedDate;
+
                 uploadBtn.disabled = false;
                 ui.toast('File validated successfully!', 'success');
             } else {
@@ -68,6 +80,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 let msg = 'Validation failed.';
                 if (stats.suggestions && stats.suggestions.length > 0) {
                      msg += ' ' + stats.suggestions[0];
+                } else if (!stats.detected_date) {
+                     msg += ' Could not detect a valid date in the file.';
                 }
                 ui.toast(msg, 'error');
             }
@@ -80,20 +94,14 @@ document.addEventListener('DOMContentLoaded', () => {
     uploadForm.onsubmit = async (e) => {
         e.preventDefault();
         const file = excelFile.files[0];
-        const weekDate = document.getElementById('weekDate').value;
 
-        if (!file || !weekDate) return;
-        
-        // Append time to date to ensure timezone consistency if needed, 
-        // but input type="date" value is YYYY-MM-DD. 
-        // Backend parses new Date(week_date).
+        if (!file) return;
 
         try {
             uploadBtn.disabled = true;
             uploadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
 
             const formData = new FormData();
-            formData.append('week_date', weekDate); // Backend expects week_date (snake_case)
             formData.append('file', file);
 
             // Progress Bar simulation (real progress requires XHR)

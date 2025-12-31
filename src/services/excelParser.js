@@ -17,6 +17,7 @@ const excelParser = {
     let numericValid = true;
     let missingColumns = [];
     let suggestions = [];
+    let detectedDate = null;
 
     if (singleSheet) {
       const worksheet = workbook.worksheets[0];
@@ -51,13 +52,29 @@ const excelParser = {
 
       if (requiredPresent) {
         const netPayoutIdx = normalizedHeaders.indexOf('net payout') + 1;
+        const dateIdx = normalizedHeaders.indexOf('date') + 1;
+
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return;
+          
+          // Validate Numeric Payout
           const val = row.getCell(netPayoutIdx).value;
-          // Handle cases where val might be an object (like { formula: '...', result: 123 })
           const numericVal = (val && typeof val === 'object' && val.result !== undefined) ? val.result : val;
           if (val !== null && val !== undefined && isNaN(parseFloat(numericVal))) {
             numericValid = false;
+          }
+
+          // Detect Date (from first row only)
+          if (rowNumber === 2 && dateIdx > 0) {
+              const dateVal = row.getCell(dateIdx).value;
+              if (dateVal) {
+                  // Normalize date if needed, but for display sending raw or ISO string is fine
+                  try {
+                    detectedDate = new Date(dateVal).toISOString().split('T')[0];
+                  } catch (e) {
+                    detectedDate = "Invalid Date Format";
+                  }
+              }
           }
         });
       }
@@ -84,10 +101,11 @@ const excelParser = {
         has_data: hasData,
         numeric_validation: numericValid,
         missing_columns: missingColumns,
-        suggestions: suggestions
+        suggestions: suggestions,
+        detected_date: detectedDate
       },
       checklist,
-      ready_for_import: readable && singleSheet && requiredPresent && hasData && numericValid
+      ready_for_import: readable && singleSheet && requiredPresent && hasData && numericValid && detectedDate
     };
   },
 
