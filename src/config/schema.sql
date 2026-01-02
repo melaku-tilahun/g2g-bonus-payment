@@ -28,11 +28,19 @@ CREATE TABLE IF NOT EXISTS drivers (
   verified BOOLEAN DEFAULT FALSE,
   verified_date DATE NULL,
   verified_by INT NULL,
+  -- TIN Verification Fields
+  tin VARCHAR(50) NULL,
+  business_name VARCHAR(255) NULL,
+  licence_number VARCHAR(100) NULL,
+  manager_name VARCHAR(255) NULL,
+  manager_photo TEXT NULL,
+  tin_verified_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_driver_id (driver_id),
   INDEX idx_verified (verified),
   INDEX idx_name (full_name),
+  INDEX idx_tin (tin),
   FOREIGN KEY (verified_by) REFERENCES users(id)
 );
 

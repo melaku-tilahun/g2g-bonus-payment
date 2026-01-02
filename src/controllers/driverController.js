@@ -1,11 +1,12 @@
 const pool = require("../config/database");
 const AuditService = require("../services/auditService");
+const TINVerificationService = require("../services/tinVerificationService");
 
 const driverController = {
   search: async (req, res) => {
     try {
       const { q, status, page = 1, limit = 25 } = req.query;
-      
+
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
@@ -14,17 +15,22 @@ const driverController = {
       let queryParams = [];
 
       if (q) {
-        whereConditions.push("(d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)");
+        whereConditions.push(
+          "(d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)"
+        );
         queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`);
       }
 
-      if (status === 'verified') {
+      if (status === "verified") {
         whereConditions.push("d.verified = TRUE");
-      } else if (status === 'unverified') {
+      } else if (status === "unverified") {
         whereConditions.push("d.verified = FALSE");
       }
 
-      const whereClause = whereConditions.length > 0 ? 'WHERE ' + whereConditions.join(' AND ') : '';
+      const whereClause =
+        whereConditions.length > 0
+          ? "WHERE " + whereConditions.join(" AND ")
+          : "";
 
       // Get Total Count
       const [countRows] = await pool.query(
@@ -46,15 +52,15 @@ const driverController = {
          LIMIT ? OFFSET ?`,
         [...queryParams, limitNum, offset]
       );
-      
+
       res.json({
-          drivers: rows,
-          total: countRows[0].total,
-          pagination: {
-              page: parseInt(page),
-              limit: limitNum,
-              total_pages: Math.ceil(countRows[0].total / limitNum)
-          }
+        drivers: rows,
+        total: countRows[0].total,
+        pagination: {
+          page: parseInt(page),
+          limit: limitNum,
+          total_pages: Math.ceil(countRows[0].total / limitNum),
+        },
       });
     } catch (error) {
       console.error("Search drivers error:", error);
@@ -81,25 +87,103 @@ const driverController = {
   verify: async (req, res) => {
     try {
       const { id } = req.params;
-      const { verified_date } = req.body;
-
-      // Password check removed as per user request (replaced with 'yes' confirmation on frontend)
+      const {
+        verified_date,
+        tin,
+        business_name,
+        licence_number,
+        manager_name,
+        manager_photo,
+        admin_override,
+      } = req.body;
 
       console.log(`Verifying driver ${id} by user ${req.user.id}`);
 
+      // Admin override allows verification without TIN (for edge cases)
+      if (!admin_override && !tin) {
+        return res.status(400).json({
+          message:
+            "TIN is required for verification. Admins can use override if needed.",
+        });
+      }
+
+      // Prepare update query
+      const updateFields = {
+        verified: true,
+        verified_date: verified_date || new Date(),
+        verified_by: req.user.id,
+        tin: tin || null,
+        business_name: business_name || null,
+        licence_number: licence_number || null,
+        manager_name: manager_name || null,
+        manager_photo: manager_photo || null,
+        tin_verified_at: tin ? new Date() : null,
+      };
+
       await pool.query(
-        "UPDATE drivers SET verified = TRUE, verified_date = ?, verified_by = ? WHERE driver_id = ?",
-        [verified_date || new Date(), req.user.id, id]
+        `UPDATE drivers SET 
+          verified = ?, 
+          verified_date = ?, 
+          verified_by = ?,
+          tin = ?,
+          business_name = ?,
+          licence_number = ?,
+          manager_name = ?,
+          manager_photo = ?,
+          tin_verified_at = ?
+        WHERE driver_id = ?`,
+        [
+          updateFields.verified,
+          updateFields.verified_date,
+          updateFields.verified_by,
+          updateFields.tin,
+          updateFields.business_name,
+          updateFields.licence_number,
+          updateFields.manager_name,
+          updateFields.manager_photo,
+          updateFields.tin_verified_at,
+          id,
+        ]
       );
 
       await AuditService.log(req.user.id, "Verify Driver", "driver", id, {
-        verified_date,
+        verified_date: updateFields.verified_date,
+        tin: updateFields.tin,
+        business_name: updateFields.business_name,
+        admin_override: admin_override || false,
       });
 
       res.json({ message: "Driver verified successfully" });
     } catch (error) {
       console.error("Verify driver error:", error);
       res.status(500).json({ message: "Internal server error" });
+    }
+  },
+
+  lookupTIN: async (req, res) => {
+    try {
+      const { tin } = req.params;
+
+      // Validate TIN format
+      if (!TINVerificationService.validateTINFormat(tin)) {
+        return res.status(400).json({
+          message: "Invalid TIN format. TIN should be 8-12 digits.",
+        });
+      }
+
+      // Fetch business data from Ministry of Revenue API
+      const businessData = await TINVerificationService.lookupTIN(tin);
+
+      res.json({
+        success: true,
+        data: businessData,
+      });
+    } catch (error) {
+      console.error("TIN lookup error:", error);
+      res.status(400).json({
+        success: false,
+        message: error.message || "Failed to lookup TIN",
+      });
     }
   },
 
