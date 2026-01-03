@@ -1,17 +1,17 @@
-const pool = require('../config/database');
+const pool = require("../config/database");
 
 const bonusController = {
   getByDriver: async (req, res) => {
     try {
       const { driverId } = req.params;
-      const { sortBy = 'date', order = 'desc' } = req.query;
+      const { sortBy = "date", order = "desc" } = req.query;
 
       const validSortColumns = {
-        date: 'week_date',
-        amount: 'net_payout'
+        date: "week_date",
+        amount: "net_payout",
       };
-      const sortCol = validSortColumns[sortBy] || 'week_date';
-      const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+      const sortCol = validSortColumns[sortBy] || "week_date";
+      const sortOrder = order.toLowerCase() === "asc" ? "ASC" : "DESC";
 
       const [rows] = await pool.query(
         `SELECT b.*, il.file_name 
@@ -23,8 +23,8 @@ const bonusController = {
       );
       res.json(rows);
     } catch (error) {
-      console.error('Get bonuses error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      console.error("Get bonuses error:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   },
 
@@ -43,46 +43,63 @@ const bonusController = {
       );
       res.json(rows[0]);
     } catch (error) {
-      console.error('Get total bonus error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      console.error("Get total bonus error:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
   },
 
   getPending: async (req, res) => {
     try {
-      const { sortBy = 'amount', order = 'desc', page = 1, limit = 25, q } = req.query;
-      
+      const {
+        sortBy = "amount",
+        order = "desc",
+        page = 1,
+        limit = 25,
+        q,
+      } = req.query;
+
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
       const sortOptions = {
-          amount: 'total_pending',
-          driver: 'full_name',
-          date: 'latest_bonus_date'
+        amount: "total_pending",
+        driver: "full_name",
+        date: "latest_bonus_date",
       };
-      const sortCol = sortOptions[sortBy] || 'total_pending';
-      const sortOrder = order.toLowerCase() === 'asc' ? 'ASC' : 'DESC';
+      const sortCol = sortOptions[sortBy] || "total_pending";
+      const sortOrder = order.toLowerCase() === "asc" ? "ASC" : "DESC";
 
       // Base WHERE clause
-      let whereClause = "d.verified = FALSE AND b.payment_id IS NULL";
+      let whereClause = "b.payment_id IS NULL";
       const queryParams = [];
 
+      if (req.query.status === "verified") {
+        whereClause += " AND d.verified = TRUE";
+      } else if (req.query.status === "unverified") {
+        whereClause += " AND d.verified = FALSE";
+      }
+      // If no status or 'all', no verified filter applied (All drivers)
+
       if (q) {
-          whereClause += " AND (d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)";
-          queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`);
+        whereClause +=
+          " AND (d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)";
+        queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`);
       }
 
       // 1. Get Totals
       // Re-use params for count query
-      const [totalRows] = await pool.query(`
+      const [totalRows] = await pool.query(
+        `
         SELECT 
           COUNT(DISTINCT d.driver_id) as total_drivers,
           SUM(b.net_payout) as total_amount
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
         WHERE ${whereClause}
-      `, queryParams);
-      
+      `,
+        queryParams
+      );
+
       const totalDrivers = totalRows[0].total_drivers || 0;
       const totalPendingAmount = totalRows[0].total_amount || 0;
 
@@ -90,7 +107,8 @@ const bonusController = {
       // Copy params for main query and add limit/offset
       const mainQueryParams = [...queryParams, limitNum, offset];
 
-      const [rows] = await pool.query(`
+      const [rows] = await pool.query(
+        `
         SELECT 
           d.driver_id,
           d.full_name,
@@ -104,7 +122,9 @@ const bonusController = {
         GROUP BY d.driver_id, d.full_name, d.phone_number
         ORDER BY ${sortCol} ${sortOrder}
         LIMIT ? OFFSET ?
-      `, mainQueryParams);
+      `,
+        mainQueryParams
+      );
 
       res.json({
         success: true,
@@ -112,16 +132,16 @@ const bonusController = {
         total_pending_amount: totalPendingAmount,
         total_drivers: totalDrivers,
         pagination: {
-            page: parseInt(page),
-            limit: limitNum,
-            total_pages: Math.ceil(totalDrivers / limitNum)
-        }
+          page: parseInt(page),
+          limit: limitNum,
+          total_pages: Math.ceil(totalDrivers / limitNum),
+        },
       });
     } catch (error) {
-      console.error('Get pending bonuses error:', error);
-      res.status(500).json({ message: 'Internal server error' });
+      console.error("Get pending bonuses error:", error);
+      res.status(500).json({ message: "Internal server error" });
     }
-  }
+  },
 };
 
 module.exports = bonusController;

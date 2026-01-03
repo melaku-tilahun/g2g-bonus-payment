@@ -10,5 +10,6 @@ router.get("/search", driverController.search);
 router.get("/tin/:tin", driverController.lookupTIN);
 router.get("/:id", driverController.getById);
 router.put("/:id/verify", driverController.verify);
+router.put("/:id/revert", driverController.revertVerification);
 
 module.exports = router;

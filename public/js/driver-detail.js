@@ -8,7 +8,6 @@ document.addEventListener("DOMContentLoaded", async () => {
   }
 
   const modal = new bootstrap.Modal(document.getElementById("verifyModal"));
-  const payModal = new bootstrap.Modal(document.getElementById("paymentModal"));
 
   let currentUser = null;
   let fetchedBusinessData = null;
@@ -26,7 +25,8 @@ document.addEventListener("DOMContentLoaded", async () => {
   try {
     const driver = await api.get(`/drivers/${driverId}`);
     const bonuses = await api.get(`/bonuses/driver/${driverId}`);
-    renderDriver(driver, bonuses);
+    renderDriver(driver, bonuses, currentUser);
+    loadPaymentHistory(driverId);
   } catch (error) {
     ui.toast("Failed to load driver details", "error");
     console.error(error);
@@ -142,6 +142,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     document.getElementById("businessDataSection").classList.remove("d-none");
+    // Hide Admin Override if we have actual TIN data
+    document.getElementById("adminOverrideSection").classList.add("d-none");
 
     // Reset checkboxes
     document.getElementById("confirmDataCheck").checked = false;
@@ -181,9 +183,52 @@ document.addEventListener("DOMContentLoaded", async () => {
   document
     .getElementById("libreraCheck")
     ?.addEventListener("change", updateVerifyButtonState);
+
   document
     .getElementById("adminOverrideCheck")
-    ?.addEventListener("change", updateVerifyButtonState);
+    ?.addEventListener("change", (e) => {
+      const tinInputSection = document.getElementById("tinInputSection");
+      if (e.target.checked) {
+        tinInputSection.classList.add("d-none");
+        // Clear TIN input if override is selected
+        document.getElementById("tinInput").value = "";
+      } else {
+        tinInputSection.classList.remove("d-none");
+      }
+      updateVerifyButtonState();
+    });
+
+  // Reset modal state when opened
+  document.getElementById("markVerifiedBtn").addEventListener("click", () => {
+    // Check if user is admin
+    const user = auth.getUser();
+    const isAdmin = user && user.role === "admin";
+
+    // Reset business data section
+    document.getElementById("businessDataSection").classList.add("d-none");
+    fetchedBusinessData = null;
+
+    // Reset visibility of input sections
+    document.getElementById("tinInputSection").classList.remove("d-none");
+
+    const overrideSection = document.getElementById("adminOverrideSection");
+    if (isAdmin) {
+      overrideSection.classList.remove("d-none");
+    } else {
+      overrideSection.classList.add("d-none");
+    }
+
+    // Clear inputs
+    document.getElementById("tinInput").value = "";
+    document.getElementById("adminOverrideCheck").checked = false;
+
+    // Reset checkboxes
+    document.getElementById("confirmDataCheck").checked = false;
+    document.getElementById("driverLicenseCheck").checked = false;
+    document.getElementById("libreraCheck").checked = false;
+
+    updateVerifyButtonState();
+  });
 
   // Confirm Verification Button
   document.getElementById("confirmVerifyBtn").onclick = async () => {
@@ -230,63 +275,102 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
   };
 
-  // Payment Logic
-  document.getElementById("processPaymentBtn").onclick = () => {
-    document.getElementById("payDriverName").textContent =
-      document.getElementById("driverName").textContent;
-    document.getElementById("payAmount").value = document
-      .getElementById("totalBonus")
-      .textContent.replace(" ETB", "")
-      .replace(/,/g, "");
-    document.getElementById("payDate").valueAsDate = new Date();
-    payModal.show();
+  // Revert Logic
+  const revertModal = new bootstrap.Modal(
+    document.getElementById("revertModal")
+  );
+
+  document.getElementById("revertVerifiedBtn").onclick = () => {
+    // Clear fields
+    document.getElementById("revertPassword").value = "";
+    document.getElementById("revertReason").value = "";
+    revertModal.show();
   };
 
-  document.getElementById("confirmPayBtn").onclick = async () => {
-    const amount = document.getElementById("payAmount").value;
-    const method = document.getElementById("payMethod").value;
-    const periodStart = document.getElementById("payPeriodStart").value;
-    const periodEnd = document.getElementById("payPeriodEnd").value;
-    const notes = document.getElementById("payNotes").value;
+  document.getElementById("confirmRevertBtn").onclick = async () => {
+    const password = document.getElementById("revertPassword").value;
+    const reason = document.getElementById("revertReason").value;
 
-    const btn = document.getElementById("confirmPayBtn");
+    if (!password) {
+      ui.toast("Password is required", "error");
+      return;
+    }
+
+    const btn = document.getElementById("confirmRevertBtn");
     try {
       btn.disabled = true;
       btn.innerHTML =
-        '<span class="spinner-border spinner-border-sm"></span> Recording...';
+        '<span class="spinner-border spinner-border-sm me-2"></span> Reverting...';
 
-      await api.post("/payments", {
-        driver_id: driverId,
-        total_amount: amount,
-        payment_method: method,
-        bonus_period_start: periodStart,
-        bonus_period_end: periodEnd,
-        notes: notes,
-      });
+      await api.put(`/drivers/${driverId}/revert`, { password, reason });
 
-      ui.toast("Payment recorded successfully!", "success");
-      if (document.activeElement instanceof HTMLElement)
-        document.activeElement.blur();
-      payModal.hide();
+      ui.toast("Verification reverted successfully", "success");
+      revertModal.hide();
       setTimeout(() => window.location.reload(), 1000);
     } catch (error) {
-      ui.toast(error.message || "Payment failed", "error");
+      console.error(error);
+      ui.toast(error.message || "Failed to revert verification", "error");
       btn.disabled = false;
-      btn.textContent = "Record Payment";
+      btn.textContent = "Revert Status";
     }
   };
 });
 
 function showSkeletons() {
-  document.getElementById("bonusHistoryList").innerHTML = `
-        <div class="skeleton skeleton-text w-75 mb-4"></div>
-        <div class="skeleton skeleton-text w-100 mb-2"></div>
-        <div class="skeleton skeleton-text w-50 mb-2"></div>
-        <div class="skeleton skeleton-text w-100 mb-4"></div>
+  document.getElementById("bonusHistoryTableBody").innerHTML = `
+        <tr><td colspan="6"><div class="skeleton skeleton-text w-100"></div></td></tr>
+        <tr><td colspan="6"><div class="skeleton skeleton-text w-100"></div></td></tr>
+        <tr><td colspan="6"><div class="skeleton skeleton-text w-100"></div></td></tr>
     `;
 }
 
-function renderDriver(driver, bonuses) {
+async function loadPaymentHistory(driverId) {
+  const tbody = document.getElementById("paymentHistoryTableBody");
+  try {
+    const history = await api.get(`/payments/history?driver_id=${driverId}`);
+    tbody.innerHTML = "";
+
+    if (history.length === 0) {
+      tbody.innerHTML =
+        '<tr><td colspan="6" class="text-center py-4 text-muted">No payment history found</td></tr>';
+      return;
+    }
+
+    history.forEach((p) => {
+      const tr = document.createElement("tr");
+      const statusBadge =
+        p.status === "paid"
+          ? '<span class="badge bg-success bg-opacity-10 text-success">Paid</span>'
+          : '<span class="badge bg-warning bg-opacity-10 text-warning">Processing</span>';
+
+      tr.innerHTML = `
+                <td class="px-4 py-3 align-middle">${new Date(
+                  p.payment_date
+                ).toLocaleDateString()}</td>
+                <td class="px-4 py-3 align-middle fw-bold text-dark">${parseFloat(
+                  p.total_amount
+                ).toLocaleString()} ETB</td>
+                <td class="px-4 py-3 align-middle text-muted text-capitalize">${(
+                  p.payment_method || ""
+                ).replace("_", " ")}</td>
+                <td class="px-4 py-3 align-middle">${statusBadge}</td>
+                <td class="px-4 py-3 align-middle text-muted small">${
+                  p.notes || "-"
+                }</td>
+                <td class="px-4 py-3 align-middle text-muted small">${
+                  p.processed_by_name || "System"
+                }</td>
+            `;
+      tbody.appendChild(tr);
+    });
+  } catch (error) {
+    console.error("Failed to load payment history:", error);
+    tbody.innerHTML =
+      '<tr><td colspan="6" class="text-center py-4 text-danger">Failed to load history</td></tr>';
+  }
+}
+
+function renderDriver(driver, bonuses, currentUser) {
   document.getElementById("driverName").textContent = driver.full_name;
   document.getElementById("nameInitial").textContent =
     driver.full_name.charAt(0);
@@ -305,13 +389,30 @@ function renderDriver(driver, bonuses) {
 
   if (driver.verified) {
     document.getElementById("markVerifiedBtn").classList.add("d-none");
-    document.getElementById("processPaymentBtn").classList.remove("d-none");
+
+    // Show Revert Button ONLY for Admins
+    if (currentUser && currentUser.role === "admin") {
+      document.getElementById("revertVerifiedBtn").classList.remove("d-none");
+    }
     document
       .getElementById("verificationInfoSection")
       .classList.remove("d-none");
     document.getElementById("verifiedDateText").textContent = new Date(
       driver.verified_date
     ).toLocaleDateString();
+
+    // Show who verified the driver
+    if (driver.verified_by_name) {
+      const verifierSpan = document.createElement("span");
+      verifierSpan.className = "ms-2 text-muted small";
+      verifierSpan.innerHTML = `by <strong>${driver.verified_by_name}</strong>`;
+      // Check if already added to prevent duplicates
+      const parent = document.getElementById("verifiedDateText").parentNode;
+      if (!parent.querySelector(".ms-2.text-muted.small")) {
+        parent.appendChild(verifierSpan);
+      }
+    }
+
     document.getElementById("summaryStatus").textContent =
       "Verified for Payment";
 
@@ -327,17 +428,54 @@ function renderDriver(driver, bonuses) {
         driver.manager_name || "N/A";
 
       if (driver.manager_photo) {
-        document.getElementById("managerPhotoInfoImg").src =
-          driver.manager_photo;
+        const photoImg = document.getElementById("managerPhotoInfoImg");
+        // Fix: Ensure base64 gets prefix if it's not present
+        if (
+          driver.manager_photo.startsWith("http") ||
+          driver.manager_photo.startsWith("data:image")
+        ) {
+          photoImg.src = driver.manager_photo;
+        } else {
+          photoImg.src = `data:image/jpeg;base64,${driver.manager_photo}`;
+        }
         document.getElementById("managerPhotoInfo").style.display = "block";
       }
     }
   }
 
-  const total = bonuses.reduce((sum, b) => sum + parseFloat(b.net_payout), 0);
+  /* Total Calculations */
+  const total = bonuses.reduce(
+    (sum, b) => sum + parseFloat(b.net_payout || 0),
+    0
+  );
+  const totalGross = bonuses.reduce(
+    (sum, b) => sum + parseFloat(b.gross_payout || b.net_payout / 0.97),
+    0
+  );
+  const totalWithholding = bonuses.reduce(
+    (sum, b) => sum + parseFloat(b.withholding_tax || 0),
+    0
+  );
+
+  document.getElementById("totalBonus").textContent = `${total.toLocaleString(
+    undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+  )} ETB`;
+
+  // Update Reference Fields
   document.getElementById(
-    "totalBonus"
-  ).textContent = `${total.toLocaleString()} ETB`;
+    "totalGross"
+  ).textContent = `${totalGross.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ETB`;
+  document.getElementById(
+    "totalWithholding"
+  ).textContent = `${totalWithholding.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  })} ETB`;
+
   document.getElementById("weeksCount").textContent = bonuses.length;
 
   if (bonuses.length > 0) {
@@ -357,43 +495,49 @@ function renderDriver(driver, bonuses) {
 
     renderBonusList(bonuses);
   } else {
-    document.getElementById("bonusHistoryList").innerHTML = "";
-    document.getElementById("emptyBonusState").classList.remove("d-none");
+    document.getElementById("bonusHistoryTableBody").innerHTML =
+      '<tr><td colspan="6" class="text-center py-5 text-muted">No bonus records found</td></tr>';
   }
 }
 
 function renderBonusList(bonuses) {
-  const container = document.getElementById("bonusHistoryList");
-  container.innerHTML = "";
+  const tbody = document.getElementById("bonusHistoryTableBody");
+  tbody.innerHTML = "";
 
   bonuses
     .sort((a, b) => new Date(b.week_date) - new Date(a.week_date))
     .forEach((b) => {
-      const div = document.createElement("div");
-      div.className = "card-premium mb-3 p-3 border-0 bg-light";
-      div.innerHTML = `
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <div class="small text-muted text-uppercase fw-bold mb-1">Week Ending</div>
-                    <div class="fw-bold">${new Date(
-                      b.week_date
-                    ).toLocaleDateString("en-US", {
-                      weekday: "short",
-                      month: "short",
-                      day: "numeric",
-                      year: "numeric",
-                    })}</div>
-                </div>
-                <div class="text-end">
-                    <div class="h5 fw-bold text-primary mb-0">${parseFloat(
-                      b.net_payout
-                    ).toLocaleString()} ETB</div>
-                    <div class="small text-muted">Ref: ${
-                      b.file_name || "Manual Import"
-                    }</div>
-                </div>
-            </div>
+      const isPaid = !!b.payment_id;
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+            <td class="ps-4 align-middle">
+                ${new Date(b.week_date).toLocaleDateString("en-US", {
+                  weekday: "short",
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+            </td>
+            <td class="text-muted small align-middle">${
+              b.file_name || "Manual Import"
+            }</td>
+            <td class="align-middle">
+                ${
+                  isPaid
+                    ? '<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2">Paid</span>'
+                    : '<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2">Pending</span>'
+                }
+            </td>
+            <td class="text-muted align-middle">${parseFloat(
+              b.gross_payout || 0
+            ).toLocaleString()}</td>
+            <td class="text-muted align-middle">${parseFloat(
+              b.withholding_tax || 0
+            ).toLocaleString()}</td>
+            <td class="text-end pe-4 fw-bold text-dark align-middle">${parseFloat(
+              b.net_payout
+            ).toLocaleString()} ETB</td>
         `;
-      container.appendChild(div);
+      tbody.appendChild(tr);
     });
 }

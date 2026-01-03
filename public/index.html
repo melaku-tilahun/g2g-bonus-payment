@@ -11,11 +11,10 @@
 <body style="display: none;">
     <!-- Header injected by ui.js -->
 
-    <div class="container pb-5">
-        <div class="row align-items-center mb-5">
+    <div class="main-wrapper">
+        <div class="row align-items-center mb-4">
             <div class="col-md-7">
-                <h1 class="display-6 mb-1">Welcome back! 👋</h1>
-                <p class="text-muted fs-5">Take care and stay organized. Your attention matters!</p>
+                <h1 class="h4 mb-1">Dashboard</h1>
             </div>
             <div class="col-md-5">
                 <div class="search-container-modern ms-auto">
@@ -61,16 +60,17 @@
         </div>
 
         <!-- Main Table Section -->
-        <div class="card-premium p-4">
-            <div class="d-flex justify-content-between align-items-center mb-4">
-                <h2 class="h4 mb-0">Unverified Drivers</h2>
-                <a href="/pages/upload.html" class="btn btn-brand btn-sm px-4">
-                    <i class="fas fa-plus me-2"></i> New Import
-                </a>
-            </div>
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h2 class="h4 mb-0 fw-bold">Unverified Drivers</h2>
+            <a href="/pages/upload.html" class="btn btn-brand btn-sm px-4">
+                <i class="fas fa-plus me-2"></i> New Import
+            </a>
+        </div>
+
+        <div class="card-premium p-0 overflow-hidden mb-4">
             
             <div class="table-responsive">
-                <table class="table table-premium">
+                <table class="table table-excel table-hover">
                     <thead>
                         <tr>
                             <th>#</th>
@@ -88,7 +88,7 @@
                 </div>
             
             <!-- Dashboard Pagination -->
-            <div class="d-flex justify-content-between align-items-center mt-4">
+            <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top bg-light">
                 <span class="text-muted small" id="paginationInfo">Showing 0-0 of 0</span>
                 <nav>
                     <ul class="pagination pagination-sm mb-0">
@@ -237,10 +237,10 @@
                             <div class="small text-muted">${d.phone_number || 'No phone'}</div>
                         </td>
                         <td class="fw-semibold align-middle">${d.weeks_pending || 0}</td>
-                        <td class="fw-bold text-primary fs-5 align-middle">${parseFloat(d.total_pending || 0).toLocaleString()} <small class="fw-normal fs-6">ETB</small></td>
+                        <td class="fw-bold text-primary align-middle">${parseFloat(d.total_pending || 0).toLocaleString()} <small class="fw-normal text-xs text-muted">ETB</small></td>
                         <td class="align-middle">${new Date(d.last_week || d.latest_bonus_date).toLocaleDateString()}</td>
                         <td class="text-end align-middle">
-                            <a href="/pages/driver-detail.html?id=${d.driver_id}" class="btn btn-brand btn-sm px-3 shadow-none">View Details</a>
+                            <a href="/pages/driver-detail.html?id=${d.driver_id}" class="btn btn-brand btn-sm py-1 px-3 shadow-none" style="font-size: 0.75rem;">View</a>
                         </td>
                     `;
                     tbody.appendChild(tr);

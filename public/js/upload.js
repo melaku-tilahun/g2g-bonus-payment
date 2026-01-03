@@ -140,7 +140,42 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelector(".row.g-4").classList.add("d-none");
     document.getElementById("importResults").classList.remove("d-none");
 
-    document.getElementById("resTotal").textContent = data.total_records;
+    // Logic to detect if it was a strict Blocking failure
+    const isFailure =
+      data.success === false ||
+      (data.success_count === 0 && data.error_count > 0);
+
+    if (isFailure) {
+      // Update Icon and Text for Failure
+      const iconDiv = document.getElementById("resultIcon");
+      iconDiv.className =
+        "bg-danger text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3 shadow-lg";
+      iconDiv.innerHTML = '<i class="fas fa-times"></i>';
+
+      document.getElementById("resultTitle").textContent =
+        "Import Blocked / Failed";
+      document.getElementById("resultTitle").className =
+        "h3 fw-bold text-danger";
+      document.getElementById("resultSubtitle").textContent =
+        data.message || "Strict validation rules prevented this import.";
+    } else {
+      // Success State
+      const iconDiv = document.getElementById("resultIcon");
+      iconDiv.className =
+        "bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3 shadow-lg";
+      iconDiv.innerHTML = '<i class="fas fa-check"></i>';
+
+      document.getElementById("resultTitle").textContent =
+        "Import Successfully Completed!";
+      document.getElementById("resultTitle").className =
+        "h3 fw-bold text-success";
+      document.getElementById("resultSubtitle").textContent =
+        "Details of the processed file are below.";
+    }
+
+    document.getElementById("resTotal").textContent = data.summary
+      ? data.summary.total_records
+      : data.total_records;
     document.getElementById("resSuccess").textContent = data.success_count;
     document.getElementById("resSkipped").textContent = data.skipped_count;
     document.getElementById("resErrors").textContent = data.error_count;
@@ -151,7 +186,7 @@ document.addEventListener("DOMContentLoaded", () => {
       tbody.innerHTML = "";
       data.errors.forEach((err) => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td class="small">${err.row}</td><td class="small text-danger">${err.message}</td>`;
+        tr.innerHTML = `<td class="small fw-bold">${err.row}</td><td class="small text-danger">${err.message}</td>`;
         tbody.appendChild(tr);
       });
     }

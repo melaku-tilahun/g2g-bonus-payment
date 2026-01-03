@@ -10,26 +10,27 @@
 <body class="bg-light">
     <!-- Header injected by ui.js -->
 
-    <div class="container mt-4">
-        <h1>Payment History</h1>
+    <div class="main-wrapper">
+        <h1 class="h3 fw-bold mb-4">Payment</h1>
         
         <div class="card shadow-sm mt-4">
-            <div class="card-body">
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-excel table-hover align-middle">
                         <thead>
                             <tr>
                                 <th>Date</th>
                                 <th>Driver Name</th>
                                 <th>Driver ID</th>
                                 <th>Amount</th>
+                                <th>Status</th>
                                 <th>Method</th>
                                 <th>Processed By</th>
-                                <th>Notes</th>
+                                <th class="text-end">Action</th>
                             </tr>
                         </thead>
                         <tbody id="paymentTableBody">
-                            <tr><td colspan="7" class="text-center">Loading payments...</td></tr>
+                            <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -48,25 +49,70 @@
                 tbody.innerHTML = '';
                 
                 if (payments.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="7" class="text-center">No payment history found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No payment history found</td></tr>';
                     return;
                 }
 
                 payments.forEach(p => {
                     const tr = document.createElement('tr');
+                    const isProcessing = p.status === 'processing';
+                    // Fallback for older records without status (treat as paid if null?)
+                    // Schema default is 'processing', but old records might be null? 
+                    // Migration didn't update old records? 
+                    // The migration ADD STATUS NOT NULL DEFAULT 'processing'. So old records are 'processing'.
+                    // Wait, usually paid records are done.
+                    // But for this transition, let's treat 'processing' as actionable.
+
                     tr.innerHTML = `
-                        <td>${new Date(p.payment_date).toLocaleDateString()}</td>
-                        <td>${p.driver_name}</td>
-                        <td>${p.driver_id}</td>
-                        <td class="fw-bold">${parseFloat(p.total_amount).toLocaleString()} ETB</td>
-                        <td>${p.payment_method}</td>
-                        <td>${p.processed_by_name}</td>
-                        <td class="small text-muted">${p.notes || ''}</td>
+                        <td><small class="fw-bold">${new Date(p.payment_date).toLocaleDateString()}</small></td>
+                        <td>
+                            <div class="fw-bold">${p.driver_name}</div>
+                        </td>
+                        <td><small class="text-muted font-monospace">${p.driver_id}</small></td>
+                        <td class="fw-bold text-dark">${parseFloat(p.total_amount).toLocaleString()} ETB</td>
+                        <td>
+                            <span class="badge ${isProcessing ? 'bg-warning text-dark bg-opacity-25' : 'bg-success bg-opacity-10 text-success'} rounded-pill px-3">
+                                ${isProcessing ? 'Processing' : 'Paid'}
+                            </span>
+                        </td>
+                        <td><small>${p.payment_method}</small></td>
+                        <td><small>${p.processed_by_name}</small></td>
+                        <td class="text-end">
+                            ${isProcessing ? `
+                                <button onclick="confirmPayment(${p.id})" class="btn btn-outline-success btn-sm py-1 px-3 shadow-none border-2 fw-bold">
+                                    <i class="fas fa-check me-1"></i> Mark Paid
+                                </button>
+                            ` : `
+                                <span class="text-success small"><i class="fas fa-check-double me-1"></i> Done</span>
+                            `}
+                        </td>
                     `;
                     tbody.appendChild(tr);
                 });
             } catch (error) {
                 console.error(error);
+                document.getElementById('paymentTableBody').innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading history</td></tr>';
+            }
+        }
+
+        async function confirmPayment(id) {
+            if (!confirm('Are you sure you want to mark this payment as PAID? This will unblock uploads for this driver.')) return;
+
+            try {
+                // Find button and disable it
+                const btn = document.activeElement;
+                if(btn) {
+                    btn.disabled = true;
+                    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
+                }
+
+                await api.put(`/payments/${id}/confirm`);
+                ui.toast('Payment confirmed as Paid', 'success');
+                loadPayments(); // Reload table
+            } catch (error) {
+                console.error(error);
+                ui.toast(error.message || 'Failed to confirm payment', 'error');
+                loadPayments();
             }
         }
 

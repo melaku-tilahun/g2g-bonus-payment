@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Verified Drivers - Driver Bonus Platform</title>
+    <title>Unverified Drivers - Driver Bonus Platform</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
@@ -13,7 +13,7 @@
 
     <div class="main-wrapper">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h3 fw-bold mb-0">Verified Drivers</h1>
+            <h1 class="h3 fw-bold mb-0">Unverified Drivers</h1>
         </div>
 
         <!-- Search & Filter Bar -->
@@ -22,14 +22,14 @@
                 <div class="col-md-9">
                     <div class="search-container-modern max-width-100" style="max-width: 100%;">
                         <i class="fas fa-search"></i>
-                        <input type="text" id="mainSearchInput" class="form-control form-control-lg border-0 bg-light shadow-sm" placeholder="Search verified drivers by name, ID, or phone...">
+                        <input type="text" id="mainSearchInput" class="form-control form-control-lg border-0 bg-light shadow-sm" placeholder="Search unverified drivers by name, ID, or phone...">
                     </div>
                 </div>
                 <div class="col-md-3">
                     <select id="sortFilter" class="form-select form-select-lg border-0 bg-light shadow-sm">
                         <option value="name_asc">Name (A-Z)</option>
                         <option value="name_desc">Name (Z-A)</option>
-                        <option value="newest">Recently Verified</option>
+                        <option value="newest">Recently Created</option>
                     </select>
                 </div>
             </div>
@@ -49,7 +49,7 @@
                         <tr>
                             <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Driver</th>
                             <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Contact</th>
-                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Verified On</th>
+                            <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Created On</th>
                             <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold">Pending Bonus</th>
                             <th class="border-0 px-4 py-3 text-muted small text-uppercase fw-bold text-end">Action</th>
                         </tr>
@@ -63,8 +63,8 @@
             <!-- Empty State (initially hidden) -->
             <div id="emptySearchState" class="text-center py-5 d-none">
                 <div class="text-muted mb-3"><i class="fas fa-check-circle fs-1"></i></div>
-                <h5 class="fw-bold">No verified drivers found</h5>
-                <p class="text-muted">Drivers who have been verified will appear here.</p>
+                <h5 class="fw-bold">No unverified drivers found</h5>
+                <p class="text-muted">New unverified drivers will appear here.</p>
             </div>
         </div>
 
@@ -78,6 +78,6 @@
     <script src="../js/api.js"></script>
     <script src="../js/auth.js"></script>
     <script src="../js/ui.js"></script>
-    <script src="../js/verified-drivers.js"></script>
+    <script src="../js/unverified-drivers.js"></script>
 </body>
 </html>

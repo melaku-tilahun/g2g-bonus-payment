@@ -1,8 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const searchInput = document.getElementById("mainSearchInput");
-  const statusFilter = document.getElementById("statusFilter");
   const sortFilter = document.getElementById("sortFilter");
-  const resultsGrid = document.getElementById("searchResultsGrid");
+  const tableBody = document.getElementById("driversTableBody"); // Changed from grid
   const loader = document.getElementById("searchLoader");
   const emptyState = document.getElementById("emptySearchState");
 
@@ -18,57 +17,55 @@ document.addEventListener("DOMContentLoaded", () => {
     debounceTimer = setTimeout(() => loadDrivers(1), 300);
   });
 
-  statusFilter.addEventListener("change", () => loadDrivers(1));
   sortFilter.addEventListener("change", () => loadDrivers(1));
 
   async function loadDrivers(page = 1) {
     try {
       loader.classList.remove("d-none");
-      resultsGrid.innerHTML = "";
+      tableBody.innerHTML = "";
       document.getElementById("paginationContainer").classList.add("d-none");
+      emptyState.classList.add("d-none");
 
       const query = searchInput.value.trim();
-      const status = statusFilter.value; // Note: specific status filter currently not supported by backend general search, but q works for name/id
       const sortParts = sortFilter.value.split("_"); // e.g., name_asc
       const sortBy = sortParts[0];
       const order = sortParts.length > 1 ? sortParts[1] : "desc";
 
-      // Build Query Params
+      // Build Query Params with status=unverified
       const params = new URLSearchParams({
         page: page,
         limit: currentLimit,
         q: query,
-        status: status === "all" ? "" : status,
+        status: "unverified",
         sortBy:
           sortBy === "bonus"
             ? "amount"
             : sortBy === "newest"
             ? "date"
-            : "driver", // mapping to backend expectations
+            : "driver",
         order: sortBy === "newest" ? "desc" : order,
       });
 
-      // Using drivers/search to search ALL drivers
       const response = await api.get(`/drivers/search?${params.toString()}`);
       const drivers = Array.isArray(response)
         ? response
         : response.drivers || [];
       const pagination = response.pagination || { page: 1, total_pages: 1 };
 
-      renderCards(drivers);
+      renderRows(drivers);
       renderPagination(pagination);
       currentPage = page;
     } catch (error) {
       console.error(error);
-      ui.toast("Failed to load drivers", "error");
-      emptyState.classList.remove("d-none");
+      ui.toast("Failed to load verified drivers", "error");
+      loader.classList.add("d-none"); // Ensure loader is hidden on error
     } finally {
       loader.classList.add("d-none");
     }
   }
 
-  function renderCards(drivers) {
-    resultsGrid.innerHTML = "";
+  function renderRows(drivers) {
+    tableBody.innerHTML = "";
     if (drivers.length === 0) {
       emptyState.classList.remove("d-none");
       return;
@@ -76,55 +73,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
     emptyState.classList.add("d-none");
     drivers.forEach((d) => {
-      const isVerified = d.verified === 1 || d.verified === true;
-      const badgeClass = isVerified ? "badge-verified" : "badge-unverified";
-      const badgeText = isVerified ? "Verified" : "Unverified";
+      const tr = document.createElement("tr");
+      tr.style.cursor = "pointer";
+      tr.onclick = () =>
+        (window.location.href = `/pages/driver-detail.html?id=${d.driver_id}`);
 
-      const col = document.createElement("div");
-      col.className = "col-md-6 col-lg-4";
-      col.innerHTML = `
-                <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail.html?id=${
-                  d.driver_id
-                }'" style="cursor: pointer;">
-                    <div class="d-flex justify-content-between align-items-start mb-3">
-                        <div class="bg-primary bg-opacity-10 text-primary rounded-circle d-flex align-items-center justify-content-center" style="width: 48px; height: 48px; font-weight: 700;">
+      tr.innerHTML = `
+                <td class="px-4 py-3">
+                    <div class="d-flex align-items-center">
+                        <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: 700;">
                             ${(d.full_name || "U").charAt(0)}
                         </div>
-                        <span class="badge-status ${badgeClass}">
-                            ${badgeText}
-                        </span>
-                    </div>
-                    <h5 class="fw-bold mb-1">${d.full_name}</h5>
-                    <div class="small text-muted font-monospace mb-3">${(
-                      d.driver_id || ""
-                    ).substring(0, 16)}...</div>
-                    <div class="small text-muted mb-2"><i class="fas fa-phone me-1"></i> ${
-                      d.phone_number || "N/A"
-                    }</div>
-                    
-                    <div class="mt-auto pt-3 border-top">
-                        <div class="row g-0 align-items-center">
-                            <div class="col">
-                                <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Pending Bonus</div>
-                                <div class="h5 fw-bold text-primary mb-0">${parseFloat(
-                                  d.total_pending || 0
-                                ).toLocaleString()} <small class="text-xs fw-normal">ETB</small></div>
-                            </div>
-                            <div class="col-auto">
-                                <span class="badge bg-light text-dark border rounded-pill px-3">${
-                                  d.weeks_pending || 0
-                                } wks</span>
-                            </div>
+                        <div>
+                            <div class="fw-bold text-dark">${d.full_name}</div>
+                            <div class="small text-muted font-monospace">${(
+                              d.driver_id || ""
+                            ).substring(0, 16)}...</div>
                         </div>
                     </div>
-                </div>
+                </td>
+                <td class="px-4 py-3">
+                    <div class="d-flex align-items-center text-muted">
+                        <i class="fas fa-phone me-2 text-muted opacity-50"></i> ${
+                          d.phone_number || "N/A"
+                        }
+                    </div>
+                </td>
+                <td class="px-4 py-3">
+                    <div class="text-muted">
+                        ${
+                          d.verified_date
+                            ? new Date(d.verified_date).toLocaleDateString()
+                            : '<span class="text-muted">-</span>'
+                        }
+                    </div>
+                </td>
+                <td class="px-4 py-3">
+                    ${
+                      d.total_pending && d.total_pending > 0
+                        ? `
+                        <div>
+                            <div class="fw-bold text-primary">${parseFloat(
+                              d.total_pending
+                            ).toLocaleString()} ETB</div>
+                            <div class="small text-muted">${
+                              d.weeks_pending
+                            } weeks pending</div>
+                        </div>
+                    `
+                        : `
+                        <span class="badge bg-light text-muted border">None</span>
+                    `
+                    }
+                </td>
+                <td class="px-4 py-3 text-end">
+                    <a href="/pages/driver-detail.html?id=${
+                      d.driver_id
+                    }" class="btn btn-sm btn-light border text-muted">
+                        View
+                    </a>
+                </td>
             `;
-      resultsGrid.appendChild(col);
+      tableBody.appendChild(tr);
     });
   }
 
   function renderPagination(pagination) {
     const container = document.getElementById("paginationContainer");
+    container.innerHTML = "";
+
     if (pagination.total_pages <= 1) {
       container.classList.add("d-none");
       return;
@@ -160,7 +177,6 @@ document.addEventListener("DOMContentLoaded", () => {
         `;
   }
 
-  // Expose changePage to global scope for inline onclick handler
   window.changePage = (page) => {
     loadDrivers(page);
     window.scrollTo({ top: 0, behavior: "smooth" });

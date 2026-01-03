@@ -72,7 +72,10 @@ const driverController = {
     try {
       const { id } = req.params;
       const [rows] = await pool.query(
-        "SELECT * FROM drivers WHERE driver_id = ?",
+        `SELECT d.*, u.full_name as verified_by_name 
+         FROM drivers d 
+         LEFT JOIN users u ON d.verified_by = u.id 
+         WHERE d.driver_id = ?`,
         [id]
       );
       if (rows.length === 0)
@@ -195,6 +198,49 @@ const driverController = {
       res.json(rows);
     } catch (error) {
       console.error("Get all drivers error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  },
+  revertVerification: async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { password, reason } = req.body;
+      const userId = req.user.id;
+
+      if (!password)
+        return res.status(400).json({ message: "Admin password required" });
+
+      // Verify Admin Password
+      const [users] = await pool.query(
+        "SELECT password FROM users WHERE id = ?",
+        [userId]
+      );
+      if (users.length === 0)
+        return res.status(404).json({ message: "User not found" });
+
+      const bcrypt = require("bcrypt");
+      const validPassword = await bcrypt.compare(password, users[0].password);
+      if (!validPassword) {
+        return res
+          .status(403)
+          .json({ message: "Invalid password. Access denied." });
+      }
+
+      // Revert Driver
+      await pool.query(
+        "UPDATE drivers SET verified = 0, verified_date = NULL, verified_by = NULL, tin = NULL, business_name = NULL, licence_number = NULL, manager_name = NULL, manager_photo = NULL, tin_verified_at = NULL WHERE driver_id = ?",
+        [id]
+      );
+
+      await AuditService.log(userId, "Revert Verification", "driver", id, {
+        reason,
+      });
+
+      res.json({
+        message: "Driver verification reverted. State set to Unverified.",
+      });
+    } catch (error) {
+      console.error("Revert verification error:", error);
       res.status(500).json({ message: "Internal server error" });
     }
   },

@@ -11,7 +11,7 @@
 <body class="bg-light">
     <!-- Header injected by ui.js -->
 
-    <div class="container py-4 pb-5">
+    <div class="main-wrapper">
         <!-- Back Link -->
         <div class="mb-4">
             <a href="/index.html" class="text-muted text-decoration-none small fw-bold">
@@ -42,9 +42,10 @@
                     <button class="btn btn-brand px-4 shadow-none" id="markVerifiedBtn">
                         <i class="fas fa-check-circle me-2"></i> Mark Verified
                     </button>
-                    <button class="btn btn-outline-primary border-2 px-4 shadow-none d-none" id="processPaymentBtn">
-                        <i class="fas fa-credit-card me-2"></i> Process Payment
+                    <button class="btn btn-outline-danger border-2 px-4 shadow-none d-none" id="revertVerifiedBtn">
+                        <i class="fas fa-undo me-2"></i> Revert
                     </button>
+
                 </div>
             </div>
         </div>
@@ -55,6 +56,19 @@
                 <div class="card-premium metric-card h-100 p-4 border-0" style="background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%); color: white;">
                     <div class="text-white text-opacity-75 small fw-bold text-uppercase mb-2">Total Accumulated Bonus</div>
                     <div class="h1 fw-bold mb-4" id="totalBonus">0.00 ETB</div>
+
+                    
+                    <div class="row mb-4 border-top border-white border-opacity-10 pt-3">
+                        <div class="col-6">
+                             <div class="small text-white text-opacity-75 mb-1 fs-6">Gross (Ref)</div>
+                             <div class="fw-normal" id="totalGross">0.00</div>
+                        </div>
+                        <div class="col-6">
+                             <div class="small text-white text-opacity-75 mb-1 fs-6">Withholding (Ref)</div>
+                             <div class="fw-normal" id="totalWithholding">0.00</div>
+                        </div>
+                    </div>
+
                     <div class="mb-4">
                         <div class="small text-white text-opacity-75 text-uppercase fw-bold mb-1">Status</div>
                         <div class="fw-bold fs-5" id="summaryStatus">Pending Verification</div>
@@ -76,11 +90,11 @@
 
             <!-- Right: Bonus History -->
             <div class="col-md-8">
-                <div class="card-premium p-4 h-100">
-                    <div class="d-flex justify-content-between align-items-center mb-4">
-                        <h3 class="h5 mb-0">Weekly Breakdown</h3>
+                <div class="card-premium p-0 overflow-hidden h-100">
+                    <div class="d-flex justify-content-between align-items-center p-4 border-bottom bg-light">
+                        <h3 class="h5 mb-0 fw-bold">Bonus History</h3>
                         <div class="dropdown">
-                            <button class="btn btn-light btn-sm dropdown-toggle px-3" type="button" data-bs-toggle="dropdown">
+                            <button class="btn btn-white btn-sm dropdown-toggle border shadow-sm px-3" type="button" data-bs-toggle="dropdown">
                                 Sort by Date
                             </button>
                             <ul class="dropdown-menu border-0 shadow-sm font-small">
@@ -90,128 +104,108 @@
                         </div>
                     </div>
 
-                    <div id="bonusHistoryList">
-                        <div class="text-center py-5">
-                            <div class="spinner-border text-primary" role="status"></div>
-                            <p class="text-muted mt-2 small">Loading history...</p>
-                        </div>
-                    </div>
-                    
-                    <div id="emptyBonusState" class="d-none text-center py-5">
-                        <div class="text-muted mb-3"><i class="fas fa-coins fs-1"></i></div>
-                        <h5 class="fw-bold">No bonus records found</h5>
-                        <p class="text-muted small">This driver has no recorded bonuses yet.</p>
+                    <div class="table-responsive">
+                        <table class="table table-excel table-hover mb-0">
+                            <thead>
+                                <tr>
+                                    <th class="ps-4">Week Ending</th>
+                                    <th>Reference</th>
+                                    <th>Status</th>
+                                    <th>Gross</th>
+                                    <th>Withholding</th>
+                                    <th class="text-end pe-4">Net Amount</th>
+                                </tr>
+                            </thead>
+                            <tbody id="bonusHistoryTableBody">
+                                <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
         </div>
 
         <!-- Verification Date Section (If Verified) -->
-        <div id="verificationInfoSection" class="card-premium mt-4 p-4 border-start border-4 border-success d-none">
-            <div class="row align-items-center">
-                <div class="col-auto">
-                    <div class="bg-success bg-opacity-10 text-success rounded-circle p-3">
-                        <i class="fas fa-shield-alt fs-3"></i>
-                    </div>
+        <div id="verificationInfoSection" class="card-premium mt-4 p-0 border-start border-4 border-success d-none overflow-hidden">
+            <div class="card-header bg-success bg-opacity-10 border-0 p-3">
+                <div class="d-flex align-items-center justify-content-between">
+                    <h4 class="h5 fw-bold mb-0 text-success"><i class="fas fa-shield-alt me-2"></i> Verification Details</h4>
+                    <span class="badge bg-success rounded-pill px-3">Verified Driver</span>
                 </div>
-                <div class="col">
-                    <h4 class="h5 fw-bold mb-1">Verification Details</h4>
-                    <p class="text-muted mb-2">Driver verified on <strong id="verifiedDateText">Jan 1, 2024</strong></p>
+            </div>
+            <div class="p-4">
+                <div class="row g-4">
+                    <!-- Manager Photo Side -->
+                    <div class="col-md-3 text-center border-end" id="managerPhotoInfo" style="display: none;">
+                        <div class="position-relative d-inline-block">
+                            <img id="managerPhotoInfoImg" src="" alt="Manager" class="img-fluid rounded-3 shadow-sm" style="max-height: 200px; width: 100%; object-fit: cover;">
+                            <div class="small fw-bold text-muted mt-2">Manager Photo</div>
+                        </div>
+                    </div>
                     
-                    <!-- TIN Information -->
-                    <div id="tinInfoSection" class="mt-3 d-none">
-                        <div class="row g-3">
-                            <div class="col-md-3">
-                                <div class="small text-muted text-uppercase fw-bold">TIN</div>
-                                <div class="fw-bold" id="infoTinDisplay">---</div>
-                            </div>
-                            <div class="col-md-5">
-                                <div class="small text-muted text-uppercase fw-bold">Business Name</div>
-                                <div class="fw-bold" id="businessNameInfo">---</div>
-                            </div>
-                            <div class="col-md-4">
-                                <div class="small text-muted text-uppercase fw-bold">License Number</div>
-                                <div class="fw-bold" id="licenceNumberInfo">---</div>
-                            </div>
-                        </div>
-                        <div class="row g-3 mt-2">
-                            <div class="col-md-6">
-                                <div class="small text-muted text-uppercase fw-bold">Manager Name</div>
-                                <div class="fw-bold" id="managerNameInfo">---</div>
-                            </div>
-                            <div class="col-md-6" id="managerPhotoInfo" style="display: none;">
-                                <div class="small text-muted text-uppercase fw-bold">Manager Photo</div>
-                                <img id="managerPhotoInfoImg" src="" alt="Manager" class="img-thumbnail mt-1" style="max-height: 60px;">
+                    <!-- Business Info Side -->
+                    <div class="col-md-9">
+                        <p class="text-muted mb-4">Verification approved on <strong id="verifiedDateText" class="text-dark">Jan 1, 2024</strong></p>
+                        
+                        <div id="tinInfoSection" class="d-none">
+                            <div class="row g-4">
+                                <div class="col-md-4">
+                                    <div class="small text-muted text-uppercase fw-bold mb-1">TIN Number</div>
+                                    <div class="fw-bold fs-6 font-monospace" id="infoTinDisplay">---</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="small text-muted text-uppercase fw-bold mb-1">Business Name</div>
+                                    <div class="fw-bold fs-6" id="businessNameInfo">---</div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="small text-muted text-uppercase fw-bold mb-1">License Number</div>
+                                    <div class="fw-bold fs-6" id="licenceNumberInfo">---</div>
+                                </div>
+                                <div class="col-md-8">
+                                    <div class="small text-muted text-uppercase fw-bold mb-1">Manager Name</div>
+                                    <div class="fw-bold fs-6" id="managerNameInfo">---</div>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
+        </div>
+    </div>
+        
+    <!-- Payment History Section -->
+        <div class="card-premium mt-4">
+            <div class="card-header bg-white border-0 py-3">
+                <h5 class="mb-0 fw-bold"><i class="fas fa-history me-2 text-primary"></i> Payment History</h5>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Date</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Amount</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Method</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Status</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Notes / Ref</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Processed By</th>
+                            </tr>
+                        </thead>
+                        <tbody id="paymentHistoryTableBody">
+                            <tr><td colspan="6" class="text-center py-4 text-muted">Loading history...</td></tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Payment Modal -->
-    <div class="modal fade" id="paymentModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg rounded-4">
-                <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold text-primary"><i class="fas fa-credit-card me-2"></i> Process Payment</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body p-4">
-                    <div class="mb-3">
-                        <label class="small fw-bold text-muted text-uppercase mb-2">Driver Name</label>
-                        <div class="fw-bold fs-5" id="payDriverName">---</div>
-                    </div>
 
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label for="payAmount" class="form-label small fw-bold text-muted text-uppercase">Payment Amount (ETB)</label>
-                            <input type="number" class="form-control form-control-lg border-0 bg-light shadow-sm" id="payAmount" step="0.01" required>
-                        </div>
-                        <div class="col-md-6">
-                            <label for="payDate" class="form-label small fw-bold text-muted text-uppercase">Payment Date</label>
-                            <input type="date" class="form-control form-control-lg border-0 bg-light shadow-sm" id="payDate" required>
-                        </div>
-                    </div>
 
-                    <div class="mb-4">
-                        <label for="payMethod" class="form-label small fw-bold text-muted text-uppercase">Payment Method</label>
-                        <select class="form-select form-select-lg border-0 bg-light shadow-sm" id="payMethod">
-                            <option value="telebirr_transfer">Telebirr Transfer</option>
-                            <!-- <option value="cash">Telebirr Transfer</option> -->
-                            <!-- <option value="mobile_money">Mobile Money</option> -->
-                        </select>
-                    </div>
-
-                    <div class="row g-3 mb-4">
-                        <div class="col-md-6">
-                            <label for="payPeriodStart" class="form-label small fw-bold text-muted text-uppercase">Period Start</label>
-                            <input type="date" class="form-control border-0 bg-light shadow-sm" id="payPeriodStart">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="payPeriodEnd" class="form-label small fw-bold text-muted text-uppercase">Period End</label>
-                            <input type="date" class="form-control border-0 bg-light shadow-sm" id="payPeriodEnd">
-                        </div>
-                    </div>
-
-                    <div class="mb-0">
-                        <label for="payNotes" class="form-label small fw-bold text-muted text-uppercase">Notes (Optional)</label>
-                        <textarea class="form-control border-0 bg-light shadow-sm" id="payNotes" rows="2" placeholder="Reference numbers, remarks..."></textarea>
-                    </div>
-                </div>
-                <div class="modal-footer border-0 pt-0 p-4">
-                    <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-brand px-4 rounded-pill shadow-none" id="confirmPayBtn">Record Payment</button>
-                </div>
-            </div>
-        </div>
-    </div>
     <div class="modal fade" id="verifyModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">
             <div class="modal-content border-0 shadow-lg rounded-4">
                 <div class="modal-header border-0 pb-0">
-                    <h5 class="modal-title fw-bold text-danger"><i class="fas fa-shield-alt me-2"></i> Verify Driver with TIN</h5>
+                    <h5 class="modal-title fw-bold text-primary"><i class="fas fa-shield-alt me-2"></i> Verify Driver with TIN</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
                 <div class="modal-body p-4">
@@ -234,7 +228,7 @@
                     </div>
 
                     <!-- TIN Input Section -->
-                    <div class="mb-4">
+                    <div class="mb-4" id="tinInputSection">
                         <label for="tinInput" class="form-label small fw-bold text-muted text-uppercase">Tax Identification Number (TIN)</label>
                         <div class="input-group input-group-lg">
                             <span class="input-group-text border-0 bg-light"><i class="fas fa-id-card"></i></span>
@@ -249,10 +243,10 @@
                     <!-- Business Data Display (Hidden initially) -->
                     <div id="businessDataSection" class="d-none">
                         <hr class="my-4">
-                        <h6 class="fw-bold mb-3 text-success"><i class="fas fa-check-circle me-2"></i> Business Registration Verified</h6>
+                        <h6 class="fw-bold mb-3 text-primary"><i class="fas fa-check-circle me-2"></i> Business Registration Verified</h6>
                         
-                        <!-- Business Data Cards -->
-                        <div class="card border-success border-2 mb-3">
+                        <!-- Business Data Card -->
+                        <div class="card border-0 bg-light shadow-none mb-3">
                             <div class="card-body">
                                 <div class="row g-3">
                                     <!-- Manager Photo Column -->
@@ -312,7 +306,7 @@
                                 <div class="form-check mb-2">
                                     <input class="form-check-input" type="checkbox" id="libreraCheck">
                                     <label class="form-check-label fw-bold" for="libreraCheck">
-                                        <i class="fas fa-file-alt text-primary me-2"></i> Libera document verified and valid
+                                        <i class="fas fa-file-alt text-primary me-2"></i> Libra document verified and valid
                                     </label>
                                 </div>
                             </div>
@@ -353,6 +347,40 @@
                 <div class="modal-footer border-0 pt-0 p-4">
                     <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>
                     <button type="button" class="btn btn-brand px-4 rounded-pill shadow-none" id="confirmVerifyBtn" disabled>Confirm Verification</button>
+                </div>
+            </div>
+        </div>
+    <div class="modal fade" id="revertModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-danger"><i class="fas fa-undo-alt me-2"></i> Revert Verification</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-danger border-0 bg-danger bg-opacity-10 mb-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <strong>Warning:</strong> This action will:
+                        <ul class="mb-0 mt-2 small">
+                            <li>Set driver status to <strong>Unverified</strong></li>
+                            <li>Move all pending bonuses back to "Accumulated" pool</li>
+                            <li>Remove verification details (TIN, etc.)</li>
+                        </ul>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Admin Password</label>
+                        <input type="password" class="form-control form-control-lg border-0 bg-light shadow-sm" id="revertPassword" placeholder="Enter your password to confirm">
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Reason for Revert</label>
+                        <textarea class="form-control border-0 bg-light shadow-sm" id="revertReason" rows="2" placeholder="Why are you reverting this verification?"></textarea>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0 p-4">
+                     <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger px-4 rounded-pill shadow-none" id="confirmRevertBtn">Revert Status</button>
                 </div>
             </div>
         </div>

@@ -29,7 +29,17 @@ const excelParser = {
       });
 
       const normalizedHeaders = columnsFound.map((c) => c.toLowerCase().trim());
-      const required = ["id", "full name", "date", "net payout"];
+      const required = [
+        "id",
+        "full name",
+        "date",
+        "net payout",
+        "work terms",
+        "status",
+        "balance",
+        "payout",
+        "bank fee",
+      ];
 
       missingColumns = required.filter(
         (col) => !normalizedHeaders.includes(col)
@@ -56,6 +66,9 @@ const excelParser = {
 
       if (requiredPresent) {
         const netPayoutIdx = normalizedHeaders.indexOf("net payout") + 1;
+        const balanceIdx = normalizedHeaders.indexOf("balance") + 1;
+        const payoutIdx = normalizedHeaders.indexOf("payout") + 1;
+        const bankFeeIdx = normalizedHeaders.indexOf("bank fee") + 1;
         const dateIdx = normalizedHeaders.indexOf("date") + 1;
 
         let firstDateStr = null;
@@ -63,28 +76,38 @@ const excelParser = {
         worksheet.eachRow((row, rowNumber) => {
           if (rowNumber === 1) return;
 
-          // Validate Numeric Payout
-          const val = row.getCell(netPayoutIdx).value;
-          const numericVal =
-            val && typeof val === "object" && val.result !== undefined
-              ? val.result
-              : val;
-          if (
-            val !== null &&
-            val !== undefined &&
-            isNaN(parseFloat(numericVal))
-          ) {
-            numericValid = false;
-            // Only add suggestion for the first few errors to avoid flooding
+          // Validate Numeric Fields (Net Payout, Balance, Payout, Bank Fee)
+          const numericCols = [
+            { idx: netPayoutIdx, name: "Net Payout" },
+            { idx: balanceIdx, name: "Balance" },
+            { idx: payoutIdx, name: "Payout" },
+            { idx: bankFeeIdx, name: "Bank fee" },
+          ];
+
+          numericCols.forEach(({ idx, name }) => {
+            const val = row.getCell(idx).value;
+            const numericVal =
+              val && typeof val === "object" && val.result !== undefined
+                ? val.result
+                : val;
+
             if (
-              suggestions.filter((s) => s.includes("Invalid numeric value"))
-                .length < 3
+              val !== null &&
+              val !== undefined &&
+              isNaN(parseFloat(numericVal))
             ) {
-              suggestions.push(
-                `Invalid numeric value in 'Net Payout' at Row ${rowNumber}: '${val}'`
-              );
+              numericValid = false;
+              if (
+                suggestions.filter((s) =>
+                  s.includes(`Invalid numeric value in '${name}'`)
+                ).length < 3
+              ) {
+                suggestions.push(
+                  `Invalid numeric value in '${name}' at Row ${rowNumber}: '${val}'`
+                );
+              }
             }
-          }
+          });
 
           // Detect Date & Check Consistency
           if (dateIdx > 0) {
@@ -229,10 +252,28 @@ const excelParser = {
     const nameIdx = getIdx("full name");
     const phoneIdx = getIdx("phone number");
     const dateIdx = getIdx("date");
-    const payoutIdx = getIdx("net payout");
+    const payoutIdx = getIdx("net payout"); // This is Net Payout
+
+    // New Columns
+    const workTermsIdx = getIdx("work terms");
+    const statusIdx = getIdx("status");
+    const balanceIdx = getIdx("balance");
+    const actualPayoutIdx = getIdx("payout"); // Named 'payout' in excel, distinct from net payout conceptually if different? User listed both.
+    const bankFeeIdx = getIdx("bank fee");
 
     // If required columns are missing (should be caught by validate, but safe-guard)
-    if (idIdx === -1 || nameIdx === -1 || dateIdx === -1 || payoutIdx === -1) {
+    // If required columns are missing (should be caught by validate, but safe-guard)
+    if (
+      idIdx === -1 ||
+      nameIdx === -1 ||
+      dateIdx === -1 ||
+      payoutIdx === -1 ||
+      workTermsIdx === -1 ||
+      statusIdx === -1 ||
+      balanceIdx === -1 ||
+      actualPayoutIdx === -1 ||
+      bankFeeIdx === -1
+    ) {
       throw new Error(
         "Validation mismatch: Required columns missing in parse step. Please re-validate."
       );
@@ -286,28 +327,59 @@ const excelParser = {
         phone_number: phoneVal ? phoneVal.toString().trim() : null,
         week_date: dateVal,
         net_payout: null,
+        work_terms: getVal(workTermsIdx)
+          ? getVal(workTermsIdx).toString()
+          : null,
+        status: getVal(statusIdx) ? getVal(statusIdx).toString() : null,
+        balance: null,
+        payout: null,
+        bank_fee: null,
+        gross_payout: null,
+        withholding_tax: null,
         errors: [],
       };
 
-      // Handle payout which might be a formula or a number
-      const payoutVal = getVal(payoutIdx);
-      rowData.net_payout =
-        payoutVal &&
-        typeof payoutVal === "object" &&
-        payoutVal.result !== undefined
-          ? payoutVal.result
-          : payoutVal;
+      // Helper to parse numeric
+      const parseNum = (val) => {
+        const v =
+          val && typeof val === "object" && val.result !== undefined
+            ? val.result
+            : val;
+        return v === null || v === undefined || isNaN(parseFloat(v))
+          ? null
+          : parseFloat(v);
+      };
+
+      rowData.net_payout = parseNum(getVal(payoutIdx));
+      rowData.balance = parseNum(getVal(balanceIdx));
+      rowData.payout = parseNum(getVal(actualPayoutIdx));
+      rowData.bank_fee = parseNum(getVal(bankFeeIdx));
 
       if (!rowData.driver_id) rowData.errors.push("Missing ID");
       if (!rowData.full_name) rowData.errors.push("Missing Full Name");
-      if (
-        rowData.net_payout === null ||
-        rowData.net_payout === undefined ||
-        isNaN(parseFloat(rowData.net_payout))
-      ) {
-        rowData.errors.push(`Invalid Net payout: ${rowData.net_payout}`);
-      } else {
-        rowData.net_payout = parseFloat(rowData.net_payout);
+
+      if (rowData.net_payout === null)
+        rowData.errors.push(`Invalid Net payout`);
+      if (rowData.balance === null) rowData.errors.push(`Invalid Balance`);
+      if (rowData.payout === null) rowData.errors.push(`Invalid Payout`);
+      if (rowData.bank_fee === null) rowData.errors.push(`Invalid Bank fee`);
+
+      // Calculations
+      if (rowData.net_payout !== null) {
+        // Gross = Net / 0.97
+        rowData.gross_payout = rowData.net_payout / 0.97;
+
+        // Withholding
+        if (rowData.gross_payout > 3000) {
+          rowData.withholding_tax = rowData.gross_payout - rowData.net_payout;
+        } else {
+          rowData.withholding_tax = 0;
+        }
+
+        // Round to 2 decimals
+        rowData.gross_payout = Math.round(rowData.gross_payout * 100) / 100;
+        rowData.withholding_tax =
+          Math.round(rowData.withholding_tax * 100) / 100;
       }
 
       if (referenceDate && rowDateStr && rowDateStr !== referenceDate) {
