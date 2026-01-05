@@ -73,6 +73,7 @@ CREATE TABLE IF NOT EXISTS payments (
   total_amount DECIMAL(10, 2) NOT NULL,
   payment_date DATE NOT NULL,
   payment_method VARCHAR(50),
+  status ENUM('pending', 'processing', 'paid') DEFAULT 'pending',
   bonus_period_start DATE,
   bonus_period_end DATE,
   processed_by INT,
@@ -81,7 +82,8 @@ CREATE TABLE IF NOT EXISTS payments (
   FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
   FOREIGN KEY (processed_by) REFERENCES users(id),
   INDEX idx_driver_id (driver_id),
-  INDEX idx_payment_date (payment_date)
+  INDEX idx_payment_date (payment_date),
+  INDEX idx_status (status)
 );
 
 -- Bonuses Table
@@ -90,6 +92,13 @@ CREATE TABLE IF NOT EXISTS bonuses (
   driver_id VARCHAR(64) NOT NULL,
   week_date DATE NOT NULL,
   net_payout DECIMAL(10, 2) NOT NULL,
+  work_terms VARCHAR(255) NULL,
+  status VARCHAR(50) NULL,
+  balance DECIMAL(10, 2) NULL,
+  payout DECIMAL(10, 2) NULL,
+  bank_fee DECIMAL(10, 2) NULL,
+  gross_payout DECIMAL(10, 2) NULL,
+  withholding_tax DECIMAL(10, 2) NULL,
   imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   import_log_id INT,
   payment_id INT,
@@ -98,6 +107,7 @@ CREATE TABLE IF NOT EXISTS bonuses (
   FOREIGN KEY (payment_id) REFERENCES payments(id),
   INDEX idx_driver_week (driver_id, week_date),
   INDEX idx_week_date (week_date),
+  INDEX idx_payment_id (payment_id),
   UNIQUE KEY unique_driver_week (driver_id, week_date)
 );
 
