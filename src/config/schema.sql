@@ -71,9 +71,10 @@ CREATE TABLE IF NOT EXISTS payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   driver_id VARCHAR(50) NOT NULL,
   total_amount DECIMAL(10, 2) NOT NULL,
+  batch_id VARCHAR(50) NULL,
+  status ENUM('pending', 'processing', 'paid') DEFAULT 'pending',
   payment_date DATE NOT NULL,
   payment_method VARCHAR(50),
-  status ENUM('pending', 'processing', 'paid') DEFAULT 'pending',
   bonus_period_start DATE,
   bonus_period_end DATE,
   processed_by INT,
@@ -83,7 +84,8 @@ CREATE TABLE IF NOT EXISTS payments (
   FOREIGN KEY (processed_by) REFERENCES users(id),
   INDEX idx_driver_id (driver_id),
   INDEX idx_payment_date (payment_date),
-  INDEX idx_status (status)
+  INDEX idx_status (status),
+  INDEX idx_batch (batch_id)
 );
 
 -- Bonuses Table
