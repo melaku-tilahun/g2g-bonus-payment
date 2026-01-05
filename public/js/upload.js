@@ -127,7 +127,34 @@ document.addEventListener("DOMContentLoaded", () => {
       // Progress Bar simulation (real progress requires XHR)
       const result = await api.post("/uploads/excel", formData);
 
-      showResults(result);
+      // Check if phone mismatch warnings require confirmation
+      if (result.requires_confirmation && result.warnings) {
+        const confirmed = await showPhoneMismatchConfirmation(result.warnings);
+
+        if (confirmed) {
+          // Re-submit with confirmation flag
+          uploadBtn.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-2"></span> Confirming...';
+
+          const confirmFormData = new FormData();
+          confirmFormData.append("file", file);
+          confirmFormData.append("confirm_warnings", "true");
+
+          const confirmedResult = await api.post(
+            "/uploads/excel",
+            confirmFormData
+          );
+          showResults(confirmedResult);
+        } else {
+          // User cancelled
+          uploadBtn.disabled = false;
+          uploadBtn.innerHTML =
+            '<i class="fas fa-cloud-upload-alt me-2"></i> Start Import Process';
+          ui.toast("Import cancelled by user", "info");
+        }
+      } else {
+        showResults(result);
+      }
     } catch (error) {
       ui.toast(error.message || "Upload failed", "error");
       uploadBtn.disabled = false;
@@ -135,6 +162,94 @@ document.addEventListener("DOMContentLoaded", () => {
         '<i class="fas fa-cloud-upload-alt me-2"></i> Start Import Process';
     }
   };
+
+  async function showPhoneMismatchConfirmation(warnings) {
+    return new Promise((resolve) => {
+      const warningList = warnings
+        .map(
+          (w) =>
+            `<tr>
+          <td class="small">${w.driver_id}</td>
+          <td class="small"><span class="badge bg-light text-dark border">${w.db_phone}</span></td>
+          <td class="small"><span class="badge bg-warning bg-opacity-10 text-warning border border-warning">${w.excel_phone}</span></td>
+        </tr>`
+        )
+        .join("");
+
+      const modalHtml = `
+        <div class="modal fade" id="phoneMismatchModal" tabindex="-1">
+          <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 rounded-4">
+              <div class="modal-header border-0 bg-warning bg-opacity-10">
+                <h5 class="modal-title fw-bold">
+                  <i class="fas fa-exclamation-triangle text-warning me-2"></i>
+                  Phone Number Mismatches Detected
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+              </div>
+              <div class="modal-body">
+                <p class="text-muted mb-3">
+                  The following drivers have different phone numbers in the Excel file compared to the database. 
+                  <strong>Proceeding will use the Excel phone numbers for payment.</strong>
+                </p>
+                <div class="table-responsive">
+                  <table class="table table-sm table-hover">
+                    <thead class="bg-light">
+                      <tr>
+                        <th>Driver ID</th>
+                        <th>Database Phone</th>
+                        <th>Excel Phone</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      ${warningList}
+                    </tbody>
+                  </table>
+                </div>
+                <div class="alert alert-warning border-0 rounded-3 mb-0 mt-3">
+                  <i class="fas fa-info-circle me-2"></i>
+                  <strong>Review carefully:</strong> Payments will be sent to the Excel phone numbers. Update driver information if needed.
+                </div>
+              </div>
+              <div class="modal-footer border-0">
+                <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Cancel Import</button>
+                <button type="button" id="confirmProceedBtn" class="btn btn-warning rounded-pill px-4">
+                  <i class="fas fa-check me-2"></i>Proceed Anyway
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Remove existing modal if any
+      const existingModal = document.getElementById("phoneMismatchModal");
+      if (existingModal) existingModal.remove();
+
+      // Add modal to body
+      document.body.insertAdjacentHTML("beforeend", modalHtml);
+
+      const modal = new bootstrap.Modal(
+        document.getElementById("phoneMismatchModal")
+      );
+
+      document.getElementById("confirmProceedBtn").onclick = () => {
+        modal.hide();
+        resolve(true);
+      };
+
+      document.getElementById("phoneMismatchModal").addEventListener(
+        "hidden.bs.modal",
+        () => {
+          document.getElementById("phoneMismatchModal").remove();
+          resolve(false);
+        },
+        { once: true }
+      );
+
+      modal.show();
+    });
+  }
 
   function showResults(data) {
     document.querySelector(".row.g-4").classList.add("d-none");

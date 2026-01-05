@@ -19,6 +19,7 @@
                     <table class="table table-excel table-hover align-middle">
                         <thead>
                             <tr>
+                                <th>#</th>
                                 <th>Date</th>
                                 <th>Driver Name</th>
                                 <th>Driver ID</th>
@@ -30,11 +31,16 @@
                             </tr>
                         </thead>
                         <tbody id="paymentTableBody">
-                            <tr><td colspan="8" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                            <tr><td colspan="9" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="paginationContainer" class="d-flex justify-content-center mt-4 d-none">
+            <!-- Injected by JS -->
         </div>
     </div>
 
@@ -42,28 +48,34 @@
     <script src="../js/auth.js"></script>
     <script src="../js/ui.js"></script>
     <script>
-        async function loadPayments() {
+        let currentPage = 1;
+        const currentLimit = 25;
+        const paginationContainer = document.getElementById('paginationContainer');
+
+        async function loadPayments(page = 1) {
             try {
-                const payments = await api.get('/payments/history');
+                const params = new URLSearchParams({ page, limit: currentLimit });
+                const response = await api.get(`/payments/history?${params.toString()}`);
+                
+                const payments = response.payments || [];
+                const pagination = response.pagination || { page: 1, total_pages: 1 };
+                
                 const tbody = document.getElementById('paymentTableBody');
                 tbody.innerHTML = '';
                 
                 if (payments.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="8" class="text-center text-muted py-4">No payment history found</td></tr>';
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No payment history found</td></tr>';
+                    paginationContainer.classList.add('d-none');
                     return;
                 }
 
-                payments.forEach(p => {
+                payments.forEach((p, index) => {
+                    const rowNumber = (page - 1) * currentLimit + index + 1;
                     const tr = document.createElement('tr');
                     const isProcessing = p.status === 'processing';
-                    // Fallback for older records without status (treat as paid if null?)
-                    // Schema default is 'processing', but old records might be null? 
-                    // Migration didn't update old records? 
-                    // The migration ADD STATUS NOT NULL DEFAULT 'processing'. So old records are 'processing'.
-                    // Wait, usually paid records are done.
-                    // But for this transition, let's treat 'processing' as actionable.
 
                     tr.innerHTML = `
+                        <td class="text-muted small">${rowNumber}</td>
                         <td><small class="fw-bold">${new Date(p.payment_date).toLocaleDateString()}</small></td>
                         <td>
                             <div class="fw-bold">${p.driver_name}</div>
@@ -77,44 +89,64 @@
                         </td>
                         <td><small>${p.payment_method}</small></td>
                         <td><small>${p.processed_by_name}</small></td>
-                        <td class="text-end">
+                        <td class="text-end px-3">
                             ${isProcessing ? `
-                                <button onclick="confirmPayment(${p.id})" class="btn btn-outline-success btn-sm py-1 px-3 shadow-none border-2 fw-bold">
-                                    <i class="fas fa-check me-1"></i> Mark Paid
-                                </button>
+                                <span class="badge bg-light text-muted small border">Pending Report</span>
                             ` : `
-                                <span class="text-success small"><i class="fas fa-check-double me-1"></i> Done</span>
+                                <span class="text-success small fw-bold">
+                                    <i class="fas fa-check-double me-1"></i> Paid
+                                </span>
                             `}
                         </td>
                     `;
                     tbody.appendChild(tr);
                 });
+
+                renderPagination(pagination);
+                currentPage = page;
             } catch (error) {
                 console.error(error);
-                document.getElementById('paymentTableBody').innerHTML = '<tr><td colspan="8" class="text-center text-danger">Error loading history</td></tr>';
+                document.getElementById('paymentTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error loading history</td></tr>';
             }
         }
 
-        async function confirmPayment(id) {
-            if (!confirm('Are you sure you want to mark this payment as PAID? This will unblock uploads for this driver.')) return;
-
-            try {
-                // Find button and disable it
-                const btn = document.activeElement;
-                if(btn) {
-                    btn.disabled = true;
-                    btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span>';
-                }
-
-                await api.put(`/payments/${id}/confirm`);
-                ui.toast('Payment confirmed as Paid', 'success');
-                loadPayments(); // Reload table
-            } catch (error) {
-                console.error(error);
-                ui.toast(error.message || 'Failed to confirm payment', 'error');
-                loadPayments();
+        function renderPagination(pagination) {
+            if (pagination.total_pages <= 1) {
+                paginationContainer.classList.add('d-none');
+                return;
             }
+
+            paginationContainer.classList.remove('d-none');
+            paginationContainer.innerHTML = `
+                <nav>
+                    <ul class="pagination pagination-rounded shadow-sm">
+                        <li class="page-item ${pagination.page <= 1 ? "disabled" : ""}">
+                            <a class="page-link" href="#" onclick="event.preventDefault(); window.changePage(${
+                                pagination.page - 1
+                            })">Previous</a>
+                        </li>
+                        <li class="page-item active">
+                            <a class="page-link" href="#">Page ${
+                                pagination.page
+                            } of ${pagination.total_pages}</a>
+                        </li>
+                        <li class="page-item ${
+                            pagination.page >= pagination.total_pages ? "disabled" : ""
+                        }">
+                            <a class="page-link" href="#" onclick="event.preventDefault(); window.changePage(${
+                                pagination.page + 1
+                            })">Next</a>
+                        </li>
+                    </ul>
+                </nav>
+            `;
         }
+
+        window.changePage = (page) => {
+            loadPayments(page);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        };
+
 
         loadPayments();
     </script>

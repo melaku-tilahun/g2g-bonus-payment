@@ -72,13 +72,15 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     emptyState.classList.add("d-none");
-    drivers.forEach((d) => {
+    drivers.forEach((d, index) => {
+      const rowNumber = (currentPage - 1) * currentLimit + index + 1;
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
       tr.onclick = () =>
         (window.location.href = `/pages/driver-detail.html?id=${d.driver_id}`);
 
       tr.innerHTML = `
+                <td class="px-4 py-3 text-muted small align-middle">${rowNumber}</td>
                 <td class="px-4 py-3">
                     <div class="d-flex align-items-center">
                         <div class="bg-success bg-opacity-10 text-success rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px; font-weight: 700;">
@@ -102,8 +104,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td class="px-4 py-3">
                     <div class="text-muted">
                         ${
-                          d.verified_date
-                            ? new Date(d.verified_date).toLocaleDateString()
+                          d.created_at
+                            ? new Date(d.created_at).toLocaleDateString()
                             : '<span class="text-muted">-</span>'
                         }
                     </div>

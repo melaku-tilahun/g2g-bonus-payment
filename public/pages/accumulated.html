@@ -29,7 +29,8 @@
                 <table class="table table-excel table-hover align-middle mb-0">
                     <thead>
                         <tr>
-                            <th class="ps-4">Driver Name</th>
+                            <th class="ps-4">#</th>
+                            <th>Driver Name</th>
                             <th>Phone Number</th>
                             <th>Weeks Pending</th>
                             <th>Total Accumulated</th>
@@ -38,7 +39,7 @@
                         </tr>
                     </thead>
                     <tbody id="accumulatedTableBody">
-                        <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                        <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
                     </tbody>
                 </table>
             </div>
@@ -52,6 +53,11 @@
                 <h5 class="fw-bold text-muted">No accumulated bonuses found</h5>
                 <p class="text-muted small">All drivers are verified or paid up.</p>
             </div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="paginationContainer" class="d-flex justify-content-center mt-4 d-none">
+            <!-- Injected by JS -->
         </div>
     </div>
 

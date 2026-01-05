@@ -32,6 +32,7 @@ const excelParser = {
       const required = [
         "id",
         "full name",
+        "phone number",
         "date",
         "net payout",
         "work terms",
@@ -357,6 +358,7 @@ const excelParser = {
 
       if (!rowData.driver_id) rowData.errors.push("Missing ID");
       if (!rowData.full_name) rowData.errors.push("Missing Full Name");
+      if (!rowData.phone_number) rowData.errors.push("Missing Phone Number");
 
       if (rowData.net_payout === null)
         rowData.errors.push(`Invalid Net payout`);

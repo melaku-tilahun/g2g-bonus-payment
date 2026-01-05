@@ -274,46 +274,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       btn.textContent = "Confirm Verification";
     }
   };
-
-  // Revert Logic
-  const revertModal = new bootstrap.Modal(
-    document.getElementById("revertModal")
-  );
-
-  document.getElementById("revertVerifiedBtn").onclick = () => {
-    // Clear fields
-    document.getElementById("revertPassword").value = "";
-    document.getElementById("revertReason").value = "";
-    revertModal.show();
-  };
-
-  document.getElementById("confirmRevertBtn").onclick = async () => {
-    const password = document.getElementById("revertPassword").value;
-    const reason = document.getElementById("revertReason").value;
-
-    if (!password) {
-      ui.toast("Password is required", "error");
-      return;
-    }
-
-    const btn = document.getElementById("confirmRevertBtn");
-    try {
-      btn.disabled = true;
-      btn.innerHTML =
-        '<span class="spinner-border spinner-border-sm me-2"></span> Reverting...';
-
-      await api.put(`/drivers/${driverId}/revert`, { password, reason });
-
-      ui.toast("Verification reverted successfully", "success");
-      revertModal.hide();
-      setTimeout(() => window.location.reload(), 1000);
-    } catch (error) {
-      console.error(error);
-      ui.toast(error.message || "Failed to revert verification", "error");
-      btn.disabled = false;
-      btn.textContent = "Revert Status";
-    }
-  };
 });
 
 function showSkeletons() {
@@ -327,7 +287,13 @@ function showSkeletons() {
 async function loadPaymentHistory(driverId) {
   const tbody = document.getElementById("paymentHistoryTableBody");
   try {
-    const history = await api.get(`/payments/history?driver_id=${driverId}`);
+    const response = await api.get(`/payments/history?driver_id=${driverId}`);
+
+    // Handle both old array format and new paginated object format
+    const history = Array.isArray(response)
+      ? response
+      : response.payments || [];
+
     tbody.innerHTML = "";
 
     if (history.length === 0) {
@@ -389,11 +355,6 @@ function renderDriver(driver, bonuses, currentUser) {
 
   if (driver.verified) {
     document.getElementById("markVerifiedBtn").classList.add("d-none");
-
-    // Show Revert Button ONLY for Admins
-    if (currentUser && currentUser.role === "admin") {
-      document.getElementById("revertVerifiedBtn").classList.remove("d-none");
-    }
     document
       .getElementById("verificationInfoSection")
       .classList.remove("d-none");

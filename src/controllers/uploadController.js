@@ -87,12 +87,13 @@ const uploadController = {
       const driverStateMap = new Map();
 
       if (driverIds.length > 0) {
-        // Fetch: Verified Status, Last Bonus Date, Pending Payment Count, Processing Payment Count
+        // Fetch: Verified Status, Last Bonus Date, Pending Payment Count, Processing Payment Count, Phone Number
         const [states] = await connection.query(
           `
           SELECT 
             d.driver_id, 
-            d.verified, 
+            d.verified,
+            d.phone_number,
             MAX(b.week_date) as last_bonus_date,
             (SELECT COUNT(*) FROM bonuses b2 WHERE b2.driver_id = d.driver_id AND b2.payment_id IS NULL) as pending_bonuses,
             (SELECT COUNT(*) FROM payments p WHERE p.driver_id = d.driver_id AND p.status = 'processing') as processing_payments
@@ -108,6 +109,7 @@ const uploadController = {
       }
 
       const errors = [];
+      const warnings = [];
       const newDriversToInsert = [];
       const bonusesToInsert = [];
       let newDriversCount = 0;
@@ -136,9 +138,28 @@ const uploadController = {
             newDriversCount++;
           }
         } else {
-          // Existing Driver Validation
+          // A. Phone Number Mismatch Check (WARNING, not blocking)
+          const normalizePhone = (phone) => {
+            if (!phone) return null;
+            // Remove all non-digit characters and get last 9 digits
+            const digits = phone.toString().replace(/\D/g, "");
+            return digits.length >= 9 ? digits.slice(-9) : digits;
+          };
 
-          // A. Chronological Check
+          const dbPhone = normalizePhone(driverState.phone_number);
+          const excelPhone = normalizePhone(row.phone_number);
+
+          if (dbPhone && excelPhone && dbPhone !== excelPhone) {
+            warnings.push({
+              row: row.rowNumber,
+              driver_id: row.driver_id,
+              message: `Phone Mismatch: Driver ${row.driver_id} has phone '${driverState.phone_number}' in database but '${row.phone_number}' in Excel.`,
+              db_phone: driverState.phone_number,
+              excel_phone: row.phone_number,
+            });
+          }
+
+          // B. Chronological Check
           if (driverState.last_bonus_date) {
             const lastDate = new Date(driverState.last_bonus_date);
             const newDate = new Date(week_date);
@@ -152,7 +173,7 @@ const uploadController = {
             }
           }
 
-          // B. Verified Driver Blocking Logic
+          // C. Verified Driver Blocking Logic
           if (driverState.verified) {
             if (
               driverState.pending_bonuses > 0 ||
@@ -206,7 +227,41 @@ const uploadController = {
         });
       }
 
+      // 4b. Check for warnings (phone mismatches)
+      if (warnings.length > 0 && !req.body.confirm_warnings) {
+        await connection.rollback();
+        // Update Log to Failed
+        await connection.query(
+          "UPDATE import_logs SET status = 'failed', error_count = 0, success_count = 0 WHERE id = ?",
+          [importLogId]
+        );
+
+        // Clean up file
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+
+        return res.json({
+          success: false,
+          requires_confirmation: true,
+          message: `Found ${warnings.length} phone number mismatch(es). Review and confirm to proceed.`,
+          warnings: warnings,
+          summary: {
+            total_records: parsedData.length,
+            phone_mismatches: warnings.length,
+          },
+        });
+      }
+
       // 5. Execution (No Errors)
+
+      // 5a. Update phone numbers for confirmed mismatches
+      if (warnings.length > 0 && req.body.confirm_warnings) {
+        for (const warning of warnings) {
+          await connection.query(
+            "UPDATE drivers SET phone_number = ? WHERE driver_id = ?",
+            [warning.excel_phone, warning.driver_id]
+          );
+        }
+      }
 
       // Insert New Drivers
       if (newDriversToInsert.length > 0) {

@@ -75,6 +75,7 @@
                         <tr>
                             <th>#</th>
                             <th>Driver</th>
+                            <th>Phone Number</th>
                             <th>Weeks</th>
                             <th>Total Pending</th>
                             <th>Latest Bonus</th>
@@ -82,7 +83,7 @@
                         </tr>
                     </thead>
                     <tbody id="pendingDriversTableBody">
-                        <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                        <tr><td colspan="7" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
                     </tbody>
                 </table>
                 </div>
@@ -118,7 +119,6 @@
     <script src="js/ui.js"></script>
     <script>
         const searchInput = document.getElementById('driverSearchInput');
-// ... (rest of script)
         const searchResults = document.getElementById('searchResults');
 
         let debounceTimer;
@@ -213,8 +213,8 @@
 
                     document.getElementById('statRecentImports').textContent = statsResponse.weekly_imports;
                     
-                     // Update Imports Subtext
-                     document.querySelector('#statRecentImports').parentElement.querySelector('.change').textContent = 'This week';
+                    // Update Imports Subtext
+                    document.querySelector('#statRecentImports').parentElement.querySelector('.change').textContent = 'This week';
                 }
 
                 // Render Table
@@ -232,10 +232,8 @@
                     const tr = document.createElement('tr');
                     tr.innerHTML = `
                         <td class="text-muted small align-middle">${rowNumber}</td>
-                        <td>
-                            <div class="fw-bold">${d.full_name}</div>
-                            <div class="small text-muted">${d.phone_number || 'No phone'}</div>
-                        </td>
+                        <td class="align-middle fw-bold">${d.full_name}</td>
+                        <td class="align-middle text-muted">${d.phone_number || 'No phone'}</td>
                         <td class="fw-semibold align-middle">${d.weeks_pending || 0}</td>
                         <td class="fw-bold text-primary align-middle">${parseFloat(d.total_pending || 0).toLocaleString()} <small class="fw-normal text-xs text-muted">ETB</small></td>
                         <td class="align-middle">${new Date(d.last_week || d.latest_bonus_date).toLocaleDateString()}</td>
