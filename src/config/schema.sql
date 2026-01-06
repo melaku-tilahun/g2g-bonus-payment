@@ -73,7 +73,7 @@ CREATE TABLE IF NOT EXISTS payments (
   total_amount DECIMAL(10, 2) NOT NULL,
   batch_id VARCHAR(50) NULL,
   status ENUM('pending', 'processing', 'paid') DEFAULT 'pending',
-  payment_date DATE NOT NULL,
+  payment_date DATETIME NOT NULL,
   payment_method VARCHAR(50),
   bonus_period_start DATE,
   bonus_period_end DATE,

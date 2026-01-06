@@ -804,7 +804,7 @@ const paymentController = {
 
             if (payments.length > 0) {
               await connection.query(
-                "UPDATE payments SET status = 'paid' WHERE id = ?",
+                "UPDATE payments SET status = 'paid', payment_date = NOW() WHERE id = ?",
                 [payments[0].id]
               );
               await AuditService.log(
