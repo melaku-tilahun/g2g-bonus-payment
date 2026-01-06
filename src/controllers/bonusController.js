@@ -14,10 +14,11 @@ const bonusController = {
       const sortOrder = order.toLowerCase() === "asc" ? "ASC" : "DESC";
 
       const [rows] = await pool.query(
-        `SELECT b.*, il.file_name 
+        `SELECT b.*, il.file_name, p.status as payment_status
          FROM bonuses b 
          LEFT JOIN import_logs il ON b.import_log_id = il.id 
-         WHERE b.driver_id = ? AND b.payment_id IS NULL
+         LEFT JOIN payments p ON b.payment_id = p.id
+         WHERE b.driver_id = ? AND (b.payment_id IS NULL OR p.status = 'processing')
          ORDER BY ${sortCol} ${sortOrder}`,
         [driverId]
       );
@@ -33,12 +34,13 @@ const bonusController = {
       const { driverId } = req.params;
       const [rows] = await pool.query(
         `SELECT 
-          SUM(net_payout) as total_bonus,
-          COUNT(id) as weeks_count,
-          MIN(week_date) as first_week,
-          MAX(week_date) as last_week
-        FROM bonuses
-        WHERE driver_id = ? AND payment_id IS NULL`,
+          SUM(b.net_payout) as total_bonus,
+          COUNT(b.id) as weeks_count,
+          MIN(b.week_date) as first_week,
+          MAX(b.week_date) as last_week
+        FROM bonuses b
+        LEFT JOIN payments p ON b.payment_id = p.id
+        WHERE b.driver_id = ? AND (b.payment_id IS NULL OR p.status = 'processing')`,
         [driverId]
       );
       res.json(rows[0]);

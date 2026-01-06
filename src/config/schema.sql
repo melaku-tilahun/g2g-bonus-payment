@@ -79,13 +79,30 @@ CREATE TABLE IF NOT EXISTS payments (
   bonus_period_end DATE,
   processed_by INT,
   notes TEXT,
+  batch_id VARCHAR(64),
+  batch_internal_id INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
   FOREIGN KEY (processed_by) REFERENCES users(id),
   INDEX idx_driver_id (driver_id),
   INDEX idx_payment_date (payment_date),
   INDEX idx_status (status),
-  INDEX idx_batch (batch_id)
+  INDEX idx_batch_id (batch_id),
+  INDEX idx_batch_internal_id (batch_internal_id)
+);
+
+-- Payment Batches Table for Isolation & Re-download
+CREATE TABLE IF NOT EXISTS payment_batches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  batch_id VARCHAR(64) NOT NULL UNIQUE,
+  total_amount DECIMAL(15, 2) DEFAULT 0,
+  driver_count INT DEFAULT 0,
+  status ENUM('processing', 'paid') DEFAULT 'processing',
+  exported_by INT,
+  exported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (exported_by) REFERENCES users(id),
+  INDEX idx_batch_id (batch_id),
+  INDEX idx_exported_at (exported_at)
 );
 
 -- Bonuses Table
@@ -101,6 +118,7 @@ CREATE TABLE IF NOT EXISTS bonuses (
   bank_fee DECIMAL(10, 2) NULL,
   gross_payout DECIMAL(10, 2) NULL,
   withholding_tax DECIMAL(10, 2) NULL,
+  final_payout DECIMAL(10, 2) NULL,
   imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   import_log_id INT,
   payment_id INT,
@@ -111,6 +129,35 @@ CREATE TABLE IF NOT EXISTS bonuses (
   INDEX idx_week_date (week_date),
   INDEX idx_payment_id (payment_id),
   UNIQUE KEY unique_driver_week (driver_id, week_date)
+);
+
+-- Driver Debts Table (Loans, Insurance, etc.)
+CREATE TABLE IF NOT EXISTS driver_debts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id VARCHAR(64) NOT NULL,
+  amount DECIMAL(15, 2) NOT NULL,
+  remaining_amount DECIMAL(15, 2) NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  notes TEXT,
+  status ENUM('active', 'paid') DEFAULT 'active',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  INDEX idx_driver_status (driver_id, status)
+);
+
+-- Bonus Deductions Log (Transaction History)
+CREATE TABLE IF NOT EXISTS bonus_deductions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  bonus_id INT NOT NULL,
+  debt_id INT NOT NULL,
+  amount_deducted DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (bonus_id) REFERENCES bonuses(id) ON DELETE CASCADE,
+  FOREIGN KEY (debt_id) REFERENCES driver_debts(id),
+  INDEX idx_bonus_id (bonus_id),
+  INDEX idx_debt_id (debt_id)
 );
 
 -- Audit Logs Table

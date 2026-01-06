@@ -173,7 +173,10 @@ const uploadController = {
             }
           }
 
-          // C. Verified Driver Blocking Logic
+          // C. Verified Driver Blocking Logic (REMOVED)
+          // With Batch Isolation, we allow continuous accumulation.
+          // The new bonuses will simply sit in 'Unexported' until the next batch.
+          /*
           if (driverState.verified) {
             if (
               driverState.pending_bonuses > 0 ||
@@ -185,6 +188,7 @@ const uploadController = {
               });
             }
           }
+          */
         }
 
         // Add to bonus insert list (assuming it passes, if errors exist transaction will rollback anyway)
@@ -201,6 +205,7 @@ const uploadController = {
           row.gross_payout,
           row.withholding_tax,
           importLogId,
+          row.net_payout, // Initialize final_payout (index 11)
         ]);
       }
 
@@ -271,12 +276,94 @@ const uploadController = {
         );
       }
 
-      // Insert Bonuses
+      // Insert Bonuses (with Debt Deduction)
       if (bonusesToInsert.length > 0) {
+        // 1. Fetch Active Debts
+        const driverIds = [...new Set(bonusesToInsert.map((b) => b[0]))];
+        const [activeDebts] = await connection.query(
+          "SELECT * FROM driver_debts WHERE driver_id IN (?) AND status = 'active' ORDER BY created_at ASC",
+          [driverIds]
+        );
+
+        // Group debts
+        const debtsMap = {};
+        activeDebts.forEach((d) => {
+          if (!debtsMap[d.driver_id]) debtsMap[d.driver_id] = [];
+          debtsMap[d.driver_id].push({
+            ...d,
+            remaining_amount: parseFloat(d.remaining_amount),
+          });
+        });
+
+        const deductionLogs = [];
+        const debtUpdates = {};
+
+        // 2. Apply Deductions
+        for (const bonusRow of bonusesToInsert) {
+          const dId = bonusRow[0];
+          const net = parseFloat(bonusRow[2]);
+
+          if (debtsMap[dId]) {
+            let available = net;
+            for (const debt of debtsMap[dId]) {
+              if (available <= 0) break;
+              if (debt.remaining_amount <= 0) continue;
+
+              const deduct = Math.min(debt.remaining_amount, available);
+              available -= deduct;
+              debt.remaining_amount -= deduct;
+
+              deductionLogs.push({
+                driver_id: dId,
+                debt_id: debt.id,
+                amount: deduct,
+              });
+
+              debtUpdates[debt.id] = debt.remaining_amount;
+            }
+            bonusRow[11] = available; // Update final_payout
+          }
+        }
+
+        // 3. Bulk Insert
         await connection.query(
-          "INSERT INTO bonuses (driver_id, week_date, net_payout, work_terms, status, balance, payout, bank_fee, gross_payout, withholding_tax, import_log_id) VALUES ?",
+          "INSERT INTO bonuses (driver_id, week_date, net_payout, work_terms, status, balance, payout, bank_fee, gross_payout, withholding_tax, import_log_id, final_payout) VALUES ?",
           [bonusesToInsert]
         );
+
+        // 4. Log Transactions & Update Debts
+        if (deductionLogs.length > 0) {
+          const [insertedBonuses] = await connection.query(
+            "SELECT id, driver_id FROM bonuses WHERE import_log_id = ?",
+            [importLogId]
+          );
+
+          const bonusIdMap = {};
+          insertedBonuses.forEach((ib) => (bonusIdMap[ib.driver_id] = ib.id));
+
+          const deductionValues = [];
+          for (const log of deductionLogs) {
+            const bonusId = bonusIdMap[log.driver_id];
+            if (bonusId) {
+              deductionValues.push([bonusId, log.debt_id, log.amount]);
+            }
+          }
+
+          if (deductionValues.length > 0) {
+            await connection.query(
+              "INSERT INTO bonus_deductions (bonus_id, debt_id, amount_deducted) VALUES ?",
+              [deductionValues]
+            );
+          }
+
+          for (const [debtId, newAmount] of Object.entries(debtUpdates)) {
+            const status = newAmount <= 0 ? "paid" : "active";
+            await connection.query(
+              "UPDATE driver_debts SET remaining_amount = ?, status = ? WHERE id = ?",
+              [newAmount, status, debtId]
+            );
+          }
+        }
       }
 
       // Success Log

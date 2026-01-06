@@ -1,6 +1,8 @@
 const pool = require("../config/database");
 const AuditService = require("../services/auditService");
 const TINVerificationService = require("../services/tinVerificationService");
+const fs = require("fs");
+const path = require("path");
 
 const driverController = {
   search: async (req, res) => {
@@ -110,6 +112,32 @@ const driverController = {
         });
       }
 
+      // Process photo if it's base64
+      let photoPath = manager_photo || null;
+      if (manager_photo && manager_photo.startsWith("data:image")) {
+        try {
+          const base64Data = manager_photo.replace(
+            /^data:image\/\w+;base64,/,
+            ""
+          );
+          const buffer = Buffer.from(base64Data, "base64");
+          const fileName = `driver_${id}_${Date.now()}.jpg`;
+          const relativePath = `/uploads/driver_photos/${fileName}`;
+          const absolutePath = path.join(
+            __dirname,
+            "../../public",
+            relativePath
+          );
+
+          fs.writeFileSync(absolutePath, buffer);
+          photoPath = relativePath;
+          console.log(`📸 Photo saved to: ${photoPath}`);
+        } catch (photoError) {
+          console.error("Error saving photo:", photoError);
+          // Fallback to null or keep base64 if it fails, but ideally we want a path
+        }
+      }
+
       // Prepare update query
       const updateFields = {
         verified: true,
@@ -119,7 +147,7 @@ const driverController = {
         business_name: business_name || null,
         licence_number: licence_number || null,
         manager_name: manager_name || null,
-        manager_photo: manager_photo || null,
+        manager_photo: photoPath,
         tin_verified_at: tin ? new Date() : null,
       };
 

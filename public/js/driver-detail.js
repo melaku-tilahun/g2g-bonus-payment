@@ -27,6 +27,88 @@ document.addEventListener("DOMContentLoaded", async () => {
     const bonuses = await api.get(`/bonuses/driver/${driverId}`);
     renderDriver(driver, bonuses, currentUser);
     loadPaymentHistory(driverId);
+
+    // Load Debt Info
+    loadDebts(driverId);
+
+    // Show Add Debt button for admins
+    if (currentUser && currentUser.role === "admin") {
+      document.getElementById("addDebtBtn").style.display = "block";
+    }
+
+    // Add Debt Logic
+    const debtModal = new bootstrap.Modal(
+      document.getElementById("addDebtModal")
+    );
+    const reasonSelect = document.getElementById("debtReasonInput");
+    const otherContainer = document.getElementById("otherReasonContainer");
+
+    document.getElementById("addDebtBtn").onclick = () => {
+      document.getElementById("debtAmountInput").value = "";
+      document.getElementById("debtNotesInput").value = "";
+      document.getElementById("otherReasonInput").value = "";
+      reasonSelect.value = "Insurance"; // Default
+      otherContainer.classList.add("d-none");
+      debtModal.show();
+    };
+
+    // Central Button Logic (Same as header button)
+    document.getElementById("addDebtCentralBtn").onclick =
+      document.getElementById("addDebtBtn").onclick;
+
+    reasonSelect.addEventListener("change", (e) => {
+      if (e.target.value === "Other") {
+        otherContainer.classList.remove("d-none");
+      } else {
+        otherContainer.classList.add("d-none");
+      }
+    });
+
+    document.getElementById("confirmAddDebtBtn").onclick = async () => {
+      const amount = document.getElementById("debtAmountInput").value;
+      let reason = reasonSelect.value;
+      const notes = document.getElementById("debtNotesInput").value;
+
+      // Custom Reason Validation
+      if (reason === "Other") {
+        const customReason = document
+          .getElementById("otherReasonInput")
+          .value.trim();
+        if (!customReason) {
+          ui.toast("Please specify a reason", "error");
+          return;
+        }
+        reason = customReason;
+      }
+
+      if (!amount || amount <= 0) {
+        ui.toast("Please enter a valid amount", "error");
+        return;
+      }
+
+      try {
+        document.getElementById("confirmAddDebtBtn").disabled = true;
+        await api.post("/debts", {
+          driverId,
+          amount,
+          reason,
+          notes,
+        });
+
+        ui.toast("Debt created successfully", "success");
+        debtModal.hide();
+        loadDebts(driverId);
+        // Reload bonuses to reflect any retroactive deductions
+        const updatedBonuses = await api.get(`/bonuses/driver/${driverId}`);
+        renderBonusList(updatedBonuses);
+        updateTotalCalculations(updatedBonuses); // Helper needed or inline update
+      } catch (error) {
+        console.error(error);
+        ui.toast(error.message || "Failed to create debt", "error");
+      } finally {
+        document.getElementById("confirmAddDebtBtn").disabled = false;
+      }
+    };
   } catch (error) {
     ui.toast("Failed to load driver details", "error");
     console.error(error);
@@ -125,9 +207,11 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     if (data.managerPhoto && data.managerPhoto.trim() !== "") {
       // Handle both full URLs and base64 encoded images
-      if (data.managerPhoto.startsWith("http")) {
-        photoImg.src = data.managerPhoto;
-      } else if (data.managerPhoto.startsWith("data:image")) {
+      if (
+        data.managerPhoto.startsWith("http") ||
+        data.managerPhoto.startsWith("data:image") ||
+        data.managerPhoto.startsWith("/uploads")
+      ) {
         photoImg.src = data.managerPhoto;
       } else {
         // Assume it's a base64 string without the data URI prefix
@@ -276,6 +360,152 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 });
 
+async function loadDebts(driverId) {
+  try {
+    const response = await api.get(`/debts/driver/${driverId}`);
+    const { debts, deductions } = response;
+
+    // 1. Calculate Total Active Debt
+    const totalActive = debts
+      .filter((d) => d.status === "active")
+      .reduce((sum, d) => sum + parseFloat(d.remaining_amount), 0);
+
+    document.getElementById(
+      "totalActiveDebt"
+    ).textContent = `${totalActive.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ETB`;
+
+    // 2. Render Table (Combine debts creation and deductions history?)
+    // Let's show a mixed timeline or just the debt list.
+    // User requested "view debt/deduction history".
+    // Let's modify the table to show "Transaction History"
+    const tbody = document.getElementById("debtTableBody");
+    tbody.innerHTML = "";
+
+    // UI Elements
+    const dataRow = document.getElementById("debtDataRow");
+    const emptyState = document.getElementById("debtEmptyState");
+    const headerBtn = document.getElementById("addDebtBtn");
+    const centralBtn = document.getElementById("addDebtCentralBtn");
+
+    // Get current user for permission check
+    const user = auth.getUser();
+    const isAdmin = user && user.role === "admin";
+
+    if (debts.length === 0 && deductions.length === 0) {
+      // EMPTY STATE
+      dataRow.classList.add("d-none");
+      headerBtn.style.display = "none"; // Hide header button
+      emptyState.classList.remove("d-none");
+
+      // Show central button only for admins
+      if (isAdmin) {
+        centralBtn.style.display = "inline-block";
+      } else {
+        centralBtn.style.display = "none";
+      }
+      return;
+    }
+
+    // HAS DATA STATE
+    dataRow.classList.remove("d-none");
+    emptyState.classList.add("d-none");
+
+    // HAS DATA STATE
+    dataRow.classList.remove("d-none");
+    emptyState.classList.add("d-none");
+
+    // Show header button if admin
+    if (isAdmin) {
+      if (totalActive > 0) {
+        // Enforce Single Active Debt Rules
+        headerBtn.style.display = "block";
+        headerBtn.disabled = true;
+        headerBtn.innerHTML =
+          '<i class="fas fa-lock me-2"></i> Active Debt Exists';
+        headerBtn.title = "Clear existing debt before adding a new one";
+      } else {
+        headerBtn.style.display = "block";
+        headerBtn.disabled = false;
+        headerBtn.innerHTML = '<i class="fas fa-plus me-2"></i> Add Debt';
+        headerBtn.title = "";
+      }
+    } else {
+      headerBtn.style.display = "none";
+    }
+
+    // Merge lists for timeline
+    const timeline = [
+      ...debts.map((d) => ({
+        type: "DEBT_CREATED",
+        date: d.created_at,
+        amount: d.amount,
+        ref: d.reason,
+        status: d.status,
+        original: d,
+      })),
+      ...deductions.map((d) => ({
+        type: "DEDUCTION",
+        date: d.created_at,
+        amount: d.amount_deducted,
+        ref: `Deducted from Bonus ${new Date(
+          d.week_date
+        ).toLocaleDateString()}`,
+        status: "applied",
+        original: d,
+      })),
+    ].sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    timeline.forEach((item) => {
+      const isDebt = item.type === "DEBT_CREATED";
+      const tr = document.createElement("tr");
+      tr.innerHTML = `
+                <td class="small text-muted">${new Date(
+                  item.date
+                ).toLocaleDateString()}</td>
+                <td><span class="badge ${
+                  isDebt
+                    ? "bg-secondary text-secondary"
+                    : "bg-success text-success"
+                } bg-opacity-10">${
+        isDebt ? "New Debt" : "Deduction"
+      }</span></td>
+                <td class="small">${escapeHtml(item.ref)}</td>
+                <td class="text-end fw-bold ${
+                  isDebt ? "text-dark" : "text-success"
+                }">${parseFloat(item.amount).toLocaleString()}</td>
+                <td class="text-end text-muted small">${
+                  isDebt
+                    ? parseFloat(
+                        item.original.remaining_amount
+                      ).toLocaleString()
+                    : "-"
+                }</td>
+                <td class="text-center"><span class="badge bg-light text-dark border">${
+                  item.status
+                }</span></td>
+            `;
+      tbody.appendChild(tr);
+    });
+  } catch (error) {
+    console.error("Failed to load debts:", error);
+  }
+}
+
+// XSS Protection Helper
+function escapeHtml(text) {
+  if (!text) return "";
+  return text
+    .toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function showSkeletons() {
   document.getElementById("bonusHistoryTableBody").innerHTML = `
         <tr><td colspan="6"><div class="skeleton skeleton-text w-100"></div></td></tr>
@@ -304,10 +534,9 @@ async function loadPaymentHistory(driverId) {
 
     history.forEach((p) => {
       const tr = document.createElement("tr");
+      // Global history now strictly contains 'paid' payments from backend
       const statusBadge =
-        p.status === "paid"
-          ? '<span class="badge bg-success bg-opacity-10 text-success">Paid</span>'
-          : '<span class="badge bg-warning bg-opacity-10 text-warning">Processing</span>';
+        '<span class="badge bg-success bg-opacity-10 text-success">Paid</span>';
 
       tr.innerHTML = `
                 <td class="px-4 py-3 align-middle">${new Date(
@@ -393,7 +622,8 @@ function renderDriver(driver, bonuses, currentUser) {
         // Fix: Ensure base64 gets prefix if it's not present
         if (
           driver.manager_photo.startsWith("http") ||
-          driver.manager_photo.startsWith("data:image")
+          driver.manager_photo.startsWith("data:image") ||
+          driver.manager_photo.startsWith("/uploads")
         ) {
           photoImg.src = driver.manager_photo;
         } else {
@@ -468,8 +698,20 @@ function renderBonusList(bonuses) {
   bonuses
     .sort((a, b) => new Date(b.week_date) - new Date(a.week_date))
     .forEach((b) => {
-      const isPaid = !!b.payment_id;
       const tr = document.createElement("tr");
+
+      let statusHtml =
+        '<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2">Pending</span>';
+      if (b.payment_id) {
+        if (b.payment_status === "paid") {
+          statusHtml =
+            '<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2">Paid</span>';
+        } else if (b.payment_status === "processing") {
+          statusHtml =
+            '<span class="badge bg-info bg-opacity-10 text-info rounded-pill px-2">Processing</span>';
+        }
+      }
+
       tr.innerHTML = `
             <td class="ps-4 align-middle">
                 ${new Date(b.week_date).toLocaleDateString("en-US", {
@@ -483,11 +725,7 @@ function renderBonusList(bonuses) {
               b.file_name || "Manual Import"
             }</td>
             <td class="align-middle">
-                ${
-                  isPaid
-                    ? '<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-2">Paid</span>'
-                    : '<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-2">Pending</span>'
-                }
+                ${statusHtml}
             </td>
             <td class="text-muted align-middle">${parseFloat(
               b.gross_payout || 0
@@ -495,10 +733,38 @@ function renderBonusList(bonuses) {
             <td class="text-muted align-middle">${parseFloat(
               b.withholding_tax || 0
             ).toLocaleString()}</td>
-            <td class="text-end pe-4 fw-bold text-dark align-middle">${parseFloat(
-              b.net_payout
-            ).toLocaleString()} ETB</td>
+            <td class="text-end pe-4 fw-bold text-dark align-middle">
+                ${parseFloat(
+                  b.final_payout !== null ? b.final_payout : b.net_payout
+                ).toLocaleString()} ETB
+                ${
+                  b.final_payout !== null && b.final_payout < b.net_payout
+                    ? `<i class="fas fa-info-circle text-danger ms-1" data-bs-toggle="tooltip" title="Original: ${parseFloat(
+                        b.net_payout
+                      ).toLocaleString()} (Debt Deducted)"></i>`
+                    : ""
+                }
+            </td>
         `;
       tbody.appendChild(tr);
     });
+}
+
+function updateTotalCalculations(bonuses) {
+  /* Total Calculations */
+  const total = bonuses.reduce(
+    (sum, b) =>
+      sum +
+      parseFloat(b.final_payout !== null ? b.final_payout : b.net_payout || 0),
+    0
+  );
+  document.getElementById("totalBonus").textContent = `${total.toLocaleString(
+    undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+  )} ETB`;
+
+  // Re-render period
+  if (bonuses.length > 0) {
+    document.getElementById("weeksCount").textContent = bonuses.length;
+  }
 }

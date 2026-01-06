@@ -44,6 +44,8 @@ router.get("/history", paymentController.getHistory);
 router.get("/pending", paymentController.getPendingPayments);
 router.get("/accumulated", paymentController.getAccumulatedPayments);
 router.get("/export/pending", paymentController.exportPendingPayments);
+router.get("/batches", paymentController.getBatches);
+router.get("/batches/:batchId/download", paymentController.downloadBatchExcel);
 
 router.put("/:paymentId/confirm", paymentController.confirmPayment);
 

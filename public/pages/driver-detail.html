@@ -168,6 +168,61 @@
         </div>
     </div>
         
+    <!-- Debt & Liabilities Section -->
+        <div class="card-premium mt-4 border-secondary border-start border-4">
+            <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-hand-holding-usd me-2"></i> Debts & Liabilities</h5>
+                <button class="btn btn-outline-secondary btn-sm shadow-sm" id="addDebtBtn" style="display: none;">
+                    <i class="fas fa-plus me-2"></i> Add Debt
+                </button>
+            </div>
+            <div class="card-body">
+                <!-- Data View (Hidden if empty) -->
+                <div class="row g-4" id="debtDataRow">
+                    <!-- Active Debt Summary -->
+                    <div class="col-md-4">
+                        <div class="p-4 rounded-3 bg-secondary bg-opacity-10 h-100">
+                             <div class="small text-secondary text-opacity-75 text-uppercase fw-bold mb-1">Total Active Debt</div>
+                             <div class="h2 fw-bold text-dark mb-0" id="totalActiveDebt">0.00 ETB</div>
+                             <div class="small text-muted mt-2">Automatic deduction from future bonuses</div>
+                        </div>
+                    </div>
+                    <!-- Recent Deductions/Debts Table -->
+                    <div class="col-md-8">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead>
+                                    <tr>
+                                        <th class="small text-muted">Date</th>
+                                        <th class="small text-muted">Type</th>
+                                        <th class="small text-muted">Reason</th>
+                                        <th class="small text-muted text-end">Amount</th>
+                                        <th class="small text-muted text-end">Remaining</th>
+                                        <th class="small text-muted text-center">Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="debtTableBody">
+                                    <tr><td colspan="6" class="text-center text-muted py-3">No active debts</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empty State View (Shown if no history) -->
+                <div id="debtEmptyState" class="text-center py-5 d-none">
+                    <div class="mb-3">
+                        <i class="fas fa-check-circle fa-3x text-success opacity-25"></i>
+                    </div>
+                    <h6 class="text-secondary fw-bold mb-2">No Active Debts or Liabilities</h6>
+                    <p class="text-muted small mb-4">This driver has no recorded debts or deductions.</p>
+                    <button class="btn btn-outline-secondary shadow-sm px-4 rounded-pill" id="addDebtCentralBtn" style="display: none;">
+                        <i class="fas fa-plus me-2"></i> Add First Debt
+                    </button>
+                </div>
+            </div>
+        </div>
+
     <!-- Payment History Section -->
         <div class="card-premium mt-4">
             <div class="card-header bg-white border-0 py-3">
@@ -196,6 +251,50 @@
     </div>
 
 
+
+    <!-- Add Debt Modal -->
+    <div class="modal fade" id="addDebtModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-secondary"><i class="fas fa-plus-circle me-2"></i> Add New Debt</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-secondary bg-secondary bg-opacity-10 border-0 fs-6 mb-4">
+                        <i class="fas fa-info-circle me-2"></i> This amount will be automatically deducted from the driver's next bonuses.
+                    </div>
+                     <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Debt Amount (ETB)</label>
+                        <input type="number" class="form-control form-control-lg bg-light border-0 shadow-sm" id="debtAmountInput" placeholder="0.00">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Reason</label>
+                        <select class="form-select form-select-lg bg-light border-0 shadow-sm" id="debtReasonInput">
+                            <option value="Insurance">Insurance</option>
+                            <option value="Loan Payment">Loan Payment</option>
+                            <option value="Spare Parts">Spare Parts</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <!-- Hidden field for Other Reason -->
+                    <div class="mb-3 d-none" id="otherReasonContainer">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Specify Reason <span class="text-danger">*</span></label>
+                        <input type="text" class="form-control bg-light border-0 shadow-sm" id="otherReasonInput" placeholder="Enter reason...">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Notes (Optional)</label>
+                        <textarea class="form-control bg-light border-0 shadow-sm" id="debtNotesInput" rows="3" placeholder="Additional details..."></textarea>
+                    </div>
+                </div>
+                 <div class="modal-footer border-0 pt-0 p-4">
+                    <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-dark px-4 rounded-pill shadow-none" id="confirmAddDebtBtn">Create Debt</button>
+                </div>
+            </div>
+        </div>
+    </div>
 
     <div class="modal fade" id="verifyModal" tabindex="-1">
         <div class="modal-dialog modal-dialog-centered modal-lg">

@@ -88,11 +88,11 @@ const paymentController = {
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
-      let whereClause = "";
+      let whereClause = " WHERE p.status = 'paid'";
       const params = [];
 
       if (driver_id) {
-        whereClause = " WHERE p.driver_id = ?";
+        whereClause += " AND p.driver_id = ?";
         params.push(driver_id);
       }
 
@@ -132,12 +132,19 @@ const paymentController = {
 
   getPendingPayments: async (req, res) => {
     try {
-      const { page = 1, limit = 25, q = "" } = req.query;
+      const { page = 1, limit = 25, q = "", status = "pending" } = req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
-      let whereClause =
-        "WHERE d.verified = TRUE AND (b.payment_id IS NULL OR p.status = 'processing')";
+      // Define where clause based on status
+      let whereClause = "";
+      if (status === "processing") {
+        whereClause = "WHERE d.verified = TRUE AND p.status = 'processing'";
+      } else {
+        // Default to 'pending' (bonuses with no payment_id yet)
+        whereClause = "WHERE d.verified = TRUE AND b.payment_id IS NULL";
+      }
+
       const params = [];
 
       if (q) {
@@ -155,29 +162,50 @@ const paymentController = {
         params
       );
 
+      // Get Paginated Data
+      // Refactor: When status is 'processing', include the batch_id
       const query = `
         SELECT 
-            d.driver_id, 
-            d.full_name, 
-            d.phone_number,
-            COUNT(b.id) as pending_weeks,
-            SUM(b.net_payout) as total_pending_amount,
-            MIN(b.week_date) as earliest_bonus_date,
-            MAX(b.week_date) as latest_bonus_date,
-            COALESCE(p.status, 'pending') as status
+          d.driver_id, d.full_name, d.phone_number,
+          COUNT(DISTINCT b.id) as pending_weeks,
+          MIN(b.week_date) as earliest_bonus_date,
+          MAX(b.week_date) as latest_bonus_date,
+          SUM(b.net_payout) as total_pending_amount,
+          COALESCE(p.status, 'pending') as status,
+          p.batch_id
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
         LEFT JOIN payments p ON b.payment_id = p.id
         ${whereClause}
-        GROUP BY d.driver_id, d.full_name, d.phone_number, COALESCE(p.status, 'pending')
+        GROUP BY d.driver_id, p.status, p.batch_id
         ORDER BY total_pending_amount DESC
         LIMIT ? OFFSET ?
       `;
       const [rows] = await pool.query(query, [...params, limitNum, offset]);
 
+      // Get counts for both tabs to update UI badges
+      const [pendingCount] = await pool.query(
+        `SELECT COUNT(DISTINCT d.driver_id) as count 
+         FROM drivers d 
+         JOIN bonuses b ON d.driver_id = b.driver_id 
+         WHERE d.verified = TRUE AND b.payment_id IS NULL`
+      );
+
+      const [processingCount] = await pool.query(
+        `SELECT COUNT(DISTINCT d.driver_id) as count 
+         FROM drivers d 
+         JOIN bonuses b ON d.driver_id = b.driver_id 
+         JOIN payments p ON b.payment_id = p.id
+         WHERE d.verified = TRUE AND p.status = 'processing'`
+      );
+
       res.json({
         pending_drivers: rows,
         total: countRows[0].total,
+        counts: {
+          pending: pendingCount[0].count,
+          processing: processingCount[0].count,
+        },
         pagination: {
           page: parseInt(page),
           limit: limitNum,
@@ -262,76 +290,89 @@ const paymentController = {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Pending Payments");
 
-      // 1. Identify all drivers that need to be in the export
-      // (Those with pending bonuses OR existing processing payments)
+      // 1. Identify all drivers that have FRESH pending bonuses (never exported)
       const [drivers] = await connection.query(`
         SELECT DISTINCT d.driver_id, d.phone_number
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
-        LEFT JOIN payments p ON b.payment_id = p.id
-        WHERE d.verified = TRUE AND (b.payment_id IS NULL OR p.status = 'processing')
+        WHERE d.verified = TRUE AND b.payment_id IS NULL
       `);
 
       if (drivers.length === 0) {
         await connection.rollback();
-        return res
-          .status(400)
-          .json({ message: "No pending payments to export." });
+        return res.status(400).json({
+          message:
+            "No fresh pending bonuses to export. If you need to re-download a previous export, please check the Export History.",
+        });
       }
 
-      const batchId = `BATCH${new Date()
-        .toISOString()
-        .split("T")[0]
-        .replace(/-/g, "")}`;
+      // Generate a unique Batch ID with timestamp and incremental suffix for display
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}${(now.getMonth() + 1)
+        .toString()
+        .padStart(2, "0")}${now.getDate().toString().padStart(2, "0")}`;
+      const timeStr = `${now.getHours().toString().padStart(2, "0")}${now
+        .getMinutes()
+        .toString()
+        .padStart(2, "0")}`;
 
-      // 2. Process each driver: Ensure they have a 'processing' payment and all bonuses are linked
+      // Get sequence for today
+      const [countResult] = await connection.query(
+        "SELECT COUNT(*) as count FROM payment_batches WHERE DATE(exported_at) = CURRENT_DATE"
+      );
+      const sequence = (countResult[0].count + 1).toString().padStart(5, "0");
+
+      const batchDisplayId = `BATCH-${dateStr}-${timeStr}-${sequence}`;
+
+      // Create the internal batch record first
+      const [batchResult] = await connection.query(
+        "INSERT INTO payment_batches (batch_id, total_amount, driver_count, status, exported_by) VALUES (?, ?, ?, ?, ?)",
+        [batchDisplayId, 0, drivers.length, "processing", req.user.id]
+      );
+      const batchInternalId = batchResult.insertId;
+
+      let totalBatchAmount = 0;
+
+      // 2. Process each driver: Create a new processing payment for this batch
       for (const driver of drivers) {
-        // Fix #8: Validate phone number is not empty
         if (!driver.phone_number || driver.phone_number.trim() === "") {
           await connection.rollback();
           return res.status(400).json({
-            message: `Driver ${driver.driver_id} has no phone number. Cannot export. Please update driver information first.`,
+            message: `Driver ${driver.driver_id} has no phone number. Cannot export.`,
           });
         }
 
-        // Find existing processing payment
-        const [existing] = await connection.query(
-          "SELECT id FROM payments WHERE driver_id = ? AND status = 'processing' LIMIT 1",
-          [driver.driver_id]
+        // Create new processing payment linked to THIS batch
+        const [pResult] = await connection.query(
+          "INSERT INTO payments (driver_id, total_amount, payment_date, payment_method, status, processed_by, notes, batch_id, batch_internal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          [
+            driver.driver_id,
+            0,
+            now,
+            "Telebirr",
+            "processing",
+            req.user.id,
+            `Isolated in ${batchDisplayId}`,
+            batchDisplayId,
+            batchInternalId,
+          ]
         );
+        const paymentId = pResult.insertId;
 
-        let paymentId;
-        if (existing.length > 0) {
-          paymentId = existing[0].id;
-        } else {
-          // Create new processing payment
-          const [result] = await connection.query(
-            "INSERT INTO payments (driver_id, total_amount, payment_date, payment_method, status, processed_by, notes) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            [
-              driver.driver_id,
-              0,
-              new Date(),
-              "Telebirr",
-              "processing",
-              req.user.id,
-              `Exported in ${batchId}`,
-            ]
-          );
-          paymentId = result.insertId;
-        }
-
-        // Link any unlinked bonuses to this payment
+        // Link only the CURRENTLY UNLINKED bonuses for this driver to this payment
+        // This is the CRITICAL isolation step
         await connection.query(
           "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL",
           [paymentId, driver.driver_id]
         );
 
-        // Update the payment's total_amount to the SUM of all linked bonuses
+        // Update the payment's total_amount
         const [sumResult] = await connection.query(
           "SELECT SUM(net_payout) as total FROM bonuses WHERE payment_id = ?",
           [paymentId]
         );
         const totalAmount = parseFloat(sumResult[0].total || 0);
+        totalBatchAmount += totalAmount;
 
         await connection.query(
           "UPDATE payments SET total_amount = ? WHERE id = ?",
@@ -339,24 +380,28 @@ const paymentController = {
         );
       }
 
-      // 3. Fetch final data for Excel generation
-      const [exportRows] = await connection.query(`
+      // Update the batch summary
+      await connection.query(
+        "UPDATE payment_batches SET total_amount = ? WHERE id = ?",
+        [totalBatchAmount, batchInternalId]
+      );
+
+      // 3. Fetch data for this SPECIFIC BATCH only for Excel generation
+      const [exportRows] = await connection.query(
+        `
         SELECT 
             d.driver_id, 
             d.phone_number,
             p.total_amount
         FROM drivers d
         JOIN payments p ON d.driver_id = p.driver_id
-        WHERE p.status = 'processing'
+        WHERE p.batch_internal_id = ?
         ORDER BY p.total_amount DESC
-      `);
-
-      const totalExportAmount = exportRows.reduce(
-        (sum, row) => sum + parseFloat(row.total_amount),
-        0
+      `,
+        [batchInternalId]
       );
 
-      // Validate all phone numbers BEFORE creating Excel data
+      // Validate all phone numbers
       for (const row of exportRows) {
         const rawPhone = row.phone_number || "";
         const digits = rawPhone.replace(/\D/g, "");
@@ -365,9 +410,7 @@ const paymentController = {
         if (phone.length !== 9 || !/^\d{9}$/.test(phone)) {
           await connection.rollback();
           return res.status(400).json({
-            message: `Invalid phone number for driver ${row.driver_id}. Phone '${rawPhone}' must contain exactly 9 digits. Please update driver information before exporting.`,
-            driver_id: row.driver_id,
-            phone_number: rawPhone,
+            message: `Invalid phone for driver ${row.driver_id}. Phone '${rawPhone}' needs attention.`,
           });
         }
       }
@@ -383,7 +426,7 @@ const paymentController = {
           phone,
           "",
           parseFloat(row.total_amount),
-          `${row.driver_id},${batchId}`,
+          `${row.driver_id},${batchDisplayId}`,
         ];
       });
 
@@ -424,9 +467,9 @@ const paymentController = {
         "payment",
         null,
         {
-          batchId,
+          batchId: batchDisplayId,
           driverCount: exportRows.length,
-          totalAmount: totalExportAmount,
+          totalAmount: totalBatchAmount,
         }
       );
 
@@ -543,6 +586,7 @@ const paymentController = {
       let phoneCol = 3; // Default C
       let amountCol = 8; // Default H
       let statusCol = 12; // Default L
+      let commentCol = -1;
 
       for (let i = 1; i <= 20; i++) {
         const row = worksheet.getRow(i);
@@ -555,6 +599,7 @@ const paymentController = {
           }
           if (val.includes("amount")) amountCol = colNumber;
           if (val.includes("status")) statusCol = colNumber;
+          if (val.includes("comment")) commentCol = colNumber;
         });
 
         if (foundMsisdn) {
@@ -623,6 +668,8 @@ const paymentController = {
             ? row.getCell(statusCol).value.toString().trim()
             : "";
           const amount = row.getCell(amountCol).value;
+          const comment =
+            commentCol !== -1 ? row.getCell(commentCol).value : null;
 
           if (phone) {
             summary.totalRows++;
@@ -637,6 +684,7 @@ const paymentController = {
                 phone: cleanPhone(phone),
                 originalPhone: phone,
                 amount: parseFloat(amount || 0),
+                comment: comment ? comment.toString() : null,
               });
             }
           }
@@ -662,11 +710,31 @@ const paymentController = {
         }
 
         const driver = drivers[0];
+
+        // EXTREMELY IMPORTANT: Extract Batch ID from comment if available
+        let batchIdFromComment = null;
+        if (rowData.comment && rowData.comment.includes(",")) {
+          const parts = rowData.comment.split(",");
+          if (parts.length >= 2) {
+            batchIdFromComment = parts[1].trim();
+          }
+        }
+
         // Check for processing payments
-        const [payments] = await pool.query(
-          "SELECT id, total_amount FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
-          [driver.driver_id]
-        );
+        let payments;
+        if (batchIdFromComment) {
+          // Precise match by Batch ID
+          [payments] = await pool.query(
+            "SELECT id, total_amount FROM payments WHERE driver_id = ? AND batch_id = ? AND status = 'processing' LIMIT 1",
+            [driver.driver_id, batchIdFromComment]
+          );
+        } else {
+          // Fallback to latest processing
+          [payments] = await pool.query(
+            "SELECT id, total_amount FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
+            [driver.driver_id]
+          );
+        }
 
         if (payments.length > 0) {
           const dbAmount = parseFloat(payments[0].total_amount);
@@ -776,6 +844,8 @@ const paymentController = {
           const status = row.getCell(statusCol).value
             ? row.getCell(statusCol).value.toString().trim().toLowerCase()
             : "";
+          const comment =
+            commentCol !== -1 ? row.getCell(commentCol).value : null;
 
           if (
             phone &&
@@ -783,13 +853,24 @@ const paymentController = {
               status === "success" ||
               status === "succeeded")
           ) {
-            rows.push({ phone: cleanPhone(phone) });
+            rows.push({
+              phone: cleanPhone(phone),
+              comment: comment ? comment.toString() : null,
+            });
           }
         }
       });
 
       for (const rowData of rows) {
+        // Added loop for rows
         try {
+          // Identify Batch ID if possible
+          let batchIdFromComment = null;
+          if (rowData.comment && rowData.comment.includes(",")) {
+            const parts = rowData.comment.split(",");
+            if (parts.length >= 2) batchIdFromComment = parts[1].trim();
+          }
+
           const [drivers] = await connection.query(
             "SELECT driver_id FROM drivers WHERE phone_number LIKE ?",
             [`%${rowData.phone}`]
@@ -797,22 +878,48 @@ const paymentController = {
 
           if (drivers.length > 0) {
             const driver = drivers[0];
-            const [payments] = await connection.query(
-              "SELECT id FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
-              [driver.driver_id]
-            );
+            let payments;
+
+            if (batchIdFromComment) {
+              [payments] = await connection.query(
+                "SELECT id, batch_internal_id FROM payments WHERE driver_id = ? AND batch_id = ? AND status = 'processing' LIMIT 1",
+                [driver.driver_id, batchIdFromComment]
+              );
+            } else {
+              [payments] = await connection.query(
+                "SELECT id, batch_internal_id FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
+                [driver.driver_id]
+              );
+            }
 
             if (payments.length > 0) {
+              const payment = payments[0];
               await connection.query(
                 "UPDATE payments SET status = 'paid', payment_date = NOW() WHERE id = ?",
-                [payments[0].id]
+                [payment.id]
               );
+
+              // IF there was a batch_internal_id, we might need to update the batch status
+              if (payment.batch_internal_id) {
+                // Check if all payments in this batch are now paid
+                const [remaining] = await connection.query(
+                  "SELECT COUNT(*) as count FROM payments WHERE batch_internal_id = ? AND status != 'paid'",
+                  [payment.batch_internal_id]
+                );
+                if (remaining[0].count === 0) {
+                  await connection.query(
+                    "UPDATE payment_batches SET status = 'paid' WHERE id = ?",
+                    [payment.batch_internal_id]
+                  );
+                }
+              }
+
               await AuditService.log(
                 req.user.id,
                 "Reconcile Payment",
                 "payment",
-                payments[0].id,
-                { driver_id: driver.driver_id }
+                payment.id,
+                { driver_id: driver.driver_id, batch_id: batchIdFromComment }
               );
               results.success++;
             }
@@ -851,6 +958,134 @@ const paymentController = {
           console.error("Failed to cleanup file:", cleanupError);
         }
       }
+    }
+  },
+
+  getBatches: async (req, res) => {
+    try {
+      const { page = 1, limit = 20 } = req.query;
+      const offset = (parseInt(page) - 1) * parseInt(limit);
+      const limitNum = parseInt(limit);
+
+      const [batches] = await pool.query(
+        `SELECT b.*, u.full_name as exported_by_name,
+                (SELECT COUNT(*) FROM payments WHERE batch_internal_id = b.id AND status = 'paid') as paid_count,
+                b.driver_count as total_count
+         FROM payment_batches b 
+         LEFT JOIN users u ON b.exported_by = u.id 
+         ORDER BY b.exported_at DESC 
+         LIMIT ? OFFSET ?`,
+        [limitNum, offset]
+      );
+
+      const [countRows] = await pool.query(
+        "SELECT COUNT(*) as total FROM payment_batches"
+      );
+
+      res.json({
+        batches,
+        pagination: {
+          page: parseInt(page),
+          total: countRows[0].total,
+          total_pages: Math.ceil(countRows[0].total / limitNum),
+        },
+      });
+    } catch (error) {
+      console.error("Get batches error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  },
+
+  downloadBatchExcel: async (req, res) => {
+    try {
+      const { batchId } = req.params;
+
+      // Get batch metadata
+      const [batchRows] = await pool.query(
+        "SELECT * FROM payment_batches WHERE batch_id = ?",
+        [batchId]
+      );
+
+      if (batchRows.length === 0) {
+        return res.status(404).json({ message: "Batch not found" });
+      }
+
+      const batch = batchRows[0];
+
+      // Get payments for this batch
+      const [exportRows] = await pool.query(
+        `
+        SELECT 
+            d.driver_id, 
+            d.phone_number,
+            p.total_amount
+        FROM drivers d
+        JOIN payments p ON d.driver_id = p.driver_id
+        WHERE p.batch_internal_id = ?
+        ORDER BY p.total_amount DESC
+      `,
+        [batch.id]
+      );
+
+      const ExcelJS = require("exceljs");
+      const workbook = new ExcelJS.Workbook();
+      const worksheet = workbook.addWorksheet("Pending Payments");
+
+      const tableData = exportRows.map((row) => {
+        const rawPhone = row.phone_number || "";
+        const digits = rawPhone.replace(/\D/g, "");
+        const phone = digits.length >= 9 ? digits.slice(-9) : digits;
+
+        return [
+          "MSISDN",
+          phone,
+          "",
+          parseFloat(row.total_amount),
+          `${row.driver_id},${batchId}`,
+        ];
+      });
+
+      worksheet.addTable({
+        name: "PendingPaymentsTable",
+        ref: "A1",
+        headerRow: true,
+        totalsRow: false,
+        style: {
+          theme: "TableStyleMedium2",
+          showRowStripes: true,
+        },
+        columns: [
+          { name: "IdentifierType", filterButton: true },
+          { name: "IdentifierValue", filterButton: true },
+          { name: "Validation KYC value(O)", filterButton: true },
+          { name: "Amount", filterButton: true },
+          { name: "Comment", filterButton: true },
+        ],
+        rows: tableData,
+      });
+
+      worksheet.getColumn(1).width = 15;
+      worksheet.getColumn(2).width = 18;
+      worksheet.getColumn(3).width = 25;
+      worksheet.getColumn(4).width = 15;
+      worksheet.getColumn(5).width = 50;
+      worksheet.getColumn(4).numFmt = "#,##0.00";
+      worksheet.getColumn(1).alignment = { horizontal: "center" };
+      worksheet.getColumn(2).alignment = { horizontal: "left" };
+      worksheet.getColumn(4).alignment = { horizontal: "right" };
+
+      const filename = `G2G_Batch_${batchId.replace(/-/g, "_")}.xlsx`;
+      res.setHeader(
+        "Content-Type",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      );
+      res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+
+      await workbook.xlsx.write(res);
+      res.end();
+    } catch (error) {
+      console.error("Download batch error:", error);
+      res.status(500).json({ message: "Failed to generate Excel file" });
     }
   },
 };

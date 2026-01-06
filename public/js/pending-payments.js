@@ -6,7 +6,39 @@ document.addEventListener("DOMContentLoaded", () => {
 
   let currentPage = 1;
   const currentLimit = 25;
+  let activeStatus = "pending";
   let debounceTimer;
+
+  // Tab switching logic
+  const tabs = document.querySelectorAll("#paymentTabs button");
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", () => {
+      activeStatus = tab.getAttribute("data-status");
+      updateButtonVisibility();
+      if (activeStatus === "history") {
+        loadExportHistory(1);
+      } else {
+        loadPendingPayments(1);
+      }
+    });
+  });
+
+  function updateButtonVisibility() {
+    const exportBtnWrapper = document.getElementById("exportExcelBtn");
+    const reconcileBtnWrapper = document.getElementById("reconcileBtn");
+
+    if (activeStatus === "pending") {
+      exportBtnWrapper.classList.remove("d-none");
+      reconcileBtnWrapper.classList.add("d-none");
+    } else if (activeStatus === "processing") {
+      exportBtnWrapper.classList.add("d-none");
+      reconcileBtnWrapper.classList.remove("d-none");
+    } else {
+      // History tab
+      exportBtnWrapper.classList.add("d-none");
+      reconcileBtnWrapper.classList.add("d-none");
+    }
+  }
 
   async function loadPendingPayments(page = 1) {
     try {
@@ -15,13 +47,16 @@ document.addEventListener("DOMContentLoaded", () => {
         page: page,
         limit: currentLimit,
         q: query,
+        status: activeStatus,
       });
 
       const response = await api.get(`/payments/pending?${params.toString()}`);
 
       const drivers = response.pending_drivers || [];
       const pagination = response.pagination || { page: 1, total_pages: 1 };
+      const counts = response.counts || { pending: 0, processing: 0 };
 
+      updateBadges(counts);
       renderTable(drivers, pagination.page);
       renderPagination(pagination);
       currentPage = page;
@@ -39,6 +74,25 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderTable(data, page) {
+    // Reset headers if they were changed by history view
+    const thead = document.querySelector("#pendingTable thead");
+    const isProcessingTab = document
+      .querySelector('.nav-link[data-status="processing"]')
+      .classList.contains("active");
+
+    thead.innerHTML = `
+      <tr>
+          <th class="px-4 py-3">#</th>
+          <th class="py-3">Driver</th>
+          <th class="py-3">Driver ID</th>
+          ${isProcessingTab ? '<th class="py-3">Batch</th>' : ""}
+          <th class="py-3 text-center">Pending Weeks</th>
+          <th class="py-3">Period</th>
+          <th class="py-3 text-end">Total Amount</th>
+          <th class="py-3 text-center px-4">Action</th>
+      </tr>
+    `;
+
     if (!data || data.length === 0) {
       tableBody.innerHTML = `
                 <tr>
@@ -74,6 +128,13 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td><span class="badge bg-light text-dark font-monospace">${
                   item.driver_id
                 }</span></td>
+                ${
+                  isProcessingTab
+                    ? `<td class="small text-muted font-monospace">${
+                        item.batch_id || "N/A"
+                      }</td>`
+                    : ""
+                }
                 <td class="text-center">
                     <span class="badge rounded-pill bg-primary bg-opacity-10 text-primary px-3">
                         ${item.pending_weeks} Weeks
@@ -527,5 +588,139 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function updateBadges(counts) {
+    const pendingBadge = document.getElementById("pendingCountBadge");
+    const processingBadge = document.getElementById("processingCountBadge");
+
+    if (counts.pending > 0) {
+      pendingBadge.textContent = counts.pending;
+      pendingBadge.classList.remove("d-none");
+    } else {
+      pendingBadge.classList.add("d-none");
+    }
+
+    if (counts.processing > 0) {
+      processingBadge.textContent = counts.processing;
+      processingBadge.classList.remove("d-none");
+    } else {
+      processingBadge.classList.add("d-none");
+    }
+  }
+
+  async function loadExportHistory(page = 1) {
+    try {
+      const params = new URLSearchParams({ page, limit: currentLimit });
+      const response = await api.get(`/payments/batches?${params.toString()}`);
+
+      const batches = response.batches || [];
+      const pagination = response.pagination || { page: 1, total_pages: 1 };
+
+      renderBatchTable(batches);
+      renderPagination(pagination);
+      currentPage = page;
+    } catch (error) {
+      console.error("Error loading export history:", error);
+      tableBody.innerHTML =
+        '<tr><td colspan="7" class="text-center py-5 text-danger">Failed to load history.</td></tr>';
+    }
+  }
+
+  function renderBatchTable(batches) {
+    const thead = document.querySelector("#pendingTable thead");
+    thead.innerHTML = `
+      <tr>
+        <th class="px-4 py-3">Date</th>
+        <th class="py-3">Batch ID</th>
+        <th class="py-3 text-center">Drivers</th>
+        <th class="py-3 text-end">Total Amount</th>
+        <th class="py-3 text-center">Status</th>
+        <th class="py-3">Exported By</th>
+        <th class="py-3 text-center px-4">Action</th>
+      </tr>
+    `;
+
+    if (batches.length === 0) {
+      tableBody.innerHTML =
+        '<tr><td colspan="7" class="text-center py-5 text-muted">No export history yet.</td></tr>';
+      return;
+    }
+
+    tableBody.innerHTML = batches
+      .map(
+        (batch) => `
+      <tr>
+        <td class="px-4 py-3 small text-muted">${new Date(
+          batch.exported_at
+        ).toLocaleString()}</td>
+        <td class="py-3 fw-bold">${batch.batch_id}</td>
+        <td class="py-3 text-center">${batch.driver_count}</td>
+        <td class="py-3 text-end fw-bold">${parseFloat(
+          batch.total_amount
+        ).toLocaleString()} ETB</td>
+        <td class="py-3 text-center">
+          <span class="badge ${
+            batch.paid_count === batch.total_count
+              ? "bg-success"
+              : batch.paid_count > 0
+              ? "bg-warning"
+              : "bg-secondary"
+          } bg-opacity-10 ${
+          batch.paid_count === batch.total_count
+            ? "text-success"
+            : batch.paid_count > 0
+            ? "text-warning"
+            : "text-muted"
+        } rounded-pill px-3">
+            ${batch.paid_count}/${batch.total_count} Paid
+          </span>
+        </td>
+        <td class="py-3 small text-muted">${
+          batch.exported_by_name || "System"
+        }</td>
+        <td class="py-3 text-center px-4">
+          <button onclick="window.downloadBatch('${
+            batch.batch_id
+          }')" class="btn btn-sm btn-outline-success rounded-pill px-3">
+            <i class="fas fa-download me-1"></i> Re-download
+          </button>
+        </td>
+      </tr>
+    `
+      )
+      .join("");
+  }
+
+  window.downloadBatch = async (batchId) => {
+    try {
+      const response = await fetch(
+        `/api/payments/batches/${batchId}/download`,
+        {
+          headers: {
+            Authorization: `Bearer ${localStorage.getItem("token")}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to download batch");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `Batch_${batchId.replace(/-/g, "_")}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error("Download error:", error);
+      alert("Failed to download the batch file. Please try again.");
+    }
+  };
+
+  // Initialize
+  updateButtonVisibility();
   loadPendingPayments();
 });
