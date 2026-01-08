@@ -2,6 +2,7 @@ const express = require("express");
 const router = express.Router();
 const paymentController = require("../controllers/paymentController");
 const authenticate = require("../middleware/authenticate");
+const authorize = require("../middleware/authorize");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
@@ -48,5 +49,10 @@ router.get("/batches", paymentController.getBatches);
 router.get("/batches/:batchId/download", paymentController.downloadBatchExcel);
 
 router.put("/:paymentId/confirm", paymentController.confirmPayment);
+router.post(
+  "/:paymentId/revert",
+  authorize("admin"),
+  paymentController.revertPayment
+);
 
 module.exports = router;

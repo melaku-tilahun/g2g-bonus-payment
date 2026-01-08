@@ -13,17 +13,76 @@
     <div class="main-wrapper">
         <h1 class="h3 fw-bold mb-4">Payment</h1>
         
-        <div class="card shadow-sm mt-4">
+        <div class="card shadow-sm mb-4">
+            <div class="card-body">
+                <form id="filterForm" class="row g-3">
+                    <!-- Date Range -->
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Date Range</label>
+                        <div class="input-group input-group-sm">
+                            <input type="date" class="form-control" id="startDate" placeholder="Start">
+                            <span class="input-group-text">-</span>
+                            <input type="date" class="form-control" id="endDate" placeholder="End">
+                        </div>
+                    </div>
+                    
+                    <!-- Amount Range -->
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Amount (ETB)</label>
+                        <div class="input-group input-group-sm">
+                            <input type="number" class="form-control" id="minAmount" placeholder="Min">
+                            <span class="input-group-text">-</span>
+                            <input type="number" class="form-control" id="maxAmount" placeholder="Max">
+                        </div>
+                    </div>
+                    
+                    <!-- Payment Method -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Method</label>
+                        <select class="form-select form-select-sm" id="paymentMethod">
+                            <option value="All">All Methods</option>
+                            <option value="Telebirr">Telebirr</option>
+                            <!-- <option value="CBE">Telebirr</option>
+                            <option value="BOA">Telebirr</option>
+                            <option value="Cash">Cash</option> -->
+                        </select>
+                    </div>
+
+                    <!-- Sorting -->
+                    <div class="col-md-2">
+                        <label class="form-label small text-muted">Sort By</label>
+                        <select class="form-select form-select-sm" id="sortBy">
+                            <option value="payment_date">Date</option>
+                            <option value="total_amount">Amount</option>
+                            <option value="driver_name">Driver Name</option>
+                        </select>
+                    </div>
+
+                    <div class="col-md-2 d-flex align-items-end">
+                        <div class="d-grid gap-2 w-100">
+                            <button type="submit" class="btn btn-primary btn-sm">
+                                <i class="fas fa-filter me-1"></i> Apply
+                            </button>
+                            <button type="button" id="resetBtn" class="btn btn-outline-secondary btn-sm">
+                                Reset
+                            </button>
+                        </div>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <div class="card shadow-sm">
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-excel table-hover align-middle">
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th>Date</th>
-                                <th>Driver Name</th>
+                                <th role="button" onclick="toggleSort('payment_date')">Date <i class="fas fa-sort small ms-1 text-muted"></i></th>
+                                <th role="button" onclick="toggleSort('driver_name')">Driver Name <i class="fas fa-sort small ms-1 text-muted"></i></th>
                                 <th>Driver ID</th>
-                                <th>Amount</th>
+                                <th role="button" onclick="toggleSort('total_amount')">Amount <i class="fas fa-sort small ms-1 text-muted"></i></th>
                                 <th>Status</th>
                                 <th>Method</th>
                                 <th>Processed By</th>
@@ -50,11 +109,29 @@
     <script>
         let currentPage = 1;
         const currentLimit = 25;
-        const paginationContainer = document.getElementById('paginationContainer');
-
+        let currentSort = { column: 'payment_date', order: 'DESC' };
+        
         async function loadPayments(page = 1) {
             try {
-                const params = new URLSearchParams({ page, limit: currentLimit });
+                // Collect filters
+                const filters = {
+                    page, 
+                    limit: currentLimit,
+                    startDate: document.getElementById('startDate').value,
+                    endDate: document.getElementById('endDate').value,
+                    minAmount: document.getElementById('minAmount').value,
+                    maxAmount: document.getElementById('maxAmount').value,
+                    method: document.getElementById('paymentMethod').value,
+                    sortBy: currentSort.column,
+                    sortOrder: currentSort.order
+                };
+
+                // Remove empty filters
+                Object.keys(filters).forEach(key => 
+                    (filters[key] === '' || filters[key] === 'All') && delete filters[key]
+                );
+
+                const params = new URLSearchParams(filters);
                 const response = await api.get(`/payments/history?${params.toString()}`);
                 
                 const payments = response.payments || [];
@@ -64,8 +141,8 @@
                 tbody.innerHTML = '';
                 
                 if (payments.length === 0) {
-                    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No payment history found</td></tr>';
-                    paginationContainer.classList.add('d-none');
+                    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-4">No payment history found matching your filters</td></tr>';
+                    document.getElementById('paginationContainer').classList.add('d-none');
                     return;
                 }
 
@@ -77,7 +154,7 @@
                         <td class="text-muted small">${rowNumber}</td>
                         <td><small class="fw-bold">${new Date(p.payment_date).toLocaleDateString()}</small></td>
                         <td>
-                            <div class="fw-bold">${p.driver_name}</div>
+                            <div class="fw-bold">${p.driver_name || 'Unknown'}</div>
                         </td>
                         <td><small class="text-muted font-monospace">${p.driver_id}</small></td>
                         <td class="fw-bold text-dark">${parseFloat(p.total_amount).toLocaleString()} ETB</td>
@@ -85,7 +162,7 @@
                             <span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Paid</span>
                         </td>
                         <td><small>${p.payment_method}</small></td>
-                        <td><small>${p.processed_by_name}</small></td>
+                        <td><small>${p.processed_by_name || '-'}</small></td>
                         <td class="text-end px-3">
                             <span class="text-success small fw-bold">
                                 <i class="fas fa-check-double me-1"></i> Paid
@@ -97,9 +174,58 @@
 
                 renderPagination(pagination);
                 currentPage = page;
+                
+                // Update sort icons
+                updateSortIcons();
             } catch (error) {
                 console.error(error);
                 document.getElementById('paymentTableBody').innerHTML = '<tr><td colspan="9" class="text-center text-danger">Error loading history</td></tr>';
+            }
+        }
+
+        // Handle Filter Submit
+        document.getElementById('filterForm').addEventListener('submit', (e) => {
+            e.preventDefault();
+            loadPayments(1);
+        });
+
+        // Handle Reset
+        document.getElementById('resetBtn').addEventListener('click', () => {
+            document.getElementById('filterForm').reset();
+            currentSort = { column: 'payment_date', order: 'DESC' };
+            document.getElementById('sortBy').value = 'payment_date';
+            loadPayments(1);
+        });
+
+        // Handle Sorting from Headers
+        window.toggleSort = (column) => {
+            if (currentSort.column === column) {
+                currentSort.order = currentSort.order === 'ASC' ? 'DESC' : 'ASC';
+            } else {
+                currentSort.column = column;
+                currentSort.order = 'DESC'; // Default to DESC for new column
+            }
+            // Sync with dropdown
+            document.getElementById('sortBy').value = column;
+            loadPayments(currentPage);
+        };
+        
+        // Handle Sorting from Dropdown
+        document.getElementById('sortBy').addEventListener('change', (e) => {
+            currentSort.column = e.target.value;
+            // Reset order to DESC when changing column via dropdown
+             currentSort.order = 'DESC';
+            loadPayments(currentPage);
+        });
+
+        function updateSortIcons() {
+            // Reset all icons
+            document.querySelectorAll('th i').forEach(i => i.className = 'fas fa-sort small ms-1 text-muted');
+            
+            // Set active icon
+            const activeHeader = document.querySelector(`th[onclick="toggleSort('${currentSort.column}')"] i`);
+            if (activeHeader) {
+                activeHeader.className = `fas fa-sort-${currentSort.order === 'ASC' ? 'up' : 'down'} small ms-1 text-primary`;
             }
         }
 

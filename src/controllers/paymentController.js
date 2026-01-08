@@ -23,7 +23,7 @@ const paymentController = {
 
       // 1. Calculate the actual total from pending bonuses
       const [bonusRows] = await connection.query(
-        "SELECT SUM(net_payout) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
+        "SELECT SUM(COALESCE(final_payout, net_payout)) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
         [driver_id]
       );
 
@@ -84,32 +84,92 @@ const paymentController = {
 
   getHistory: async (req, res) => {
     try {
-      const { driver_id, page = 1, limit = 25 } = req.query;
+      const {
+        driver_id,
+        page = 1,
+        limit = 25,
+        startDate,
+        endDate,
+        minAmount,
+        maxAmount,
+        method,
+        sortBy = "payment_date",
+        sortOrder = "DESC",
+      } = req.query;
+
       const offset = (parseInt(page) - 1) * parseInt(limit);
       const limitNum = parseInt(limit);
 
-      let whereClause = " WHERE p.status = 'paid'";
+      let whereClause = " WHERE p.status IN ('paid', 'processing')";
       const params = [];
 
+      // FILTERS
       if (driver_id) {
-        whereClause += " AND p.driver_id = ?";
-        params.push(driver_id);
+        whereClause += " AND p.driver_id LIKE ?";
+        params.push(`%${driver_id}%`);
       }
+
+      if (startDate) {
+        whereClause += " AND p.payment_date >= ?";
+        params.push(startDate);
+      }
+
+      if (endDate) {
+        whereClause += " AND p.payment_date <= ?";
+        params.push(`${endDate} 23:59:59`);
+      }
+
+      if (minAmount) {
+        whereClause += " AND p.total_amount >= ?";
+        params.push(parseFloat(minAmount));
+      }
+
+      if (maxAmount) {
+        whereClause += " AND p.total_amount <= ?";
+        params.push(parseFloat(maxAmount));
+      }
+
+      if (method && method !== "All") {
+        whereClause += " AND p.payment_method = ?";
+        params.push(method);
+      }
+
+      // SORTING
+      const validColumns = [
+        "payment_date",
+        "total_amount",
+        "driver_name",
+        "driver_id",
+      ];
+      const sortColumn = validColumns.includes(sortBy)
+        ? sortBy
+        : "payment_date";
+      const order = sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
       // Get Total Count
       const [countRows] = await pool.query(
-        `SELECT COUNT(*) as total FROM payments p ${whereClause}`,
+        `SELECT COUNT(*) as total 
+         FROM payments p
+         LEFT JOIN drivers d ON p.driver_id = d.driver_id 
+         ${whereClause}`,
         params
       );
 
-      // Get Paginated Data - Use LEFT JOIN to show payments even if driver/user is missing
+      // Get Paginated Data
       const query = `
         SELECT p.*, d.full_name as driver_name, u.full_name as processed_by_name 
         FROM payments p
         LEFT JOIN drivers d ON p.driver_id = d.driver_id
         LEFT JOIN users u ON p.processed_by = u.id
         ${whereClause}
-        ORDER BY p.payment_date DESC
+        ORDER BY 
+          ${
+            sortColumn === "driver_name"
+              ? "d.full_name"
+              : sortColumn === "driver_id"
+              ? "p.driver_id"
+              : `p.${sortColumn}`
+          } ${order}
         LIMIT ? OFFSET ?
       `;
 
@@ -139,10 +199,13 @@ const paymentController = {
       // Define where clause based on status
       let whereClause = "";
       if (status === "processing") {
-        whereClause = "WHERE d.verified = TRUE AND p.status = 'processing'";
+        whereClause =
+          "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'";
       } else {
         // Default to 'pending' (bonuses with no payment_id yet)
-        whereClause = "WHERE d.verified = TRUE AND b.payment_id IS NULL";
+        // Allow Verified OR Force Pay
+        whereClause =
+          "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL";
       }
 
       const params = [];
@@ -170,7 +233,7 @@ const paymentController = {
           COUNT(DISTINCT b.id) as pending_weeks,
           MIN(b.week_date) as earliest_bonus_date,
           MAX(b.week_date) as latest_bonus_date,
-          SUM(b.net_payout) as total_pending_amount,
+          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
           COALESCE(p.status, 'pending') as status,
           p.batch_id
         FROM drivers d
@@ -178,6 +241,7 @@ const paymentController = {
         LEFT JOIN payments p ON b.payment_id = p.id
         ${whereClause}
         GROUP BY d.driver_id, p.status, p.batch_id
+        HAVING total_pending_amount > 0
         ORDER BY total_pending_amount DESC
         LIMIT ? OFFSET ?
       `;
@@ -185,10 +249,14 @@ const paymentController = {
 
       // Get counts for both tabs to update UI badges
       const [pendingCount] = await pool.query(
-        `SELECT COUNT(DISTINCT d.driver_id) as count 
-         FROM drivers d 
-         JOIN bonuses b ON d.driver_id = b.driver_id 
-         WHERE d.verified = TRUE AND b.payment_id IS NULL`
+        `SELECT COUNT(*) as count FROM (
+           SELECT d.driver_id 
+           FROM drivers d 
+           JOIN bonuses b ON d.driver_id = b.driver_id 
+           WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
+           GROUP BY d.driver_id
+           HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
+         ) as valid_drivers`
       );
 
       const [processingCount] = await pool.query(
@@ -196,7 +264,7 @@ const paymentController = {
          FROM drivers d 
          JOIN bonuses b ON d.driver_id = b.driver_id 
          JOIN payments p ON b.payment_id = p.id
-         WHERE d.verified = TRUE AND p.status = 'processing'`
+         WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'`
       );
 
       res.json({
@@ -247,7 +315,7 @@ const paymentController = {
             d.full_name, 
             d.phone_number,
             COUNT(b.id) as pending_weeks,
-            SUM(b.net_payout) as total_pending_amount,
+            SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
             MIN(b.week_date) as earliest_bonus_date,
             MAX(b.week_date) as latest_bonus_date
         FROM drivers d
@@ -292,10 +360,12 @@ const paymentController = {
 
       // 1. Identify all drivers that have FRESH pending bonuses (never exported)
       const [drivers] = await connection.query(`
-        SELECT DISTINCT d.driver_id, d.phone_number
+        SELECT d.driver_id, d.phone_number
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
-        WHERE d.verified = TRUE AND b.payment_id IS NULL
+        WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
+        GROUP BY d.driver_id, d.phone_number
+        HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
       `);
 
       if (drivers.length === 0) {
@@ -360,15 +430,32 @@ const paymentController = {
         const paymentId = pResult.insertId;
 
         // Link only the CURRENTLY UNLINKED bonuses for this driver to this payment
-        // This is the CRITICAL isolation step
-        await connection.query(
-          "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL",
-          [paymentId, driver.driver_id]
+        // For unverified drivers, ONLY link bonuses with force_pay = TRUE
+        // For verified drivers, link all unpaid bonuses
+        const [driverInfo] = await connection.query(
+          "SELECT verified FROM drivers WHERE driver_id = ?",
+          [driver.driver_id]
         );
+
+        const isVerified = driverInfo[0]?.verified || false;
+
+        if (isVerified) {
+          // Verified driver: link all unpaid bonuses
+          await connection.query(
+            "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL",
+            [paymentId, driver.driver_id]
+          );
+        } else {
+          // Unverified driver: ONLY link force_pay bonuses
+          await connection.query(
+            "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL AND force_pay = TRUE",
+            [paymentId, driver.driver_id]
+          );
+        }
 
         // Update the payment's total_amount
         const [sumResult] = await connection.query(
-          "SELECT SUM(net_payout) as total FROM bonuses WHERE payment_id = ?",
+          "SELECT SUM(COALESCE(final_payout, net_payout)) as total FROM bonuses WHERE payment_id = ?",
           [paymentId]
         );
         const totalAmount = parseFloat(sumResult[0].total || 0);
@@ -1086,6 +1173,133 @@ const paymentController = {
     } catch (error) {
       console.error("Download batch error:", error);
       res.status(500).json({ message: "Failed to generate Excel file" });
+    }
+  },
+
+  revertPayment: async (req, res) => {
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+      const { paymentId } = req.params;
+      const { password } = req.body;
+
+      if (!password) {
+        await connection.rollback();
+        return res.status(400).json({ message: "Password is required" });
+      }
+
+      // 1. Verify Password
+      const [users] = await connection.query(
+        "SELECT password_hash FROM users WHERE id = ?",
+        [req.user.id]
+      );
+
+      const bcrypt = require("bcrypt");
+      const isValid = await bcrypt.compare(password, users[0].password_hash);
+
+      if (!isValid) {
+        await connection.rollback();
+        return res.status(401).json({ message: "Invalid password" });
+      }
+
+      // 2. Fetch Payment Details
+      const [payments] = await connection.query(
+        "SELECT * FROM payments WHERE id = ? AND status IN ('processing', 'paid')", // Allow paid too if needed, but mainly processing
+        [paymentId]
+      );
+
+      if (payments.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({ message: "Payment not found" });
+      }
+
+      const payment = payments[0];
+
+      // 2. Full Revert Logic for Partial Payouts
+      // Check if this payment involved 'force_pay' bonuses
+      const [revertBonuses] = await connection.query(
+        "SELECT id FROM bonuses WHERE payment_id = ? AND force_pay = TRUE",
+        [paymentId]
+      );
+
+      if (revertBonuses.length > 0) {
+        // A. Reset Bonuses (Clear final_payout and force_pay)
+        await connection.query(
+          "UPDATE bonuses SET final_payout = NULL, force_pay = FALSE WHERE payment_id = ?",
+          [paymentId]
+        );
+
+        // B. Find and Void associated Verification Penalty Debts
+        // We find debts linked to these bonuses with reason 'Verification Penalty'
+        const bonusIds = revertBonuses.map((b) => b.id);
+        const placeholder = bonusIds.map(() => "?").join(",");
+
+        // Find penalty debts linked to these bonuses
+        const [penaltyDebts] = await connection.query(
+          `SELECT DISTINCT d.id 
+           FROM driver_debts d
+           JOIN bonus_deductions bd ON d.id = bd.debt_id
+           WHERE bd.bonus_id IN (${placeholder}) AND d.reason = 'Verification Penalty'`,
+          [...bonusIds]
+        );
+
+        if (penaltyDebts.length > 0) {
+          const debtIds = penaltyDebts.map((d) => d.id);
+          const debtPlaceholder = debtIds.map(() => "?").join(",");
+
+          // Delete Deduction Links
+          await connection.query(
+            `DELETE FROM bonus_deductions WHERE debt_id IN (${debtPlaceholder})`,
+            [...debtIds]
+          );
+
+          // Delete/Void Debt Records
+          await connection.query(
+            `DELETE FROM driver_debts WHERE id IN (${debtPlaceholder})`,
+            [...debtIds]
+          );
+        }
+      }
+
+      // 3. Unlink Bonuses (Set payment_id = NULL)
+      // Standard unlink for all bonuses (even if just modified above)
+      await connection.query(
+        "UPDATE bonuses SET payment_id = NULL WHERE payment_id = ?",
+        [paymentId]
+      );
+
+      // 3. Delete Payment Record
+      await connection.query("DELETE FROM payments WHERE id = ?", [paymentId]);
+
+      // 4. Update Batch Totals (if part of a batch)
+      if (payment.batch_internal_id) {
+        await connection.query(
+          "UPDATE payment_batches SET total_amount = total_amount - ?, driver_count = driver_count - 1 WHERE id = ?",
+          [payment.total_amount, payment.batch_internal_id]
+        );
+      }
+
+      // 5. Audit Log
+      await AuditService.log(
+        req.user.id,
+        "Revert Payment",
+        "payment",
+        paymentId,
+        {
+          driver_id: payment.driver_id,
+          amount: payment.total_amount,
+          batch_id: payment.batch_id,
+        }
+      );
+
+      await connection.commit();
+      res.json({ success: true, message: "Payment reverted successfully" });
+    } catch (error) {
+      await connection.rollback();
+      console.error("Revert payment error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    } finally {
+      connection.release();
     }
   },
 };

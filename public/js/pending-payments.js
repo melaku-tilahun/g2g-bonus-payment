@@ -98,7 +98,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 <tr>
                     <td colspan="7" class="text-center py-5 text-muted">
                         <i class="fas fa-check-circle fa-2x mb-2 text-success"></i>
-                        <div>No pending payments found. All verified drivers are paid up!</div>
+                        <div>No pending payments found.</div>
                     </td>
                 </tr>
             `;

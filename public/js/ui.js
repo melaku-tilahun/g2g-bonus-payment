@@ -132,6 +132,7 @@ document.addEventListener("DOMContentLoaded", () => {
 // Global UI Utilities
 const ui = {
   toast: (message, type = "info") => {
+    // ... (existing implementation)
     const container = document.getElementById("toast-container");
     if (!container) return;
 
@@ -165,5 +166,24 @@ const ui = {
       clearTimeout(timer);
       toast.remove();
     };
+  },
+
+  showLoading: (isLoading) => {
+    let loader = document.getElementById("global-loader");
+    if (!loader) {
+      loader = document.createElement("div");
+      loader.id = "global-loader";
+      loader.className =
+        "position-fixed top-0 start-0 w-100 h-100 d-flex justify-content-center align-items-center bg-white bg-opacity-75";
+      loader.style.zIndex = "9999";
+      loader.innerHTML =
+        '<div class="spinner-border text-primary" role="status"></div>';
+      document.body.appendChild(loader);
+    }
+    if (isLoading) {
+      loader.style.display = "flex";
+    } else {
+      loader.remove(); // Force remove from DOM to prevent persistence
+    }
   },
 };

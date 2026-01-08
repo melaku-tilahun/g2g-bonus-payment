@@ -26,6 +26,7 @@ CREATE TABLE IF NOT EXISTS drivers (
   phone_number VARCHAR(20),
   email VARCHAR(255),
   verified BOOLEAN DEFAULT FALSE,
+  is_blocked BOOLEAN DEFAULT FALSE,
   verified_date DATE NULL,
   verified_by INT NULL,
   -- TIN Verification Fields
@@ -39,6 +40,7 @@ CREATE TABLE IF NOT EXISTS drivers (
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_driver_id (driver_id),
   INDEX idx_verified (verified),
+  INDEX idx_is_blocked (is_blocked),
   INDEX idx_name (full_name),
   INDEX idx_tin (tin),
   FOREIGN KEY (verified_by) REFERENCES users(id)

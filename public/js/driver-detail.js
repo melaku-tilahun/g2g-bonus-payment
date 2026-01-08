@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   let currentUser = null;
   let fetchedBusinessData = null;
+  let driver = null; // Declare at top level for accessibility
 
   // Get current user info
   try {
@@ -23,7 +24,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   showSkeletons();
 
   try {
-    const driver = await api.get(`/drivers/${driverId}`);
+    driver = await api.get(`/drivers/${driverId}`);
     const bonuses = await api.get(`/bonuses/driver/${driverId}`);
     renderDriver(driver, bonuses, currentUser);
     loadPaymentHistory(driverId);
@@ -34,7 +35,96 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Show Add Debt button for admins
     if (currentUser && currentUser.role === "admin") {
       document.getElementById("addDebtBtn").style.display = "block";
+      document
+        .getElementById("adminActionsDropdown")
+        .classList.remove("d-none");
     }
+
+    // Export Statement Logic
+    // Export Statement Logic (Separate Types)
+    document.querySelectorAll(".export-statement-btn").forEach((btn) => {
+      btn.onclick = async (e) => {
+        e.preventDefault();
+        const type = e.currentTarget.dataset.type; // 'debt', 'payment', 'bonus'
+
+        try {
+          ui.showLoading(true);
+          const token = localStorage.getItem("token");
+          const response = await fetch(
+            `${api.baseURL}/drivers/${driverId}/statement?type=${type}`,
+            {
+              headers: { Authorization: `Bearer ${token}` },
+            }
+          );
+
+          if (!response.ok) throw new Error("Failed to generate statement");
+
+          const contentType = response.headers.get("content-type");
+          if (!contentType || !contentType.includes("application/pdf")) {
+            const errorText = await response.text();
+            console.error("Statement Export Error:", errorText);
+            throw new Error("Invalid file received. Please try again.");
+          }
+
+          const blob = await response.blob();
+
+          // 1. Hide the loader IMMEDIATELY
+          ui.showLoading(false);
+
+          // 2. Wrap the download trigger in a tiny timeout.
+          // This allows the browser to "repaint" (hide the spinner)
+          // before the OS download dialog blocks the UI thread.
+          setTimeout(() => {
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = `${type.toUpperCase()}_Statement_${driverId}.pdf`;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+
+            // Clean up the URL object after some time
+            setTimeout(() => window.URL.revokeObjectURL(url), 100);
+
+            ui.toast(`${type} statement exported successfully`, "success");
+          }, 200);
+        } catch (error) {
+          ui.showLoading(false);
+          console.error(error);
+          ui.toast("Failed to export statement", "error");
+        }
+      };
+    });
+
+    // Block/Unblock Logic
+    const blockBtn = document.getElementById("blockDriverBtn");
+
+    // Set initial text based on driver state
+    if (driver.is_blocked) {
+      blockBtn.innerHTML = '<i class="fas fa-unlock me-2"></i> Unblock Driver';
+      blockBtn.classList.remove("text-danger");
+      blockBtn.classList.add("text-success");
+    }
+
+    blockBtn.onclick = async (e) => {
+      e.preventDefault();
+      const isBlocked = driver.is_blocked; // Current state
+      const action = isBlocked ? "Unblock" : "Block";
+
+      if (confirm(`Are you sure you want to ${action} this driver?`)) {
+        try {
+          await api.put(`/drivers/${driverId}/block`, {
+            is_blocked: !isBlocked,
+            reason: "Admin Action",
+          });
+
+          ui.toast(`Driver ${action}ed successfully`, "success");
+          setTimeout(() => window.location.reload(), 1000);
+        } catch (error) {
+          ui.toast(error.message, "error");
+        }
+      }
+    };
 
     // Add Debt Logic
     const debtModal = new bootstrap.Modal(
@@ -302,6 +392,14 @@ document.addEventListener("DOMContentLoaded", async () => {
       overrideSection.classList.add("d-none");
     }
 
+    // Show Partial Payout button if Admin + Driver is Unverified
+    const partialPaymentBtn = document.getElementById("partialPayoutBtn");
+    if (isAdmin && !driver.verified) {
+      partialPaymentBtn.classList.remove("d-none");
+    } else {
+      partialPaymentBtn.classList.add("d-none");
+    }
+
     // Clear inputs
     document.getElementById("tinInput").value = "";
     document.getElementById("adminOverrideCheck").checked = false;
@@ -356,6 +454,50 @@ document.addEventListener("DOMContentLoaded", async () => {
       ui.toast(error.message || "Verification failed", "error");
       btn.disabled = false;
       btn.textContent = "Confirm Verification";
+    }
+  };
+
+  // Partial Payout Button
+  const passwordModal = new bootstrap.Modal(
+    document.getElementById("passwordConfirmModal")
+  );
+
+  document.getElementById("partialPayoutBtn").onclick = () => {
+    // Clear password field
+    document.getElementById("confirmPassword").value = "";
+    // Hide verification modal and show password modal
+    modal.hide();
+    passwordModal.show();
+  };
+
+  document.getElementById("confirmPasswordBtn").onclick = async () => {
+    const password = document.getElementById("confirmPassword").value;
+
+    if (!password) {
+      ui.toast("Password is required", "error");
+      return;
+    }
+
+    const btn = document.getElementById("confirmPasswordBtn");
+    const originalHTML = btn.innerHTML;
+
+    try {
+      btn.disabled = true;
+      btn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
+
+      await api.post(`/drivers/${driverId}/payout-unverified`, { password });
+
+      ui.toast(
+        "Partial payout released successfully! Driver can now be paid 70% of their bonuses.",
+        "success"
+      );
+      passwordModal.hide();
+      setTimeout(() => window.location.reload(), 1500);
+    } catch (error) {
+      ui.toast(error.message || "Failed to release payout", "error");
+      btn.disabled = false;
+      btn.innerHTML = originalHTML;
     }
   };
 });
@@ -436,59 +578,125 @@ async function loadDebts(driverId) {
       headerBtn.style.display = "none";
     }
 
-    // Merge lists for timeline
-    const timeline = [
-      ...debts.map((d) => ({
+    // Separate penalties from regular debts
+    const penalties = debts.filter((d) => d.reason === "Verification Penalty");
+    const regularDebts = debts.filter(
+      (d) => d.reason !== "Verification Penalty"
+    );
+
+    // Calculate total for regular debts only (penalties are already paid)
+    const totalRegularActive = regularDebts
+      .filter((d) => d.status === "active")
+      .reduce((sum, d) => sum + parseFloat(d.remaining_amount), 0);
+
+    // Merge lists for timeline - Regular Debts
+    const regularTimeline = [
+      ...regularDebts.map((d) => ({
         type: "DEBT_CREATED",
         date: d.created_at,
         amount: d.amount,
         ref: d.reason,
         status: d.status,
         original: d,
+        isPenalty: false,
       })),
-      ...deductions.map((d) => ({
-        type: "DEDUCTION",
-        date: d.created_at,
-        amount: d.amount_deducted,
-        ref: `Deducted from Bonus ${new Date(
-          d.week_date
-        ).toLocaleDateString()}`,
-        status: "applied",
-        original: d,
-      })),
+      ...deductions
+        .filter((d) => {
+          // Only include deductions that are NOT for penalties
+          return !debts.some(
+            (debt) =>
+              debt.id === d.debt_id && debt.reason === "Verification Penalty"
+          );
+        })
+        .map((d) => ({
+          type: "DEDUCTION",
+          date: d.created_at,
+          amount: d.amount_deducted,
+          ref: `Deducted from Bonus ${new Date(
+            d.week_date
+          ).toLocaleDateString()}`,
+          status: "applied",
+          original: d,
+          isPenalty: false,
+        })),
     ].sort((a, b) => new Date(b.date) - new Date(a.date));
 
-    timeline.forEach((item) => {
-      const isDebt = item.type === "DEBT_CREATED";
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-                <td class="small text-muted">${new Date(
-                  item.date
-                ).toLocaleDateString()}</td>
-                <td><span class="badge ${
-                  isDebt
-                    ? "bg-secondary text-secondary"
-                    : "bg-success text-success"
-                } bg-opacity-10">${
-        isDebt ? "New Debt" : "Deduction"
-      }</span></td>
-                <td class="small">${escapeHtml(item.ref)}</td>
-                <td class="text-end fw-bold ${
-                  isDebt ? "text-dark" : "text-success"
-                }">${parseFloat(item.amount).toLocaleString()}</td>
-                <td class="text-end text-muted small">${
-                  isDebt
-                    ? parseFloat(
-                        item.original.remaining_amount
-                      ).toLocaleString()
-                    : "-"
-                }</td>
-                <td class="text-center"><span class="badge bg-light text-dark border">${
-                  item.status
-                }</span></td>
-            `;
-      tbody.appendChild(tr);
-    });
+    // Penalty timeline
+    const penaltyTimeline = penalties
+      .map((d) => ({
+        type: "PENALTY",
+        date: d.created_at,
+        amount: d.amount,
+        ref: "30% deduction for unverified payout",
+        status: d.status,
+        original: d,
+        isPenalty: true,
+      }))
+      .sort((a, b) => new Date(b.date) - new Date(a.date));
+
+    // Render Regular Debts
+    if (regularTimeline.length > 0) {
+      regularTimeline.forEach((item) => {
+        const isDebt = item.type === "DEBT_CREATED";
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+                  <td class="small text-muted">${new Date(
+                    item.date
+                  ).toLocaleDateString()}</td>
+                  <td><span class="badge ${
+                    isDebt
+                      ? "bg-secondary text-secondary"
+                      : "bg-success text-success"
+                  } bg-opacity-10">${
+          isDebt ? " New Debt" : " Deduction"
+        }</span></td>
+                  <td class="small">${escapeHtml(item.ref)}</td>
+                  <td class="text-end fw-bold ${
+                    isDebt ? "text-dark" : "text-success"
+                  }">${parseFloat(item.amount).toLocaleString()}</td>
+                  <td class="text-end text-muted small">${
+                    isDebt
+                      ? parseFloat(
+                          item.original.remaining_amount
+                        ).toLocaleString()
+                      : "-"
+                  }</td>
+                  <td class="text-center"><span class="badge bg-light text-dark border">${
+                    item.status
+                  }</span></td>
+              `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    // Render Penalties (if any) - different section
+    const penaltySection = document.getElementById("penaltySection");
+    const penaltyTableBody = document.getElementById("penaltyTableBody");
+
+    if (penaltyTimeline.length > 0) {
+      penaltySection.classList.remove("d-none");
+      penaltyTableBody.innerHTML = "";
+
+      penaltyTimeline.forEach((item) => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `
+                  <td class="small text-muted">${new Date(
+                    item.date
+                  ).toLocaleDateString()}</td>
+                  <td><span class="badge bg-secondary text-secondary bg-opacity-10">⚠️ Penalty</span></td>
+                  <td class="small">${escapeHtml(item.ref)}</td>
+                  <td class="text-end fw-bold text-dark">${parseFloat(
+                    item.amount
+                  ).toLocaleString()} ETB</td>
+                  <td class="text-center"><span class="badge bg-light text-dark border">${
+                    item.status
+                  }</span></td>
+              `;
+        penaltyTableBody.appendChild(tr);
+      });
+    } else {
+      penaltySection.classList.add("d-none");
+    }
   } catch (error) {
     console.error("Failed to load debts:", error);
   }
@@ -535,8 +743,25 @@ async function loadPaymentHistory(driverId) {
     history.forEach((p) => {
       const tr = document.createElement("tr");
       // Global history now strictly contains 'paid' payments from backend
-      const statusBadge =
+      let statusBadge =
         '<span class="badge bg-success bg-opacity-10 text-success">Paid</span>';
+
+      let actionBtn = "";
+
+      if (p.status === "processing") {
+        statusBadge =
+          '<span class="badge bg-info bg-opacity-10 text-info">Processing</span>';
+
+        // Add Revert Button for Admins
+        const user = auth.getUser();
+        if (user && user.role === "admin") {
+          actionBtn = `
+                <button class="btn btn-sm btn-link text-danger p-0 ms-2 revert-payment-btn" data-id="${p.id}" title="Revert to Pending">
+                    <i class="fas fa-undo"></i>
+                </button>
+              `;
+        }
+      }
 
       tr.innerHTML = `
                 <td class="px-4 py-3 align-middle">${new Date(
@@ -548,7 +773,7 @@ async function loadPaymentHistory(driverId) {
                 <td class="px-4 py-3 align-middle text-muted text-capitalize">${(
                   p.payment_method || ""
                 ).replace("_", " ")}</td>
-                <td class="px-4 py-3 align-middle">${statusBadge}</td>
+                <td class="px-4 py-3 align-middle">${statusBadge} ${actionBtn}</td>
                 <td class="px-4 py-3 align-middle text-muted small">${
                   p.notes || "-"
                 }</td>
@@ -558,11 +783,84 @@ async function loadPaymentHistory(driverId) {
             `;
       tbody.appendChild(tr);
     });
+
+    // Attach Event Listeners for Revert Buttons
+    document.querySelectorAll(".revert-payment-btn").forEach((btn) => {
+      btn.addEventListener("click", (e) => {
+        // Secure Revert Flow
+        revertPaymentId = e.currentTarget.dataset.id; // Store ID globally
+        const revertModal = new bootstrap.Modal(
+          document.getElementById("revertPasswordModal")
+        );
+        document.getElementById("revertConfirmPassword").value = "";
+        revertModal.show();
+      });
+    });
+
+    // Handle Confirm Revert Click (One-time binding handled outside or check for existing listener)
+    // To avoid multiple listeners, we can bind it once at the top level or use closure here CAREFULLY.
+    // Better practice: Bind ONCE outside this loop. But since this function runs repeatedly,
+    // we should use a named function or bind once.
+    // For simplicity in this refactor, I'll attach it here but remove old listener if possible
+    // OR better, move this logic out.
+
+    // Actually, let's attach the listener to the modal button ONCE when the page loads,
+    // and just set the ID here. See 'setupRevertModal' below.
+    if (!window.revertModalSetupDone) {
+      setupRevertModal();
+      window.revertModalSetupDone = true;
+    }
   } catch (error) {
     console.error("Failed to load payment history:", error);
     tbody.innerHTML =
       '<tr><td colspan="6" class="text-center py-4 text-danger">Failed to load history</td></tr>';
   }
+}
+
+let revertPaymentId = null;
+
+function setupRevertModal() {
+  const confirmBtn = document.getElementById("confirmRevertBtn");
+  if (!confirmBtn) return;
+
+  confirmBtn.addEventListener("click", async () => {
+    const password = document.getElementById("revertConfirmPassword").value;
+    if (!password) {
+      ui.toast("Please enter your password", "error");
+      return;
+    }
+
+    if (!revertPaymentId) return;
+
+    confirmBtn.disabled = true;
+    confirmBtn.innerHTML =
+      '<span class="spinner-border spinner-border-sm me-2"></span>Reverting...';
+
+    try {
+      await api.post(`/payments/${revertPaymentId}/revert`, {
+        password: password,
+      });
+
+      ui.toast("Payment reverted successfully", "success");
+      bootstrap.Modal.getInstance(
+        document.getElementById("revertPasswordModal")
+      ).hide();
+
+      // Refresh Data
+      const driverId = new URLSearchParams(window.location.search).get("id");
+      if (driverId) {
+        loadPaymentHistory(driverId);
+        loadBonuses(driverId);
+        loadDebts(driverId);
+        loadDriverDetails(driverId); // To refresh stats
+      }
+    } catch (error) {
+      ui.toast(error.message || "Failed to revert payment", "error");
+    } finally {
+      confirmBtn.disabled = false;
+      confirmBtn.innerHTML = "Confirm & Revert";
+    }
+  });
 }
 
 function renderDriver(driver, bonuses, currentUser) {
@@ -577,10 +875,15 @@ function renderDriver(driver, bonuses, currentUser) {
   ).toLocaleDateString();
 
   const badge = document.getElementById("driverStatusBadge");
-  badge.textContent = driver.verified ? "Verified" : "Unverified";
-  badge.className = `badge-status ${
-    driver.verified ? "badge-verified" : "badge-unverified"
-  }`;
+  if (driver.is_blocked) {
+    badge.textContent = "BLOCKED";
+    badge.className = "badge-status bg-danger text-white";
+  } else {
+    badge.textContent = driver.verified ? "Verified" : "Unverified";
+    badge.className = `badge-status ${
+      driver.verified ? "badge-verified" : "badge-unverified"
+    }`;
+  }
 
   if (driver.verified) {
     document.getElementById("markVerifiedBtn").classList.add("d-none");
@@ -635,10 +938,13 @@ function renderDriver(driver, bonuses, currentUser) {
   }
 
   /* Total Calculations */
-  const total = bonuses.reduce(
-    (sum, b) => sum + parseFloat(b.net_payout || 0),
-    0
-  );
+  const total = bonuses.reduce((sum, b) => {
+    const amount =
+      b.final_payout !== null
+        ? parseFloat(b.final_payout)
+        : parseFloat(b.net_payout || 0);
+    return sum + amount;
+  }, 0);
   const totalGross = bonuses.reduce(
     (sum, b) => sum + parseFloat(b.gross_payout || b.net_payout / 0.97),
     0

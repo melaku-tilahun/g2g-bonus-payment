@@ -34,7 +34,7 @@ const bonusController = {
       const { driverId } = req.params;
       const [rows] = await pool.query(
         `SELECT 
-          SUM(b.net_payout) as total_bonus,
+          SUM(COALESCE(b.final_payout, b.net_payout)) as total_bonus,
           COUNT(b.id) as weeks_count,
           MIN(b.week_date) as first_week,
           MAX(b.week_date) as last_week
@@ -94,7 +94,7 @@ const bonusController = {
         `
         SELECT 
           COUNT(DISTINCT d.driver_id) as total_drivers,
-          SUM(b.net_payout) as total_amount
+          SUM(COALESCE(b.final_payout, b.net_payout)) as total_amount
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
         WHERE ${whereClause}
@@ -115,7 +115,7 @@ const bonusController = {
           d.driver_id,
           d.full_name,
           d.phone_number,
-          SUM(b.net_payout) as total_pending,
+          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending,
           COUNT(b.id) as weeks_pending,
           MAX(b.week_date) as latest_bonus_date
         FROM drivers d
