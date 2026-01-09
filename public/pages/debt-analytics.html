@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debt Analytics - Driver Bonus Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+</head>
+<body style="display: none;">
+    <!-- Header injected by ui.js -->
+    
+    <div class="main-wrapper">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <div>
+                <h1 class="h4 mb-1">Debt & Deduction Analytics</h1>
+                <p class="text-muted small">Monitor outstanding debts, aging reports, and repayment trends</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-outline-brand btn-sm" onclick="exportDebtReport('aging')">
+                    <i class="fas fa-download me-2"></i>Aging Report
+                </button>
+                <button class="btn btn-outline-brand btn-sm" onclick="exportDebtReport('overview')">
+                    <i class="fas fa-file-excel me-2"></i>Full Export
+                </button>
+            </div>
+        </div>
+        
+        <!-- KPI Cards -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #fef2f2; color: #dc2626;">
+                        <i class="fas fa-exclamation-circle"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Total Outstanding</div>
+                    <div class="value" id="totalOutstanding">0 ETB</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #eff6ff; color: #2563eb;">
+                        <i class="fas fa-hand-holding-usd"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Total Debt Issued</div>
+                    <div class="value" id="totalIssued">0 ETB</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #f0fdf4; color: #16a34a;">
+                        <i class="fas fa-check-circle"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Total Repaid</div>
+                    <div class="value" id="totalRepaid">0 ETB</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #fff7ed; color: #ea580c;">
+                        <i class="fas fa-users"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Active Debtors</div>
+                    <div class="value" id="activeDebtors">0</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Row 1 -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-6">
+                <div class="card-premium p-4">
+                    <h5 class="fw-bold mb-3">Debt Aging Analysis</h5>
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="debtAgingChart"></canvas>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-6">
+                <div class="card-premium p-4">
+                    <h5 class="fw-bold mb-3">Debt by Reason</h5>
+                    <div style="position: relative; height: 300px;">
+                        <canvas id="debtReasonChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts Row 2 -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-12">
+                <div class="card-premium p-4">
+                    <h5 class="fw-bold mb-3">Repayment Trends (Last 6 Months)</h5>
+                    <div style="position: relative; height: 350px;">
+                        <canvas id="repaymentTrendsChart"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Top Debtors Table -->
+        <div class="card-premium p-4">
+            <h5 class="fw-bold mb-4">Top Debtors</h5>
+            <div id="topDebtorsTable" class="table-responsive">
+                <div class="text-center p-5">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        if (auth.isAuthenticated()) {
+            document.body.style.display = 'block';
+        }
+    </script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/debt-analytics.js"></script>
+</body>
+</html>

@@ -68,8 +68,20 @@ document.addEventListener("DOMContentLoaded", () => {
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button">Admin</a>
                         <ul class="dropdown-menu border-0 shadow-sm">
+                            <li><h6 class="dropdown-header">Analytics & Reporting</h6></li>
+                            <li><a class="dropdown-item" href="/pages/analytics-dashboard.html">Financial Analytics</a></li>
+                            <li><a class="dropdown-item" href="/pages/user-activity.html">Audit Trail & Activity</a></li>
+                            <li><a class="dropdown-item" href="/pages/debt-analytics.html">Debt Analytics</a></li>
+                            <li><a class="dropdown-item" href="/pages/compliance-reports.html">Compliance Reports</a></li>
+                            <li><a class="dropdown-item" href="/pages/scheduled-reports.html">Scheduled Reports</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">Search & Data</h6></li>
+                            <li><a class="dropdown-item" href="/pages/advanced-search.html">Advanced Search</a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><h6 class="dropdown-header">System Management</h6></li>
                             <li><a class="dropdown-item" href="/pages/users.html">User Management</a></li>
-                            <li><a class="dropdown-item" href="/pages/audit-logs.html">Audit Trail</a></li>
+                            <li><a class="dropdown-item" href="/pages/batch-management.html">Batch Management</a></li>
+                            <li><a class="dropdown-item" href="/pages/system-health.html">System Health</a></li>
                         </ul>
                     </li>
                     `
@@ -78,6 +90,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 </ul>
                 
                 <div class="d-flex align-items-center">
+                    <div class="notification-nav me-3 position-relative">
+                        <a href="javascript:void(0)" class="text-dark" id="notificationBtn" onclick="ui.toggleNotifications()">
+                            <i class="fas fa-bell fs-5"></i>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge">0</span>
+                        </a>
+                        <div class="dropdown-menu dropdown-menu-end border-0 shadow-lg p-0" id="notificationDropdown" style="width: 300px; max-height: 400px; overflow-y: auto;">
+                            <!-- Notifications will be loaded here -->
+                        </div>
+                    </div>
+                    
                     <div class="user-profile-nav me-3 d-none d-md-flex">
                         <div class="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; border-radius: 50%; font-weight: 700; font-size: 0.8rem;">
                             ${user ? user.full_name.charAt(0) : "U"}
@@ -95,6 +117,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Insert at the beginning of body
   document.body.insertAdjacentHTML("afterbegin", navHtml);
+
+  // Load initial notifications
+  if (auth.isAuthenticated()) {
+    ui.loadNotificationCount();
+    setInterval(() => ui.loadNotificationCount(), 60000); // Refresh every minute
+  }
 
   // Global Notification Container
   const toastContainer = document.createElement("div");
@@ -184,6 +212,72 @@ const ui = {
       loader.style.display = "flex";
     } else {
       loader.remove(); // Force remove from DOM to prevent persistence
+    }
+  },
+
+  loadNotificationCount: async () => {
+    try {
+      const data = await api.get("/notifications/unread-count");
+      const badge = document.getElementById("notificationBadge");
+      if (data.success && data.count > 0) {
+        badge.textContent = data.count;
+        badge.classList.remove("d-none");
+      } else {
+        badge.classList.add("d-none");
+      }
+    } catch (e) {
+      console.error("Notification count error:", e);
+    }
+  },
+
+  toggleNotifications: async () => {
+    const dropdown = document.getElementById("notificationDropdown");
+    dropdown.classList.toggle("show");
+
+    if (dropdown.classList.contains("show")) {
+      dropdown.innerHTML =
+        '<div class="p-3 text-center"><div class="spinner-border spinner-border-sm text-primary"></div></div>';
+      try {
+        const data = await api.get("/notifications?limit=5");
+        if (data.success && data.notifications.length > 0) {
+          let html =
+            '<div class="p-3 border-bottom d-flex justify-content-between align-items-center"><h6 class="mb-0">Notifications</h6><a href="javascript:void(0)" class="small" onclick="ui.markAllNotificationsRead()">Mark all as read</a></div>';
+          html += '<div class="list-group list-group-flush">';
+          data.notifications.forEach((n) => {
+            html += `
+                    <div class="list-group-item list-group-item-action border-0 ${
+                      n.read_at ? "" : "bg-light"
+                    }">
+                        <div class="small fw-bold">${n.title}</div>
+                        <div class="small text-muted">${n.message}</div>
+                        <div class="text-end" style="font-size: 0.7rem;">${new Date(
+                          n.created_at
+                        ).toLocaleTimeString()}</div>
+                    </div>
+                `;
+          });
+          html += "</div>";
+          dropdown.innerHTML = html;
+        } else {
+          dropdown.innerHTML =
+            '<div class="p-4 text-center text-muted"><p class="mb-0">No notifications</p></div>';
+        }
+      } catch (e) {
+        dropdown.innerHTML =
+          '<div class="p-3 text-center text-danger">Failed to load</div>';
+      }
+    }
+  },
+
+  markAllNotificationsRead: async () => {
+    try {
+      await api.put("/notifications/read-all");
+      ui.loadNotificationCount();
+      // Keep dropdown open but refresh count
+      const dropdown = document.getElementById("notificationDropdown");
+      dropdown.classList.remove("show");
+    } catch (e) {
+      console.error("Mark all read error:", e);
     }
   },
 };

@@ -140,6 +140,26 @@ h6 {
   border: 1px solid #dcfce7;
 }
 
+/* Growth Badges */
+.badge-growth {
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    display: inline-flex;
+    align-items: center;
+}
+
+.badge-growth.positive {
+    background-color: #f0fdf4;
+    color: var(--success-green);
+}
+
+.badge-growth.negative {
+    background-color: #fef2f2;
+    color: var(--error-red);
+}
+
 /* Excel-like Tables */
 .table-excel {
   width: 100%;

@@ -13,6 +13,23 @@ router.post("/", authorize("admin"), debtController.createDebt);
 // Search debts
 router.get("/search", debtController.search);
 
+// Debt Analytics (Admin only)
+router.get(
+  "/analytics/overview",
+  authorize("admin"),
+  debtController.getDebtOverview
+);
+router.get(
+  "/analytics/aging",
+  authorize("admin"),
+  debtController.getAgingReport
+);
+router.get(
+  "/analytics/trends",
+  authorize("admin"),
+  debtController.getRepaymentTrends
+);
+
 // Get debts for a driver
 router.get("/driver/:driverId", debtController.getDebtsByDriver);
 

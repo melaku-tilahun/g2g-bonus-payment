@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Compliance Reports - Driver Bonus Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/css/styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+</head>
+<body style="display: none;">
+    <!-- Header injected by ui.js -->
+    
+    <div class="main-wrapper">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1 class="h4 mb-0">Compliance & Regulatory Reports</h1>
+        </div>
+        
+        <!-- KPI Cards -->
+        <div class="row g-4 mb-5">
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #eff6ff; color: var(--primary-blue);">
+                        <i class="fas fa-file-invoice-dollar"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Total Tax Withheld</div>
+                    <div class="value" id="totalTaxWithheld">0 ETB</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #f0fdf4; color: var(--success-green);">
+                        <i class="fas fa-user-check"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Drivers Verified</div>
+                    <div class="value" id="verifiedDrivers">0</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #fff7ed; color: var(--warning-orange);">
+                        <i class="fas fa-clock"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Pending TIN Verif</div>
+                    <div class="value" id="pendingVerifications">0</div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card-premium metric-card">
+                    <div class="icon-wrapper" style="background-color: #fef2f2; color: var(--error-red);">
+                        <i class="fas fa-exclamation-triangle"></i>
+                    </div>
+                    <div class="text-muted small fw-bold text-uppercase mb-1">Compliance Alerts</div>
+                    <div class="value" id="recentAlerts">0</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Generation Center -->
+        <h5 class="fw-bold mb-3">Regulatory Report Center</h5>
+        <div class="row g-4 mb-5">
+            <div class="col-md-4">
+                <div class="card-premium p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="icon-wrapper" style="background-color: #eff6ff; color: var(--primary-blue);">
+                            <i class="fas fa-file-invoice-dollar"></i>
+                        </div>
+                        <span class="badge bg-light text-primary">Monthly</span>
+                    </div>
+                    <h6 class="fw-bold mb-2">Withholding Tax Register</h6>
+                    <p class="text-muted small">Official tax registry for government audits and compliance filing.</p>
+                    <button class="btn btn-outline-primary btn-sm w-100 mt-auto" data-bs-toggle="modal" data-bs-target="#taxReportModal">
+                        <i class="fas fa-download me-2"></i>Configure & Download
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card-premium p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="icon-wrapper" style="background-color: #f0fdf4; color: var(--success-green);">
+                            <i class="fas fa-id-card"></i>
+                        </div>
+                        <span class="badge bg-light text-success">Real-time</span>
+                    </div>
+                    <h6 class="fw-bold mb-2">TIN Verification Audit</h6>
+                    <p class="text-muted small">Complete history of TIN validations and government database checks.</p>
+                    <button class="btn btn-outline-success btn-sm w-100 mt-auto" data-bs-toggle="modal" data-bs-target="#tinLogModal">
+                        <i class="fas fa-list me-2"></i>View History / Export
+                    </button>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="card-premium p-4 h-100">
+                    <div class="d-flex justify-content-between align-items-start mb-3">
+                        <div class="icon-wrapper" style="background-color: #fef3f2; color: var(--error-red);">
+                            <i class="fas fa-file-pdf"></i>
+                        </div>
+                        <span class="badge bg-light text-danger">On-demand</span>
+                    </div>
+                    <h6 class="fw-bold mb-2">Driver Tax Statement</h6>
+                    <p class="text-muted small">Individualized tax statements for drivers' personal tax records.</p>
+                    <button class="btn btn-outline-danger btn-sm w-100 mt-auto" data-bs-toggle="modal" data-bs-target="#driverStatementModal">
+                        <i class="fas fa-file-download me-2"></i>Generate Individual
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <div class="row g-4 mb-4">
+            <div class="col-md-8">
+                <!-- Recent Compliance Activity -->
+                <div class="card-premium p-4">
+                    <div class="d-flex justify-content-between align-items-center mb-3">
+                        <h5 class="fw-bold mb-0">Latest Compliance Activity</h5>
+                        <button class="btn btn-link btn-sm text-decoration-none" onclick="loadComplianceActivity()">
+                            <i class="fas fa-sync-alt me-1"></i> Refresh
+                        </button>
+                    </div>
+                    <div id="complianceActivityTable">
+                        <div class="text-center py-4">
+                            <div class="spinner-border spinner-border-sm text-primary" role="status"></div>
+                            <span class="ms-2">Loading activity...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <!-- Verification Status Chart -->
+                <div class="card-premium p-4">
+                    <h5 class="fw-bold mb-3">Verification Distribution</h5>
+                    <div style="position: relative; height: 250px;">
+                        <canvas id="verificationDistributionChart"></canvas>
+                    </div>
+                    <div class="mt-3" id="verificationStats">
+                        <!-- Stats injected by JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Report Schedules -->
+        <div class="card-premium p-4 mb-4">
+            <h5 class="fw-bold mb-3">Automated Reporting Compliance</h5>
+            <p class="text-muted small mb-4">Scheduled regulatory reports ensure your organization stays compliant without manual intervention.</p>
+            <a href="/pages/scheduled-reports.html" class="btn btn-outline-primary">
+                <i class="fas fa-calendar-alt me-2"></i>Manage Scheduled Reports
+            </a>
+        </div>
+    </div>
+    
+    <!-- Withholding Tax Report Modal -->
+    <div class="modal fade" id="taxReportModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate Withholding Tax Report</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Start Date</label>
+                        <input type="date" id="taxStartDate" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Date</label>
+                        <input type="date" id="taxEndDate" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Format</label>
+                        <select id="taxFormat" class="form-select">
+                            <option value="json">View Online (JSON)</option>
+                            <option value="excel">Download Excel</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-brand" onclick="generateTaxReport()">Generate</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- TIN Verification Log Modal -->
+    <div class="modal fade" id="tinLogModal" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">TIN Verification Log</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label class="form-label">Start Date</label>
+                            <input type="date" id="tinStartDate" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">End Date</label>
+                            <input type="date" id="tinEndDate" class="form-control">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">Format</label>
+                            <select id="tinFormat" class="form-select">
+                                <option value="json">View Online</option>
+                                <option value="excel">Download Excel</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-brand w-100 mb-3" onclick="handleTinLog()">Process Request</button>
+                    <div id="tinLogResults" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Driver Statement Modal -->
+    <div class="modal fade" id="driverStatementModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Generate Driver Statement</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label">Driver ID</label>
+                        <input type="text" id="statementDriverId" class="form-control" placeholder="Enter driver ID...">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Start Date (Optional)</label>
+                        <input type="date" id="statementStartDate" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">End Date (Optional)</label>
+                        <input type="date" id="statementEndDate" class="form-control">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-brand" onclick="generateDriverStatement()">Generate PDF</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tax Report Results Modal -->
+    <div class="modal fade" id="taxResultsModal" tabindex="-1">
+        <div class="modal-dialog modal-xl">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Withholding Tax Report Results</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div id="taxReportResults"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="/js/api.js"></script>
+    <script src="/js/auth.js"></script>
+    <script>
+        // Check auth before showing content
+        if (auth.isAuthenticated()) {
+            document.body.style.display = 'block';
+        }
+    </script>
+    <script src="/js/ui.js"></script>
+    <script src="/js/compliance-reports.js"></script>
+</body>
+</html>
