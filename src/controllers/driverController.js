@@ -10,8 +10,9 @@ const driverController = {
     try {
       const { q, status, page = 1, limit = 25 } = req.query;
 
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const limitNum = parseInt(limit);
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 25;
+      const offset = (pageNum - 1) * limitNum;
 
       // Build WHERE clause
       let whereConditions = [];
@@ -28,6 +29,8 @@ const driverController = {
         whereConditions.push("d.verified = TRUE");
       } else if (status === "unverified") {
         whereConditions.push("d.verified = FALSE");
+      } else if (status === "blocked") {
+        whereConditions.push("d.is_blocked = TRUE");
       }
 
       const whereClause =
@@ -41,8 +44,9 @@ const driverController = {
         queryParams
       );
 
+      const total = countRows[0] ? countRows[0].total : 0;
+
       // Get Data with Pending Bonus Info
-      // We LEFT JOIN bonuses on driver_id AND payment_id IS NULL to only sum pending bonuses
       const [rows] = await pool.query(
         `SELECT 
           d.*, 
@@ -52,17 +56,18 @@ const driverController = {
          LEFT JOIN bonuses b ON d.driver_id = b.driver_id AND b.payment_id IS NULL
          ${whereClause}
          GROUP BY d.id
+         ORDER BY d.created_at DESC
          LIMIT ? OFFSET ?`,
         [...queryParams, limitNum, offset]
       );
 
       res.json({
         drivers: rows,
-        total: countRows[0].total,
+        total: total,
         pagination: {
-          page: parseInt(page),
+          page: pageNum,
           limit: limitNum,
-          total_pages: Math.ceil(countRows[0].total / limitNum),
+          total_pages: Math.ceil(total / limitNum),
         },
       });
     } catch (error) {
@@ -300,12 +305,10 @@ const driverController = {
 
       if (bonuses.length === 0) {
         await connection.rollback();
-        return res
-          .status(400)
-          .json({
-            message:
-              "No eligible bonuses to release. Bonuses may have already been processed for partial payout.",
-          });
+        return res.status(400).json({
+          message:
+            "No eligible bonuses to release. Bonuses may have already been processed for partial payout.",
+        });
       }
 
       // 3. Debt Sweep (Same logic as payment generation)

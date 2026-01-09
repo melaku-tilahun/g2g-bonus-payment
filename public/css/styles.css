@@ -209,6 +209,23 @@ h6 {
     font-weight: 600;
 }
 
+/* Dropdown on Hover */
+.navbar-modern .nav-item.dropdown:hover .dropdown-menu {
+    display: block;
+    margin-top: 0; /* Remove gap that could cause flicker */
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.navbar-modern .dropdown-menu {
+    transition: all 0.2s ease-in-out;
+    display: block;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(10px);
+}
+
 /* Navbar Legacy Style (Deprioritized) */
 .navbar-legacy {
   background-color: #1e293b; 

@@ -1302,6 +1302,90 @@ const paymentController = {
       connection.release();
     }
   },
+  search: async (req, res) => {
+    try {
+      const { q, status, page = 1, limit = 25 } = req.query;
+
+      const pageNum = parseInt(page) || 1;
+      const limitNum = parseInt(limit) || 25;
+      const offset = (pageNum - 1) * limitNum;
+
+      const qStr = q ? `%${q}%` : "%";
+
+      // Part 1: Actual payment records
+      let pQuery = `
+        SELECT 
+            CAST(p.id AS CHAR) COLLATE utf8mb4_general_ci as id, 
+            p.driver_id as driver_ref_id, 
+            d.full_name, 
+            p.status, 
+            p.total_amount, 
+            p.payment_date
+        FROM payments p
+        JOIN drivers d ON p.driver_id = d.driver_id
+        WHERE (p.id LIKE ? OR d.full_name LIKE ? OR d.driver_id LIKE ?)
+        ${status && status !== "all" ? "AND p.status = ?" : ""}
+      `;
+      let pParams = [qStr, qStr, qStr];
+      if (status && status !== "all") pParams.push(status);
+
+      // Part 2: Accumulated bonuses (floating pending)
+      let aQuery = `
+        SELECT 
+            CONCAT('PEND-', d.driver_id) COLLATE utf8mb4_general_ci as id, 
+            d.driver_id as driver_ref_id, 
+            d.full_name, 
+            'pending' COLLATE utf8mb4_general_ci as status, 
+            SUM(COALESCE(b.final_payout, b.net_payout)) as total_amount, 
+            MAX(b.week_date) as payment_date
+        FROM drivers d
+        JOIN bonuses b ON d.driver_id = b.driver_id
+        WHERE b.payment_id IS NULL
+        AND (d.full_name LIKE ? OR d.driver_id LIKE ?)
+        GROUP BY d.driver_id
+        HAVING total_amount > 0
+      `;
+      let aParams = [qStr, qStr];
+
+      let finalSubQuery = "";
+      let finalParams = [];
+
+      if (!status || status === "all" || status === "pending") {
+        finalSubQuery = `(${pQuery}) UNION ALL (${aQuery})`;
+        finalParams = [...pParams, ...aParams];
+      } else {
+        finalSubQuery = pQuery;
+        finalParams = pParams;
+      }
+
+      // Wrap for total count and pagination
+      const [countRows] = await pool.query(
+        `SELECT COUNT(*) as total FROM (${finalSubQuery}) as t`,
+        finalParams
+      );
+      const total = countRows[0] ? countRows[0].total : 0;
+
+      const [rows] = await pool.query(
+        `SELECT * FROM (${finalSubQuery}) as t 
+         ORDER BY payment_date DESC 
+         LIMIT ? OFFSET ?`,
+        [...finalParams, limitNum, offset]
+      );
+
+      res.json({
+        payments: rows,
+        total: total,
+        pagination: {
+          page: pageNum,
+          limit: limitNum,
+          total_pages: Math.ceil(total / limitNum),
+        },
+      });
+    } catch (error) {
+      console.error("Search payments error:", error);
+      res.status(500).json({ message: "Internal server error" });
+    }
+  },
 };
 
 module.exports = paymentController;

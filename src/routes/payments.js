@@ -41,6 +41,7 @@ router.post(
   paymentController.validateReconciliation
 );
 router.post("/reconcile/process", paymentController.processReconciliation);
+router.get("/search", paymentController.search);
 router.get("/history", paymentController.getHistory);
 router.get("/pending", paymentController.getPendingPayments);
 router.get("/accumulated", paymentController.getAccumulatedPayments);

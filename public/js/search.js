@@ -5,33 +5,84 @@ document.addEventListener("DOMContentLoaded", () => {
   const resultsGrid = document.getElementById("searchResultsGrid");
   const loader = document.getElementById("searchLoader");
   const emptyState = document.getElementById("emptySearchState");
+  const tabs = document.querySelectorAll("#searchTabs .nav-link");
 
   let currentPage = 1;
   let currentLimit = 25;
   let debounceTimer;
+  let currentTab = "drivers"; // drivers, payments, debts
 
   // Initial load
-  loadDrivers(1);
+  loadData(1);
+
+  // Tab Switching Logic
+  tabs.forEach((tab) => {
+    tab.addEventListener("click", (e) => {
+      e.preventDefault();
+      // Update UI
+      tabs.forEach((t) => {
+        t.classList.remove("active", "bg-primary", "text-white");
+        t.classList.add("bg-white");
+      });
+      e.currentTarget.classList.add("active", "bg-primary", "text-white");
+      e.currentTarget.classList.remove("bg-white");
+
+      // Update State
+      currentTab = e.currentTarget.getAttribute("data-tab");
+      currentPage = 1;
+
+      // Reset filters to defaults for the new tab
+      updateFiltersForTab(currentTab);
+
+      // Load Data
+      loadData(1);
+    });
+  });
 
   searchInput.addEventListener("input", () => {
     clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(() => loadDrivers(1), 300);
+    debounceTimer = setTimeout(() => loadData(1), 300);
   });
 
-  statusFilter.addEventListener("change", () => loadDrivers(1));
-  sortFilter.addEventListener("change", () => loadDrivers(1));
+  statusFilter.addEventListener("change", () => loadData(1));
+  sortFilter.addEventListener("change", () => loadData(1));
 
-  async function loadDrivers(page = 1) {
+  function updateFiltersForTab(tab) {
+    // Reset Status Filter
+    statusFilter.innerHTML = '<option value="all">All Statuses</option>';
+    if (tab === "drivers") {
+      statusFilter.innerHTML += `
+        <option value="verified">Verified</option>
+        <option value="unverified">Unverified</option>
+        <option value="blocked">Blocked</option>
+      `;
+    } else if (tab === "payments") {
+      statusFilter.innerHTML += `
+        <option value="paid">Paid</option>
+        <option value="processing">Processing</option>
+        <option value="pending">Pending</option>
+      `;
+    } else if (tab === "debts") {
+      statusFilter.innerHTML += `
+        <option value="active">Active</option>
+        <option value="paid">Paid</option>
+      `;
+    }
+
+    // Reset Sort Filter (Simplified for now, can be expanded)
+    sortFilter.value = "newest";
+  }
+
+  async function loadData(page = 1) {
     try {
       loader.classList.remove("d-none");
       resultsGrid.innerHTML = "";
       document.getElementById("paginationContainer").classList.add("d-none");
+      emptyState.classList.add("d-none");
 
       const query = searchInput.value.trim();
-      const status = statusFilter.value; // Note: specific status filter currently not supported by backend general search, but q works for name/id
-      const sortParts = sortFilter.value.split("_"); // e.g., name_asc
-      const sortBy = sortParts[0];
-      const order = sortParts.length > 1 ? sortParts[1] : "desc";
+      const status = statusFilter.value;
+      const sortValue = sortFilter.value;
 
       // Build Query Params
       const params = new URLSearchParams({
@@ -39,46 +90,62 @@ document.addEventListener("DOMContentLoaded", () => {
         limit: currentLimit,
         q: query,
         status: status === "all" ? "" : status,
-        sortBy:
-          sortBy === "bonus"
-            ? "amount"
-            : sortBy === "newest"
-            ? "date"
-            : "driver", // mapping to backend expectations
-        order: sortBy === "newest" ? "desc" : order,
+        sortBy: "newest", // Defaulting for simple implementation
       });
 
-      // Using drivers/search to search ALL drivers
-      const response = await api.get(`/drivers/search?${params.toString()}`);
-      const drivers = Array.isArray(response)
-        ? response
-        : response.drivers || [];
-      const pagination = response.pagination || { page: 1, total_pages: 1 };
+      let endpoint = "";
+      if (currentTab === "drivers") endpoint = "/drivers/search";
+      else if (currentTab === "payments") endpoint = "/payments/search";
+      else if (currentTab === "debts") endpoint = "/debts/search";
 
-      renderCards(drivers);
-      renderPagination(pagination);
+      const response = await api.get(`${endpoint}?${params.toString()}`);
+
+      let items = [];
+      let pagination = { page: 1, total_pages: 1 };
+
+      if (currentTab === "drivers") {
+        items = response.drivers || [];
+        pagination = response.pagination || pagination;
+      } else if (currentTab === "payments") {
+        items = response.payments || [];
+        pagination = response.pagination || pagination;
+      } else if (currentTab === "debts") {
+        items = response.debts || [];
+        pagination = response.pagination || pagination;
+      }
+
+      if (items.length === 0) {
+        emptyState.classList.remove("d-none");
+      } else {
+        if (currentTab === "drivers") renderDriverCards(items);
+        else if (currentTab === "payments") renderPaymentCards(items);
+        else if (currentTab === "debts") renderDebtCards(items);
+
+        renderPagination(pagination);
+      }
+
       currentPage = page;
     } catch (error) {
       console.error(error);
-      ui.toast("Failed to load drivers", "error");
+      ui.toast(`Failed to load ${currentTab}`, "error");
       emptyState.classList.remove("d-none");
     } finally {
       loader.classList.add("d-none");
     }
   }
 
-  function renderCards(drivers) {
-    resultsGrid.innerHTML = "";
-    if (drivers.length === 0) {
-      emptyState.classList.remove("d-none");
-      return;
-    }
-
-    emptyState.classList.add("d-none");
+  function renderDriverCards(drivers) {
     drivers.forEach((d) => {
       const isVerified = d.verified === 1 || d.verified === true;
-      const badgeClass = isVerified ? "badge-verified" : "badge-unverified";
-      const badgeText = isVerified ? "Verified" : "Unverified";
+      const isBlocked = d.is_blocked === 1 || d.is_blocked === true;
+
+      let badgeClass = isVerified ? "badge-verified" : "badge-unverified";
+      let badgeText = isVerified ? "Verified" : "Unverified";
+
+      if (isBlocked) {
+        badgeClass = "bg-danger text-white border-0 py-1 px-3 rounded-pill";
+        badgeText = "Blocked";
+      }
 
       const col = document.createElement("div");
       col.className = "col-md-6 col-lg-4";
@@ -123,6 +190,104 @@ document.addEventListener("DOMContentLoaded", () => {
     });
   }
 
+  function renderPaymentCards(payments) {
+    payments.forEach((p) => {
+      const col = document.createElement("div");
+      col.className = "col-md-6 col-lg-4";
+
+      let statusBadge = `<span class="badge bg-secondary">Unknown</span>`;
+      if (p.status === "paid")
+        statusBadge = `<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Paid</span>`;
+      else if (p.status === "processing")
+        statusBadge = `<span class="badge bg-info bg-opacity-10 text-info rounded-pill px-3">Processing</span>`;
+      else if (p.status === "pending")
+        statusBadge = `<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Pending</span>`;
+
+      col.innerHTML = `
+            <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail.html?id=${
+              p.driver_ref_id
+            }'" style="cursor: pointer;">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                     <span class="text-muted small fw-bold text-uppercase">Payment #${
+                       p.id
+                     }</span>
+                     ${statusBadge}
+                </div>
+                <h5 class="fw-bold mb-1">${p.full_name || "Unknown Driver"}</h5>
+                <div class="small text-muted font-monospace mb-3">${
+                  p.driver_ref_id || "N/A"
+                }</div>
+
+                 <div class="mt-auto pt-3 border-top">
+                    <div class="row g-0 align-items-center">
+                        <div class="col">
+                            <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Total Paid</div>
+                            <div class="h5 fw-bold text-dark mb-0">${parseFloat(
+                              p.total_amount || 0
+                            ).toLocaleString()} <small class="text-xs fw-normal">ETB</small></div>
+                        </div>
+                        <div class="col-auto text-end">
+                             <div class="small text-muted">${new Date(
+                               p.payment_date
+                             ).toLocaleDateString()}</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+      resultsGrid.appendChild(col);
+    });
+  }
+
+  function renderDebtCards(debts) {
+    debts.forEach((d) => {
+      const col = document.createElement("div");
+      col.className = "col-md-6 col-lg-4";
+
+      let statusBadge = `<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Active</span>`;
+      if (d.status === "paid")
+        statusBadge = `<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3">Paid</span>`;
+
+      col.innerHTML = `
+            <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail.html?id=${
+              d.driver_ref_id
+            }'" style="cursor: pointer;">
+                 <div class="d-flex justify-content-between align-items-center mb-3">
+                     <span class="text-muted small fw-bold text-uppercase">${
+                       d.reason
+                     }</span>
+                     ${statusBadge}
+                </div>
+                <h5 class="fw-bold mb-1">${d.full_name || "Unknown Driver"}</h5>
+                <div class="small text-muted font-monospace mb-3">${
+                  d.driver_ref_id || "N/A"
+                }</div>
+
+                <div class="mt-auto pt-3 border-top">
+                    <div class="d-flex justify-content-between align-items-end">
+                        <div>
+                             <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Original Amount</div>
+                             <div class="fw-bold text-dark">${parseFloat(
+                               d.amount
+                             ).toLocaleString()} ETB</div>
+                        </div>
+                         <div class="text-end">
+                             <div class="small text-muted text-uppercase fw-bold" style="font-size: 0.65rem;">Remaining</div>
+                             <div class="h5 fw-bold text-danger mb-0">${parseFloat(
+                               d.remaining_amount
+                             ).toLocaleString()}</div>
+                        </div>
+                    </div>
+                     <div class="small text-muted mt-2 text-end">Created: ${new Date(
+                       d.created_at
+                     ).toLocaleDateString()}</div>
+                </div>
+            </div>
+        `;
+      resultsGrid.appendChild(col);
+    });
+  }
+
   function renderPagination(pagination) {
     const container = document.getElementById("paginationContainer");
     if (pagination.total_pages <= 1) {
@@ -162,7 +327,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Expose changePage to global scope for inline onclick handler
   window.changePage = (page) => {
-    loadDrivers(page);
+    loadData(page);
     window.scrollTo({ top: 0, behavior: "smooth" });
   };
 });

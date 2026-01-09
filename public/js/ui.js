@@ -66,7 +66,7 @@ document.addEventListener("DOMContentLoaded", () => {
                       isAdmin
                         ? `
                     <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button" data-bs-toggle="dropdown">Admin</a>
+                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button">Admin</a>
                         <ul class="dropdown-menu border-0 shadow-sm">
                             <li><a class="dropdown-item" href="/pages/users.html">User Management</a></li>
                             <li><a class="dropdown-item" href="/pages/audit-logs.html">Audit Trail</a></li>

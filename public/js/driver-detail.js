@@ -1074,3 +1074,28 @@ function updateTotalCalculations(bonuses) {
     document.getElementById("weeksCount").textContent = bonuses.length;
   }
 }
+
+async function loadBonuses(driverId) {
+  try {
+    const bonuses = await api.get(`/bonuses/driver/${driverId}`);
+    renderBonusList(bonuses);
+    updateTotalCalculations(bonuses);
+  } catch (error) {
+    console.error("Failed to load bonuses:", error);
+  }
+}
+
+async function loadDriverDetails(driverId) {
+  try {
+    const driver = await api.get(`/drivers/${driverId}`);
+    // We need to re-fetch bonuses to fully render the driver card (stats depend on it)
+    // Or we can just update the specific fields if renderDriver is too heavy.
+    // For simplicity, let's just fetch bonuses again or pass empty if we strictly want driver details.
+    // Actually, renderDriver needs bonuses for stats.
+    const bonuses = await api.get(`/bonuses/driver/${driverId}`);
+    const currentUser = await api.get("/auth/me").catch(() => null);
+    renderDriver(driver, bonuses, currentUser);
+  } catch (error) {
+    console.error("Failed to load driver details:", error);
+  }
+}
