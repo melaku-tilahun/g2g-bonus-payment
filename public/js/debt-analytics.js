@@ -3,6 +3,13 @@
 let agingChart, reasonChart, trendsChart;
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Permission Check
+  const user = auth.getUser();
+  if (!user || !["admin", "director", "manager"].includes(user.role)) {
+    window.location.href = "/index.html";
+    return;
+  }
+
   loadDebtAnalytics();
 });
 

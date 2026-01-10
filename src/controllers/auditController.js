@@ -202,11 +202,10 @@ const auditController = {
 
       // Security-related events
       const securityActions = [
-        "LOGIN_FAILED",
-        "UNAUTHORIZED_ACCESS",
-        "PASSWORD_CHANGE",
-        "USER_DEACTIVATE",
-        "PERMISSION_DENIED",
+        "Login Failed",
+        "User Login",
+        "Change Password",
+        "Deactivate User",
       ];
       const actionFilter = dateFilter ? "AND" : "WHERE";
       const actionCondition = `${actionFilter} (${securityActions

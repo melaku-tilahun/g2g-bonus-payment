@@ -7,16 +7,19 @@ const authorize = require("../middleware/authorize");
 router.get(
   "/withholding-tax",
   authenticate,
+  authorize(["admin", "director", "auditor"]),
   reportsController.getWithholdingTaxReport
 );
 router.get(
   "/tin-verification-log",
   authenticate,
+  authorize(["admin", "director", "auditor"]),
   reportsController.getTINVerificationLog
 );
 router.get(
   "/compliance-summary",
   authenticate,
+  authorize(["admin", "director", "auditor"]),
   reportsController.getComplianceSummary
 );
 router.get(
@@ -29,25 +32,25 @@ router.get(
 router.get(
   "/schedules",
   authenticate,
-  authorize("admin"),
+  authorize(["admin", "director"]),
   reportsController.getSchedules
 );
 router.post(
   "/schedules",
   authenticate,
-  authorize("admin"),
+  authorize(["admin", "director"]),
   reportsController.createSchedule
 );
 router.put(
   "/schedules/:id",
   authenticate,
-  authorize("admin"),
+  authorize(["admin", "director"]),
   reportsController.updateSchedule
 );
 router.delete(
   "/schedules/:id",
   authenticate,
-  authorize("admin"),
+  authorize(["admin", "director"]),
   reportsController.deleteSchedule
 );
 

@@ -1,4 +1,11 @@
 document.addEventListener("DOMContentLoaded", () => {
+  // Permission Check
+  const user = auth.getUser();
+  if (!user || user.role === "auditor") {
+    window.location.href = "/index.html";
+    return;
+  }
+
   const uploadForm = document.getElementById("uploadForm");
   const excelFile = document.getElementById("excelFile");
   const dropZone = document.getElementById("dropZone");

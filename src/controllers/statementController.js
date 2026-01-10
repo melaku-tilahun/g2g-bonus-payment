@@ -9,9 +9,13 @@ const statementController = {
       const { id } = req.params;
       const { type = "full" } = req.query; // 'debt', 'payment', 'bonus', 'full'
 
-      // 1. Security Check (IDOR Prevention)
-      // Ensure specific user properties exist before checking to avoid runtime errors
-      if (req.user && req.user.role !== "admin") {
+      // 1. Security Check (Role-Based Access)
+      // Allow internal staff to view any statement.
+      // Restrict drivers (if they ever login) to their own data.
+      const allowedRoles = ["admin", "director", "manager", "auditor", "staff"];
+
+      if (req.user && !allowedRoles.includes(req.user.role)) {
+        // Fallback for strict ID checking (e.g. for a driver user)
         if (!req.user.driver_id || String(req.user.driver_id) !== String(id)) {
           return res
             .status(403)

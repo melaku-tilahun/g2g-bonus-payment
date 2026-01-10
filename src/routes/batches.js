@@ -3,17 +3,25 @@ const batchController = require("../controllers/batchController");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
 
-router.get("/", authenticate, authorize("admin"), batchController.getBatches);
+// Read access: Admin, Director, Manager
+router.get(
+  "/",
+  authenticate,
+  authorize(["admin", "director", "manager"]),
+  batchController.getBatches
+);
 router.get(
   "/:id",
   authenticate,
-  authorize("admin"),
+  authorize(["admin", "director", "manager"]),
   batchController.getBatchDetails
 );
+
+// Write access: Admin, Director (Mark Paid)
 router.put(
   "/:id/confirm",
   authenticate,
-  authorize("admin"),
+  authorize(["admin", "director"]),
   batchController.confirmBatch
 );
 

@@ -33,11 +33,47 @@ document.addEventListener("DOMContentLoaded", async () => {
     loadDebts(driverId);
 
     // Show Add Debt button for admins
+    // Show Add Debt button for admins
     if (currentUser && currentUser.role === "admin") {
       document.getElementById("addDebtBtn").style.display = "block";
-      document
-        .getElementById("adminActionsDropdown")
-        .classList.remove("d-none");
+    }
+
+    // Show Action Dropdown for all (for statements), but hide Block Option for non-admins
+    const adminActionsDropdown = document.getElementById(
+      "adminActionsDropdown"
+    );
+    adminActionsDropdown.classList.remove("d-none");
+
+    // Dynamic Dropdown Name
+    if (currentUser.role !== "admin") {
+      const dropdownBtn =
+        adminActionsDropdown.querySelector(".dropdown-toggle");
+      if (dropdownBtn) {
+        dropdownBtn.innerHTML = '<i class="fas fa-file-alt me-2"></i> Actions';
+      }
+    }
+
+    const canBlock = ["admin", "director", "manager"].includes(
+      currentUser.role
+    );
+    if (!canBlock) {
+      const blockBtn = document.getElementById("blockDriverBtn");
+      if (blockBtn) {
+        // Hide the list item containing the button
+        blockBtn.closest("li").style.display = "none";
+
+        // Optional: Try to hide the header and divider for cleaner UI
+        // This assumes specific DOM structure (Header -> Button -> Divider)
+        // If strictly following user request, just hiding button is critical.
+        // Let's try to hide the previous header too if we can select it easily, otherwise leave it.
+        // Simple approach: Just hide the button LI.
+      }
+    }
+
+    // New Verify Button Logic: Reveal only if allowed
+    const verifyBtn = document.getElementById("markVerifiedBtn");
+    if (!driver.verified && currentUser && currentUser.role !== "auditor") {
+      verifyBtn.classList.remove("d-none");
     }
 
     // Export Statement Logic
@@ -374,9 +410,14 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Reset modal state when opened
   document.getElementById("markVerifiedBtn").addEventListener("click", () => {
-    // Check if user is admin
+    // Check user permissions
     const user = auth.getUser();
-    const isAdmin = user && user.role === "admin";
+
+    // Partial Payout: Admin & Director
+    const canPartialPayout = ["admin", "director"].includes(user.role);
+
+    // Admin Override (Verify without TIN): Admin, Director, Manager
+    const canOverride = ["admin", "director", "manager"].includes(user.role);
 
     // Reset business data section
     document.getElementById("businessDataSection").classList.add("d-none");
@@ -386,15 +427,15 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("tinInputSection").classList.remove("d-none");
 
     const overrideSection = document.getElementById("adminOverrideSection");
-    if (isAdmin) {
+    if (canOverride) {
       overrideSection.classList.remove("d-none");
     } else {
       overrideSection.classList.add("d-none");
     }
 
-    // Show Partial Payout button if Admin + Driver is Unverified
+    // Show Partial Payout button if Authorized + Driver is Unverified
     const partialPaymentBtn = document.getElementById("partialPayoutBtn");
-    if (isAdmin && !driver.verified) {
+    if (canPartialPayout && !driver.verified) {
       partialPaymentBtn.classList.remove("d-none");
     } else {
       partialPaymentBtn.classList.add("d-none");
@@ -886,7 +927,8 @@ function renderDriver(driver, bonuses, currentUser) {
   }
 
   if (driver.verified) {
-    document.getElementById("markVerifiedBtn").classList.add("d-none");
+    // Button is already hidden by default (d-none), so no need to add it again.
+    // Just show the verification info section.
     document
       .getElementById("verificationInfoSection")
       .classList.remove("d-none");

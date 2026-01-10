@@ -3,6 +3,13 @@
 let loadChart;
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Permission Check
+  const user = auth.getUser();
+  if (!user || user.role !== "admin") {
+    window.location.href = "/index.html";
+    return;
+  }
+
   loadSystemHealth();
   // Auto refresh every 30 seconds
   setInterval(loadSystemHealth, 30000);

@@ -51,42 +51,141 @@ document.addEventListener("DOMContentLoaded", () => {
                           currentPath.includes("payments.html") ? "active" : ""
                         }" href="/pages/payments.html">Payment History</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link ${
-                          currentPath.includes("upload.html") ? "active" : ""
-                        }" href="/pages/upload.html">Upload</a>
-                    </li>
+                    ${
+                      user && user.role !== "auditor"
+                        ? `<li class="nav-item">
+                            <a class="nav-link ${
+                              currentPath.includes("upload.html")
+                                ? "active"
+                                : ""
+                            }" href="/pages/upload.html">Upload</a>
+                        </li>`
+                        : ""
+                    }
                     <li class="nav-item">
                         <a class="nav-link ${
                           currentPath.includes("search.html") ? "active" : ""
                         }" href="/pages/search.html">Search</a>
                     </li>
                    
-                    ${
-                      isAdmin
-                        ? `
-                    <li class="nav-item dropdown">
-                        <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button">Admin</a>
-                        <ul class="dropdown-menu border-0 shadow-sm">
-                            <li><h6 class="dropdown-header">Analytics & Reporting</h6></li>
-                            <li><a class="dropdown-item" href="/pages/analytics-dashboard.html">Financial Analytics</a></li>
-                            <li><a class="dropdown-item" href="/pages/user-activity.html">Audit Trail & Activity</a></li>
-                            <li><a class="dropdown-item" href="/pages/debt-analytics.html">Debt Analytics</a></li>
-                            <li><a class="dropdown-item" href="/pages/compliance-reports.html">Compliance Reports</a></li>
-                            <li><a class="dropdown-item" href="/pages/scheduled-reports.html">Scheduled Reports</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header">Search & Data</h6></li>
-                            <li><a class="dropdown-item" href="/pages/advanced-search.html">Advanced Search</a></li>
-                            <li><hr class="dropdown-divider"></li>
-                            <li><h6 class="dropdown-header">System Management</h6></li>
-                            <li><a class="dropdown-item" href="/pages/users.html">User Management</a></li>
-                            <li><a class="dropdown-item" href="/pages/batch-management.html">Batch Management</a></li>
-                            <li><a class="dropdown-item" href="/pages/system-health.html">System Health</a></li>
-                        </ul>
-                    </li>
-                    `
-                        : ""
-                    }
+                    ${(() => {
+                      const role = user ? user.role : "";
+                      const canViewSystemHealth = role === "admin";
+                      const canViewUserMgmt = ["admin", "director"].includes(
+                        role
+                      );
+                      const canViewReports = [
+                        "admin",
+                        "director",
+                        "auditor",
+                      ].includes(role); // Compliance & Schedules
+                      const canViewDebt = [
+                        "admin",
+                        "director",
+                        "manager",
+                      ].includes(role);
+                      const canViewFinancials = [
+                        "admin",
+                        "director",
+                        "manager",
+                      ].includes(role); // Analytics & Batches
+                      const canViewAudit = ["admin", "director"].includes(role);
+                      const canViewAdvancedSearch = [
+                        "admin",
+                        "director",
+                        "manager",
+                        "auditor",
+                      ].includes(role);
+
+                      const hasManagementAccess =
+                        canViewSystemHealth ||
+                        canViewUserMgmt ||
+                        canViewReports ||
+                        canViewDebt ||
+                        canViewFinancials ||
+                        canViewAdvancedSearch;
+
+                      if (hasManagementAccess) {
+                        return `
+                            <li class="nav-item dropdown">
+                                <a class="nav-link dropdown-toggle" href="#" id="adminDropdown" role="button">
+                                    ${
+                                      role.charAt(0).toUpperCase() +
+                                      role.slice(1)
+                                    }
+                                </a>
+                                <ul class="dropdown-menu border-0 shadow-sm">
+                                    ${
+                                      canViewFinancials
+                                        ? `
+                                        <li><h6 class="dropdown-header">Analytics & Reporting</h6></li>
+                                        <li><a class="dropdown-item" href="/pages/analytics-dashboard.html">Financial Analytics</a></li>
+                                    `
+                                        : ""
+                                    }
+                                    ${
+                                      canViewAudit
+                                        ? `<li><a class="dropdown-item" href="/pages/user-activity.html">Audit Trail & Activity</a></li>`
+                                        : ""
+                                    }
+                                    ${
+                                      canViewDebt
+                                        ? `<li><a class="dropdown-item" href="/pages/debt-analytics.html">Debt Analytics</a></li>`
+                                        : ""
+                                    }
+                                    ${
+                                      canViewReports
+                                        ? `
+                                        <li><a class="dropdown-item" href="/pages/compliance-reports.html">Compliance Reports</a></li>
+                                        <li><a class="dropdown-item" href="/pages/scheduled-reports.html">Scheduled Reports</a></li>
+                                    `
+                                        : ""
+                                    }
+                                    
+                                    ${
+                                      canViewFinancials || canViewReports
+                                        ? `<li><hr class="dropdown-divider"></li>`
+                                        : ""
+                                    }
+                                    
+                                    ${
+                                      canViewAdvancedSearch
+                                        ? `
+                                        <li><h6 class="dropdown-header">Search & Data</h6></li>
+                                        <li><a class="dropdown-item" href="/pages/advanced-search.html">Advanced Search</a></li>
+                                    `
+                                        : ""
+                                    }
+                                    
+                                    ${
+                                      canViewUserMgmt || canViewSystemHealth
+                                        ? `
+                                        <li><hr class="dropdown-divider"></li>
+                                        <li><h6 class="dropdown-header">System Management</h6></li>
+                                    `
+                                        : ""
+                                    }
+                                    
+                                    ${
+                                      canViewUserMgmt
+                                        ? `<li><a class="dropdown-item" href="/pages/users.html">User Management</a></li>`
+                                        : ""
+                                    }
+                                    ${
+                                      canViewFinancials
+                                        ? `<li><a class="dropdown-item" href="/pages/batch-management.html">Batch Management</a></li>`
+                                        : ""
+                                    }
+                                    ${
+                                      canViewSystemHealth
+                                        ? `<li><a class="dropdown-item" href="/pages/system-health.html">System Health</a></li>`
+                                        : ""
+                                    }
+                                </ul>
+                            </li>`;
+                      }
+                      return "";
+                    })()}
                 </ul>
                 
                 <div class="d-flex align-items-center">

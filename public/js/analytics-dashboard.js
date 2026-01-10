@@ -4,6 +4,13 @@ let revenueChart, earningsDistChart, taxChart;
 
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", () => {
+  // Permission Check
+  const user = auth.getUser();
+  if (!user || !["admin", "director", "manager"].includes(user.role)) {
+    window.location.href = "/index.html";
+    return;
+  }
+
   // Set default dates (last 6 months)
   const endDate = new Date();
   const startDate = new Date();

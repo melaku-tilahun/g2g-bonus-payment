@@ -27,6 +27,14 @@ document.addEventListener("DOMContentLoaded", () => {
     const exportBtnWrapper = document.getElementById("exportExcelBtn");
     const reconcileBtnWrapper = document.getElementById("reconcileBtn");
 
+    // Permission Check: Auditors cannot export or reconcile
+    const user = auth.getUser();
+    if (user && user.role === "auditor") {
+      exportBtnWrapper.classList.add("d-none");
+      reconcileBtnWrapper.classList.add("d-none");
+      return;
+    }
+
     if (activeStatus === "pending") {
       exportBtnWrapper.classList.remove("d-none");
       reconcileBtnWrapper.classList.add("d-none");
@@ -626,6 +634,9 @@ document.addEventListener("DOMContentLoaded", () => {
   }
 
   function renderBatchTable(batches) {
+    const user = auth.getUser();
+    const canDownload = user && user.role !== "auditor";
+
     const thead = document.querySelector("#pendingTable thead");
     thead.innerHTML = `
       <tr>
@@ -678,11 +689,14 @@ document.addEventListener("DOMContentLoaded", () => {
           batch.exported_by_name || "System"
         }</td>
         <td class="py-3 text-center px-4">
-          <button onclick="window.downloadBatch('${
-            batch.batch_id
-          }')" class="btn btn-sm btn-outline-success rounded-pill px-3">
+          ${
+            canDownload
+              ? `
+          <button onclick="window.downloadBatch('${batch.batch_id}')" class="btn btn-sm btn-outline-success rounded-pill px-3">
             <i class="fas fa-download me-1"></i> Re-download
-          </button>
+          </button>`
+              : `<span class="text-muted small" title="Restricted"><i class="fas fa-lock"></i></span>`
+          }
         </td>
       </tr>
     `

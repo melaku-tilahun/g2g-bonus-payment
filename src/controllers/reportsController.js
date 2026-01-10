@@ -1,5 +1,6 @@
 const pool = require("../config/database");
 const ReportGenerator = require("../services/reportGenerator");
+const AuditService = require("../services/auditService");
 
 /**
  * Reports Controller
@@ -64,6 +65,13 @@ const reportsController = {
           data: taxData,
         });
       }
+
+      await AuditService.log(req.user.id, "Generate Report", "report", null, {
+        type: "Withholding Tax",
+        format,
+        start_date,
+        end_date,
+      });
     } catch (error) {
       console.error("Get withholding tax report error:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -162,6 +170,13 @@ const reportsController = {
           data: logs,
         });
       }
+
+      await AuditService.log(req.user.id, "Generate Report", "report", null, {
+        type: "TIN Verifications",
+        format,
+        start_date,
+        end_date,
+      });
     } catch (error) {
       console.error("Get TIN verification log error:", error);
       res.status(500).json({ message: "Internal server error" });
@@ -229,6 +244,12 @@ const reportsController = {
       );
 
       res.download(filename, `statement_${driverId}_${Date.now()}.pdf`);
+
+      await AuditService.log(req.user.id, "Generate Report", "report", null, {
+        type: "Driver Statement",
+        driver_id: driverId,
+        format: "pdf",
+      });
     } catch (error) {
       console.error("Generate driver statement error:", error);
       res.status(500).json({ message: "Internal server error" });

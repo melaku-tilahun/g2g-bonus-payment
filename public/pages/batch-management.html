@@ -113,6 +113,39 @@
             </div>
         </div>
     </div>
+
+    <!-- Password Confirmation Modal -->
+    <div class="modal fade" id="passwordConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header bg-danger text-white border-bottom-0">
+                    <h5 class="modal-title fw-bold">
+                        <i class="fas fa-exclamation-triangle me-2"></i>Confirmation Required
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4 bg-light">
+                    <p class="mb-3 lead text-dark">
+                        You are about to mark this entire batch as <strong>PAID</strong>.
+                    </p>
+                    <div class="alert alert-warning border-warning shadow-sm mb-4">
+                        <i class="fas fa-info-circle me-1"></i> 
+                        This action cannot be undone. All related payment records will be updated immediately.
+                    </div>
+                    
+                    <label class="form-label fw-bold text-muted small text-uppercase">Enter your password to confirm</label>
+                    <input type="password" class="form-control form-control-lg shadow-sm" id="confirmPasswordInput" placeholder="Your password">
+                    <div id="passwordError" class="text-danger small mt-2 d-none">Incorrect password</div>
+                </div>
+                <div class="modal-footer border-top-0 p-4 bg-light">
+                    <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-danger px-4 shadow-sm" onclick="executeBatchConfirmation()">
+                        <i class="fas fa-check-circle me-2"></i>Confirm Payment
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
     
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/js/api.js"></script>

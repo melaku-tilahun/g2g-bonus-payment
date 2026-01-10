@@ -1,4 +1,6 @@
 const pool = require("../config/database");
+const bcrypt = require("bcrypt");
+const AuditService = require("../services/auditService");
 
 /**
  * Batch Controller
@@ -100,6 +102,28 @@ const batchController = {
   confirmBatch: async (req, res) => {
     const connection = await pool.getConnection();
     try {
+      const { password } = req.body;
+      if (!password) {
+        connection.release();
+        return res.status(400).json({ message: "Password is required" });
+      }
+
+      // Verify Password
+      const [userRows] = await connection.query(
+        "SELECT password_hash FROM users WHERE id = ?",
+        [req.user.id]
+      );
+      if (userRows.length === 0) {
+        connection.release();
+        return res.status(404).json({ message: "User not found" });
+      }
+
+      const isMatch = await bcrypt.compare(password, userRows[0].password_hash);
+      if (!isMatch) {
+        connection.release();
+        return res.status(401).json({ message: "Incorrect password" });
+      }
+
       await connection.beginTransaction();
       const { id } = req.params;
 
@@ -114,10 +138,22 @@ const batchController = {
         return res.status(404).json({ message: "Batch not found" });
       }
 
+      // Fetch Admin Name for the note
+      const [adminRows] = await connection.query(
+        "SELECT full_name FROM users WHERE id = ?",
+        [req.user.id]
+      );
+      const adminName = adminRows.length > 0 ? adminRows[0].full_name : "Admin";
+
       // 2. Update all payments in batch
+      // Set status to 'paid', method to 'Manual' (if generic), and add note with user name
       await connection.query(
-        "UPDATE payments SET status = 'paid' WHERE batch_internal_id = ?",
-        [id]
+        `UPDATE payments 
+         SET status = 'paid', 
+             notes = CONCAT(COALESCE(notes, ''), '\nManually marked as paid by ', ?),
+             payment_method = COALESCE(payment_method, 'Manual')
+         WHERE batch_internal_id = ?`,
+        [adminName, id]
       );
 
       // 3. Update all bonuses linked to these payments
@@ -131,10 +167,15 @@ const batchController = {
         [id]
       );
 
+      await AuditService.log(req.user.id, "Confirm Batch", "batch", id, {
+        confirmed_by: adminName,
+        payment_method: "Manual",
+      });
+
       await connection.commit();
       res.json({
         success: true,
-        message: "Batch confirmed and all payments marked as paid",
+        message: "Batch confirmed, payments marked as paid (Manual)",
       });
     } catch (error) {
       await connection.rollback();

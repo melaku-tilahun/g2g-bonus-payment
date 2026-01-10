@@ -5,6 +5,13 @@ const limit = 50;
 
 // Initialize on page load
 document.addEventListener("DOMContentLoaded", async () => {
+  // Permission Check
+  const user = auth.getUser();
+  if (!user || !["admin", "director"].includes(user.role)) {
+    window.location.href = "/index.html";
+    return;
+  }
+
   // Set default dates (last 30 days)
   const endDate = new Date();
   const startDate = new Date();
@@ -143,11 +150,23 @@ function displayActivityLogs(logs) {
   logs.forEach((log) => {
     const row = document.createElement("tr");
     const timestamp = new Date(log.created_at).toLocaleString();
-    const details = log.details
-      ? typeof log.details === "string"
-        ? log.details
-        : JSON.stringify(log.details)
-      : "-";
+
+    let detailsPreview = "-";
+    let fullDetails = null;
+
+    if (log.details) {
+      try {
+        const parsed =
+          typeof log.details === "string"
+            ? JSON.parse(log.details)
+            : log.details;
+        fullDetails = parsed; // Store object for modal
+        const str = JSON.stringify(parsed);
+        detailsPreview = str.substring(0, 50) + (str.length > 50 ? "..." : "");
+      } catch (e) {
+        detailsPreview = String(log.details);
+      }
+    }
 
     row.innerHTML = `
             <td class="small">${timestamp}</td>
@@ -169,14 +188,69 @@ function displayActivityLogs(logs) {
                     }
                 </small>
             </td>
-            <td><small class="text-muted">${details.substring(0, 50)}${
-      details.length > 50 ? "..." : ""
-    }</small></td>
+                <div class="d-flex align-items-center">
+                    <small class="text-muted me-2">${detailsPreview}</small>
+                    ${
+                      fullDetails
+                        ? `<button class="btn btn-sm btn-link p-0" onclick='showLogDetails(${JSON.stringify(
+                            fullDetails
+                          ).replace(/'/g, "&apos;")}, "${
+                            log.entity_type || ""
+                          }", "${log.entity_id || ""}", "${
+                            log.user_name || "Unknown"
+                          }", "${timestamp}")'>View</button>`
+                        : ""
+                    }
+                </div>
+            </td>
         `;
 
     tbody.appendChild(row);
   });
 }
+
+window.showLogDetails = function (
+  details,
+  entityType,
+  entityId,
+  userName,
+  timestamp
+) {
+  const content = document.getElementById("logDetailsContent");
+
+  let html = "";
+
+  html += `<div class="alert alert-info mb-3">
+        <div class="row">
+            <div class="col-md-6"><strong>User:</strong> ${
+              userName || "N/A"
+            }</div>
+            <div class="col-md-6"><strong>Time:</strong> ${
+              timestamp || "N/A"
+            }</div>
+            ${
+              entityType || entityId
+                ? `<div class="col-md-6 mt-1"><strong>Entity:</strong> ${
+                    entityType || "N/A"
+                  }</div>
+            <div class="col-md-6 mt-1"><strong>ID:</strong> ${
+              entityId || "N/A"
+            }</div>`
+                : ""
+            }
+        </div>
+    </div>`;
+
+  html += `<pre class="bg-light p-3 border rounded"><code>${JSON.stringify(
+    details,
+    null,
+    2
+  )}</code></pre>`;
+
+  content.innerHTML = html;
+
+  new bootstrap.Modal(document.getElementById("logDetailsModal")).show();
+};
 
 function displaySecurityEvents(events, summary) {
   const container = document.getElementById("securityEventsContainer");
@@ -211,11 +285,44 @@ function displaySecurityEvents(events, summary) {
 
   events.forEach((event) => {
     const timestamp = new Date(event.created_at).toLocaleString();
+
+    let detailsPreview = "-";
+    let fullDetails = null;
+
+    if (event.details) {
+      try {
+        const parsed =
+          typeof event.details === "string"
+            ? JSON.parse(event.details)
+            : event.details;
+        fullDetails = parsed;
+        const str = JSON.stringify(parsed);
+        detailsPreview = str.substring(0, 50) + (str.length > 50 ? "..." : "");
+      } catch (e) {
+        detailsPreview = String(event.details);
+      }
+    }
+
     html += `<tr>
             <td class="small">${timestamp}</td>
             <td>${event.user_name || "Unknown"}</td>
             <td><span class="badge bg-danger">${event.action}</span></td>
-            <td><small>${event.details || "-"}</small></td>
+            <td>
+                <div class="d-flex align-items-center">
+                    <small class="text-muted me-2">${detailsPreview}</small>
+                    ${
+                      fullDetails
+                        ? `<button class="btn btn-sm btn-link p-0" onclick='showLogDetails(${JSON.stringify(
+                            fullDetails
+                          ).replace(/'/g, "&apos;")}, "${
+                            event.entity_type || ""
+                          }", "${event.entity_id || ""}", "${
+                            event.user_name || "Unknown"
+                          }", "${timestamp}")'>View</button>`
+                        : ""
+                    }
+                </div>
+            </td>
         </tr>`;
   });
 

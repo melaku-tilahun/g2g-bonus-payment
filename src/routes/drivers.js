@@ -11,18 +11,22 @@ router.get("/", driverController.getAll);
 router.get("/search", driverController.search);
 router.get("/tin/:tin", driverController.lookupTIN);
 router.get("/:id", driverController.getById);
-router.put("/:id/verify", driverController.verify);
+router.put(
+  "/:id/verify",
+  authorize(["admin", "director", "manager", "staff"]),
+  driverController.verify
+);
 
 // Admin Features
 router.put(
   "/:id/block",
-  authorize("admin"),
+  authorize(["admin", "director", "manager"]),
   driverController.toggleBlockStatus
 );
 
 router.post(
   "/:id/payout-unverified",
-  authorize("admin"),
+  authorize(["admin", "director"]),
   driverController.releaseUnverifiedPayout
 );
 

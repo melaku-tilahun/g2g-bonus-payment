@@ -34,25 +34,46 @@ const upload = multer({
 
 router.use(authenticate);
 
-router.post("/", paymentController.recordPayment);
+router.post(
+  "/",
+  authorize(["admin", "director", "manager", "staff"]),
+  paymentController.recordPayment
+);
 router.post(
   "/reconcile/validate",
+  authorize(["admin", "director", "manager", "staff"]),
   upload.single("file"),
   paymentController.validateReconciliation
 );
-router.post("/reconcile/process", paymentController.processReconciliation);
+router.post(
+  "/reconcile/process",
+  authorize(["admin", "director", "manager", "staff"]),
+  paymentController.processReconciliation
+);
 router.get("/search", paymentController.search);
 router.get("/history", paymentController.getHistory);
 router.get("/pending", paymentController.getPendingPayments);
 router.get("/accumulated", paymentController.getAccumulatedPayments);
-router.get("/export/pending", paymentController.exportPendingPayments);
+router.get(
+  "/export/pending",
+  authorize(["admin", "director", "manager", "staff"]),
+  paymentController.exportPendingPayments
+);
 router.get("/batches", paymentController.getBatches);
-router.get("/batches/:batchId/download", paymentController.downloadBatchExcel);
+router.get(
+  "/batches/:batchId/download",
+  authorize(["admin", "director", "manager", "staff"]),
+  paymentController.downloadBatchExcel
+);
 
-router.put("/:paymentId/confirm", paymentController.confirmPayment);
+router.put(
+  "/:paymentId/confirm",
+  authorize(["admin", "director", "manager", "staff"]),
+  paymentController.confirmPayment
+);
 router.post(
   "/:paymentId/revert",
-  authorize("admin"),
+  authorize(["admin", "director"]),
   paymentController.revertPayment
 );
 

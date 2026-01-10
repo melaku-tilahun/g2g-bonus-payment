@@ -3,6 +3,13 @@
 let currentBatchId = null;
 
 document.addEventListener("DOMContentLoaded", () => {
+  // Permission Check
+  const user = auth.getUser();
+  if (!user || !["admin", "director", "manager"].includes(user.role)) {
+    window.location.href = "/index.html";
+    return;
+  }
+
   loadBatches();
 });
 
@@ -120,7 +127,10 @@ async function viewBatchDetails(id) {
 
       // Show/Hide Confirm Button
       const confirmBtn = document.getElementById("confirmBatchBtn");
-      if (batch.status === "processing") {
+      const user = auth.getUser();
+      const canPay = ["admin", "director"].includes(user.role);
+
+      if (batch.status === "processing" && canPay) {
         confirmBtn.style.display = "block";
       } else {
         confirmBtn.style.display = "none";
@@ -140,29 +150,63 @@ async function viewBatchDetails(id) {
 async function confirmBatch() {
   if (!currentBatchId) return;
 
-  if (
-    !confirm(
-      "Are you sure you want to mark ALL payments in this batch as PAID? This will also update bonus statuses."
-    )
-  ) {
+  // Show Password Modal
+  const passwordModal = new bootstrap.Modal(
+    document.getElementById("passwordConfirmModal")
+  );
+  document.getElementById("confirmPasswordInput").value = "";
+  document.getElementById("passwordError").classList.add("d-none");
+  passwordModal.show();
+}
+
+async function executeBatchConfirmation() {
+  if (!currentBatchId) return;
+
+  const password = document.getElementById("confirmPasswordInput").value;
+  if (!password) {
+    document.getElementById("passwordError").textContent =
+      "Password is required";
+    document.getElementById("passwordError").classList.remove("d-none");
     return;
   }
 
-  ui.showLoading(true);
+  const confirmBtn = document.querySelector(
+    "#passwordConfirmModal .btn-danger"
+  );
+  const originalText = confirmBtn.innerHTML;
+  confirmBtn.innerHTML =
+    '<i class="fas fa-spinner fa-spin me-2"></i>Processing...';
+  confirmBtn.disabled = true;
+
   try {
-    const data = await api.put(`/batches/${currentBatchId}/confirm`);
+    const data = await api.put(`/batches/${currentBatchId}/confirm`, {
+      password,
+    });
     if (data.success) {
       ui.toast(data.message, "success");
+
+      // Close Modals
+      bootstrap.Modal.getInstance(
+        document.getElementById("passwordConfirmModal")
+      ).hide();
       bootstrap.Modal.getInstance(
         document.getElementById("batchDetailModal")
       ).hide();
+
       loadBatches();
     }
   } catch (error) {
     console.error("Confirm batch error:", error);
-    ui.toast("Failed to confirm batch", "error");
+    if (error.status === 401) {
+      document.getElementById("passwordError").textContent =
+        "Incorrect password";
+      document.getElementById("passwordError").classList.remove("d-none");
+    } else {
+      ui.toast(error.message || "Failed to confirm batch", "error");
+    }
   } finally {
-    ui.showLoading(false);
+    confirmBtn.innerHTML = originalText;
+    confirmBtn.disabled = false;
   }
 }
 
