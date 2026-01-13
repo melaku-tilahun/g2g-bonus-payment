@@ -272,7 +272,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const receiptFileInput = document.getElementById("receiptFile");
   const reconcileModalElement = document.getElementById("reconcileModal");
 
-  const uploadState = document.getElementById("reconcileUploadState");
+  const importState = document.getElementById("reconcileImportState");
   const reviewState = document.getElementById("reconcileReviewState");
   const successState = document.getElementById("reconcileSuccessState");
   const successSummary = document.getElementById("reconcileSuccessSummary");
@@ -308,7 +308,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function resetReconcileModal() {
     receiptFileInput.value = "";
-    uploadState.classList.remove("d-none");
+    importState.classList.remove("d-none");
     reviewState.classList.add("d-none");
     successState.classList.add("d-none");
     startReconcileBtn.classList.remove("d-none");
@@ -361,7 +361,7 @@ document.addEventListener("DOMContentLoaded", () => {
         showReconcileError(
           error.message || "Failed to validate reconciliation file."
         );
-        // We stay in upload state on hard error
+        // We stay in import state on hard error
       } finally {
         startReconcileBtn.disabled = false;
         startReconcileBtn.innerHTML = "Validate Receipt";
@@ -385,7 +385,7 @@ document.addEventListener("DOMContentLoaded", () => {
       response.message ||
       "Structural errors detected. Please fix the Excel file before proceeding.";
 
-    uploadState.classList.add("d-none");
+    importState.classList.add("d-none");
     reviewState.classList.remove("d-none");
     startReconcileBtn.classList.add("d-none");
     confirmReconcileBtn.classList.remove("d-none");
@@ -555,7 +555,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   if (reconcileBackBtn) {
     reconcileBackBtn.addEventListener("click", () => {
-      uploadState.classList.remove("d-none");
+      importState.classList.remove("d-none");
       reviewState.classList.add("d-none");
       startReconcileBtn.classList.remove("d-none");
       confirmReconcileBtn.classList.add("d-none");

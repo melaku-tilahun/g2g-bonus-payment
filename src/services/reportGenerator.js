@@ -95,7 +95,7 @@ class ReportGenerator {
       // Save file
       const filename = path.join(
         __dirname,
-        "../../uploads",
+        "../../imports",
         `withholding_tax_${Date.now()}.xlsx`
       );
       await workbook.xlsx.writeFile(filename);
@@ -117,7 +117,7 @@ class ReportGenerator {
       try {
         const filename = path.join(
           __dirname,
-          "../../uploads",
+          "../../imports",
           `statement_${driver.driver_id}_${Date.now()}.pdf`
         );
         const doc = new PDFDocument({ margin: 50 });
@@ -335,13 +335,111 @@ class ReportGenerator {
       // Save file
       const filename = path.join(
         __dirname,
-        "../../uploads",
+        "../../imports",
         `tin_verification_${Date.now()}.xlsx`
       );
       await workbook.xlsx.writeFile(filename);
       return filename;
     } catch (error) {
       console.error("Generate TIN verification excel error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate Debt Excel Report
+   * @param {array} debtData - Debt report data
+   */
+  static async generateDebtExcel(debtData) {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Debt Report");
+
+      sheet.columns = [
+        { header: "Driver ID", key: "driver_id", width: 35 },
+        { header: "Driver Name", key: "full_name", width: 30 },
+        { header: "Total Debt", key: "total_debt", width: 18 },
+        { header: "Amount Paid", key: "amount_paid", width: 18 },
+        { header: "Outstanding", key: "outstanding", width: 18 },
+        { header: "Status", key: "status", width: 15 },
+        { header: "Last Updated", key: "updated_at", width: 20 },
+      ];
+
+      sheet.getRow(1).font = { color: { argb: "FFFFFFFF" }, bold: true };
+      sheet.getRow(1).fill = {
+        type: "pattern",
+        pattern: "solid",
+        fgColor: { argb: "FFC00000" }, // Red for debt
+      };
+
+      debtData.forEach((row) => {
+        sheet.addRow({
+          driver_id: row.driver_id,
+          full_name: row.full_name,
+          total_debt: parseFloat(row.total_debt).toFixed(2),
+          amount_paid: parseFloat(row.amount_paid).toFixed(2),
+          outstanding: parseFloat(row.outstanding).toFixed(2),
+          status: row.status,
+          updated_at: new Date(row.updated_at).toLocaleString(),
+        });
+      });
+
+      const filename = path.join(
+        __dirname,
+        "../../imports",
+        `debt_report_${Date.now()}.xlsx`
+      );
+      await workbook.xlsx.writeFile(filename);
+      return filename;
+    } catch (error) {
+      console.error("Generate debt excel error:", error);
+      throw error;
+    }
+  }
+
+  /**
+   * Generate Compliance Summary Excel Report
+   * @param {object} summary - Compliance summary data
+   */
+  static async generateComplianceExcel(summary) {
+    try {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Compliance Summary");
+
+      sheet.addRow(["Compliance KPI Summary Report"]);
+      sheet.addRow(["Generated On:", new Date().toLocaleString()]);
+      sheet.addRow([]);
+
+      sheet.addRow(["Metric", "Value"]);
+      sheet.addRow(["Total Tax Collected (ETB)", summary.total_tax_collected]);
+      sheet.addRow(["Total Drivers", summary.verification_stats.total_drivers]);
+      sheet.addRow([
+        "Verified Drivers",
+        summary.verification_stats.verified_drivers,
+      ]);
+      sheet.addRow([
+        "Unverified Drivers",
+        summary.verification_stats.unverified_drivers,
+      ]);
+      sheet.addRow([
+        "Pending TIN Verifications",
+        summary.pending_verifications,
+      ]);
+      sheet.addRow(["Recent Compliance Alerts (7d)", summary.recent_alerts]);
+
+      sheet.getColumn(1).width = 35;
+      sheet.getColumn(2).width = 20;
+      sheet.getRow(4).font = { bold: true };
+
+      const filename = path.join(
+        __dirname,
+        "../../imports",
+        `compliance_summary_${Date.now()}.xlsx`
+      );
+      await workbook.xlsx.writeFile(filename);
+      return filename;
+    } catch (error) {
+      console.error("Generate compliance excel error:", error);
       throw error;
     }
   }

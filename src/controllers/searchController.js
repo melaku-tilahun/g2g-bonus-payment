@@ -1,4 +1,6 @@
 const pool = require("../config/database");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 /**
  * Search Controller
@@ -9,127 +11,103 @@ const searchController = {
    * Advanced Search
    * @route POST /api/search/advanced
    */
-  advancedSearch: async (req, res) => {
-    try {
-      const { search_type, filters } = req.body;
+  advancedSearch: catchAsync(async (req, res, next) => {
+    const { search_type, filters } = req.body;
 
-      if (search_type === "driver") {
-        return await searchDrivers(filters, res);
-      } else if (search_type === "payment") {
-        return await searchPayments(filters, res);
-      } else if (search_type === "audit") {
-        return await searchAuditLogs(filters, res);
-      } else if (search_type === "import") {
-        return await searchImportLogs(filters, res);
-      }
-
-      res.status(400).json({ message: "Invalid search type" });
-    } catch (error) {
-      console.error("Advanced search error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    if (search_type === "driver") {
+      return await searchDrivers(filters, res, next);
+    } else if (search_type === "payment") {
+      return await searchPayments(filters, res, next);
+    } else if (search_type === "audit") {
+      return await searchAuditLogs(filters, res, next);
+    } else if (search_type === "import") {
+      return await searchImportLogs(filters, res, next);
     }
-  },
+
+    throw new AppError("Invalid search type", 400);
+  }),
 
   /**
    * Save Search
    * @route POST /api/search/save
+   * @route POST /api/search/save
    */
-  saveSearch: async (req, res) => {
-    try {
-      const { name, search_type, filters } = req.body;
+  saveSearch: catchAsync(async (req, res, next) => {
+    const { name, search_type, filters } = req.body;
 
-      const [result] = await pool.query(
-        "INSERT INTO saved_searches (user_id, name, search_type, filters) VALUES (?, ?, ?, ?)",
-        [req.user.id, name, search_type, JSON.stringify(filters)]
-      );
+    const [result] = await pool.query(
+      "INSERT INTO saved_searches (user_id, name, search_type, filters) VALUES (?, ?, ?, ?)",
+      [req.user.id, name, search_type, JSON.stringify(filters)]
+    );
 
-      res.json({
-        success: true,
-        message: "Search saved successfully",
-        search_id: result.insertId,
-      });
-    } catch (error) {
-      console.error("Save search error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      message: "Search saved successfully",
+      search_id: result.insertId,
+    });
+  }),
 
   /**
    * Get Saved Searches
    * @route GET /api/search/saved
    */
-  getSavedSearches: async (req, res) => {
-    try {
-      const [searches] = await pool.query(
-        "SELECT * FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC",
-        [req.user.id]
-      );
+  getSavedSearches: catchAsync(async (req, res, next) => {
+    const [searches] = await pool.query(
+      "SELECT * FROM saved_searches WHERE user_id = ? ORDER BY created_at DESC",
+      [req.user.id]
+    );
 
-      res.json({
-        success: true,
-        searches,
-      });
-    } catch (error) {
-      console.error("Get saved searches error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      searches,
+    });
+  }),
 
   /**
    * Delete Saved Search
    * @route DELETE /api/search/saved/:id
    */
-  deleteSavedSearch: async (req, res) => {
-    try {
-      const { id } = req.params;
+  deleteSavedSearch: catchAsync(async (req, res, next) => {
+    const { id } = req.params;
 
-      await pool.query(
-        "DELETE FROM saved_searches WHERE id = ? AND user_id = ?",
-        [id, req.user.id]
-      );
+    await pool.query(
+      "DELETE FROM saved_searches WHERE id = ? AND user_id = ?",
+      [id, req.user.id]
+    );
 
-      res.json({
-        success: true,
-        message: "Search deleted successfully",
-      });
-    } catch (error) {
-      console.error("Delete saved search error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      message: "Search deleted successfully",
+    });
+  }),
 
   /**
    * Execute Saved Search
    * @route POST /api/search/execute/:id
    */
-  executeSearch: async (req, res) => {
-    try {
-      const { id } = req.params;
+  executeSearch: catchAsync(async (req, res, next) => {
+    const { id } = req.params;
 
-      const [searches] = await pool.query(
-        "SELECT * FROM saved_searches WHERE id = ? AND user_id = ?",
-        [id, req.user.id]
-      );
+    const [searches] = await pool.query(
+      "SELECT * FROM saved_searches WHERE id = ? AND user_id = ?",
+      [id, req.user.id]
+    );
 
-      if (searches.length === 0) {
-        return res.status(404).json({ message: "Search not found" });
-      }
-
-      const search = searches[0];
-      const filters = JSON.parse(search.filters);
-
-      // Execute the search
-      req.body = { search_type: search.search_type, filters };
-      return await searchController.advancedSearch(req, res);
-    } catch (error) {
-      console.error("Execute search error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    if (searches.length === 0) {
+      throw new AppError("Search not found", 404);
     }
-  },
+
+    const search = searches[0];
+    const filters = JSON.parse(search.filters);
+
+    // Execute the search
+    req.body = { search_type: search.search_type, filters };
+    return await searchController.advancedSearch(req, res, next);
+  }),
 };
 
 // Helper function: Search Drivers
-async function searchDrivers(filters, res) {
+const searchDrivers = catchAsync(async (filters, res, next) => {
   const {
     name,
     driver_id,
@@ -200,10 +178,10 @@ async function searchDrivers(filters, res) {
     page: parseInt(page),
     limit: parseInt(limit),
   });
-}
+});
 
 // Helper function: Search Payments
-async function searchPayments(filters, res) {
+const searchPayments = catchAsync(async (filters, res, next) => {
   const {
     driver_name,
     driver_id,
@@ -285,10 +263,10 @@ async function searchPayments(filters, res) {
     page: parseInt(page),
     limit: parseInt(limit),
   });
-}
+});
 
 // Helper function: Search Audit Logs
-async function searchAuditLogs(filters, res) {
+const searchAuditLogs = catchAsync(async (filters, res, next) => {
   const {
     user_id,
     action,
@@ -351,10 +329,10 @@ async function searchAuditLogs(filters, res) {
     page: parseInt(page),
     limit: parseInt(limit),
   });
-}
+});
 
 // Helper function: Search Import Logs
-async function searchImportLogs(filters, res) {
+const searchImportLogs = catchAsync(async (filters, res, next) => {
   const {
     imported_by,
     start_date,
@@ -411,6 +389,6 @@ async function searchImportLogs(filters, res) {
     page: parseInt(page),
     limit: parseInt(limit),
   });
-}
+});
 
 module.exports = searchController;

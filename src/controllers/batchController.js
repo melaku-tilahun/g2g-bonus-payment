@@ -1,6 +1,8 @@
 const pool = require("../config/database");
 const bcrypt = require("bcrypt");
 const AuditService = require("../services/auditService");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 /**
  * Batch Controller
@@ -11,101 +13,90 @@ const batchController = {
    * Get all payment batches
    * @route GET /api/batches
    */
-  getBatches: async (req, res) => {
-    try {
-      const { status, page = 1, limit = 20 } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(limit);
+  getBatches: catchAsync(async (req, res, next) => {
+    const { status, page = 1, limit = 20 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
 
-      let query = `
+    let query = `
         SELECT pb.*, u.full_name as exported_by_name
         FROM payment_batches pb
         LEFT JOIN users u ON pb.exported_by = u.id
       `;
-      const params = [];
+    const params = [];
 
-      if (status) {
-        query += " WHERE pb.status = ?";
-        params.push(status);
-      }
-
-      query += " ORDER BY pb.exported_at DESC LIMIT ? OFFSET ?";
-      params.push(parseInt(limit), offset);
-
-      const [rows] = await pool.query(query, params);
-      const [countResult] = await pool.query(
-        "SELECT COUNT(*) as total FROM payment_batches"
-      );
-
-      res.json({
-        success: true,
-        batches: rows,
-        total: countResult[0].total,
-        pagination: {
-          page: parseInt(page),
-          limit: parseInt(limit),
-          total_pages: Math.ceil(countResult[0].total / parseInt(limit)),
-        },
-      });
-    } catch (error) {
-      console.error("Get batches error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    if (status) {
+      query += " WHERE pb.status = ?";
+      params.push(status);
     }
-  },
+
+    query += " ORDER BY pb.exported_at DESC LIMIT ? OFFSET ?";
+    params.push(parseInt(limit), offset);
+
+    const [rows] = await pool.query(query, params);
+    const [countResult] = await pool.query(
+      "SELECT COUNT(*) as total FROM payment_batches"
+    );
+
+    res.json({
+      success: true,
+      batches: rows,
+      total: countResult[0].total,
+      pagination: {
+        page: parseInt(page),
+        limit: parseInt(limit),
+        total_pages: Math.ceil(countResult[0].total / parseInt(limit)),
+      },
+    });
+  }),
 
   /**
    * Get batch details (payments in batch)
    * @route GET /api/batches/:id
    */
-  getBatchDetails: async (req, res) => {
-    try {
-      const { id } = req.params;
+  getBatchDetails: catchAsync(async (req, res, next) => {
+    const { id } = req.params;
 
-      const [batch] = await pool.query(
-        `
+    const [batch] = await pool.query(
+      `
         SELECT pb.*, u.full_name as exported_by_name
         FROM payment_batches pb
         LEFT JOIN users u ON pb.exported_by = u.id
         WHERE pb.id = ?
       `,
-        [id]
-      );
+      [id]
+    );
 
-      if (batch.length === 0) {
-        return res.status(404).json({ message: "Batch not found" });
-      }
+    if (batch.length === 0) {
+      throw new AppError("Batch not found", 404);
+    }
 
-      const [payments] = await pool.query(
-        `
+    const [payments] = await pool.query(
+      `
         SELECT p.*, d.full_name as driver_name
         FROM payments p
         LEFT JOIN drivers d ON p.driver_id = d.driver_id
         WHERE p.batch_internal_id = ?
       `,
-        [id]
-      );
+      [id]
+    );
 
-      res.json({
-        success: true,
-        batch: batch[0],
-        payments,
-      });
-    } catch (error) {
-      console.error("Get batch details error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      batch: batch[0],
+      payments,
+    });
+  }),
 
   /**
    * Update batch status (confirm all payments)
    * @route PUT /api/batches/:id/confirm
    */
-  confirmBatch: async (req, res) => {
+  confirmBatch: catchAsync(async (req, res, next) => {
     const connection = await pool.getConnection();
     try {
       const { password } = req.body;
       if (!password) {
-        connection.release();
-        return res.status(400).json({ message: "Password is required" });
+        throw new AppError("Password is required", 400);
       }
 
       // Verify Password
@@ -114,14 +105,12 @@ const batchController = {
         [req.user.id]
       );
       if (userRows.length === 0) {
-        connection.release();
-        return res.status(404).json({ message: "User not found" });
+        throw new AppError("User not found", 404);
       }
 
       const isMatch = await bcrypt.compare(password, userRows[0].password_hash);
       if (!isMatch) {
-        connection.release();
-        return res.status(401).json({ message: "Incorrect password" });
+        throw new AppError("Incorrect password", 403);
       }
 
       await connection.beginTransaction();
@@ -129,13 +118,12 @@ const batchController = {
 
       // 1. Update batch status
       const [batchResult] = await connection.query(
-        "UPDATE payment_batches SET status = 'completed', completed_at = NOW() WHERE id = ?",
+        "UPDATE payment_batches SET status = 'paid', completed_at = NOW() WHERE id = ?",
         [id]
       );
 
       if (batchResult.affectedRows === 0) {
-        await connection.rollback();
-        return res.status(404).json({ message: "Batch not found" });
+        throw new AppError("Batch not found", 404);
       }
 
       // Fetch Admin Name for the note
@@ -178,13 +166,12 @@ const batchController = {
         message: "Batch confirmed, payments marked as paid (Manual)",
       });
     } catch (error) {
-      await connection.rollback();
-      console.error("Confirm batch error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      if (connection) await connection.rollback();
+      throw error;
     } finally {
-      connection.release();
+      if (connection) connection.release();
     }
-  },
+  }),
 };
 
 module.exports = batchController;

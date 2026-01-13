@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // Modern Navigation HTML
   const navHtml = `
-    <nav class="navbar navbar-expand-lg navbar-modern mb-5 sticky-top">
+    <nav class="navbar navbar-expand-lg navbar-modern mb-3 sticky-top">
         <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center" href="/index.html">
                  BonusTracker
@@ -27,44 +27,44 @@ document.addEventListener("DOMContentLoaded", () => {
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.includes("pending-payments.html")
+                          currentPath.endsWith("/pending-payments.html")
                             ? "active"
                             : ""
                         }" href="/pages/pending-payments.html">Pending</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.includes("verified-drivers.html")
+                          currentPath.endsWith("/verified-drivers.html")
                             ? "active"
                             : ""
                         }" href="/pages/verified-drivers.html">Verified</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.includes("unverified-drivers.html")
+                          currentPath.endsWith("/unverified-drivers.html")
                             ? "active"
                             : ""
                         }" href="/pages/unverified-drivers.html">Unverified</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.includes("payments.html") ? "active" : ""
+                          currentPath.endsWith("/payments.html") ? "active" : ""
                         }" href="/pages/payments.html">Payment History</a>
                     </li>
                     ${
                       user && user.role !== "auditor"
                         ? `<li class="nav-item">
                             <a class="nav-link ${
-                              currentPath.includes("upload.html")
+                              currentPath.endsWith("/import.html")
                                 ? "active"
                                 : ""
-                            }" href="/pages/upload.html">Upload</a>
+                            }" href="/pages/import.html">Import</a>
                         </li>`
                         : ""
                     }
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.includes("search.html") ? "active" : ""
+                          currentPath.endsWith("/search.html") ? "active" : ""
                         }" href="/pages/search.html">Search</a>
                     </li>
                    
@@ -259,35 +259,54 @@ document.addEventListener("DOMContentLoaded", () => {
 // Global UI Utilities
 const ui = {
   toast: (message, type = "info") => {
-    // ... (existing implementation)
     const container = document.getElementById("toast-container");
-    if (!container) return;
+    if (!container) {
+      const newContainer = document.createElement("div");
+      newContainer.id = "toast-container";
+      document.body.appendChild(newContainer);
+    }
 
     const toast = document.createElement("div");
-    toast.className = `toast-premium ${type}`;
+    toast.className = `toast-premium ${type} shadow-lg`;
+
+    // Auto-scroll-top for errors to ensure they are seen
+    if (type === "error") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
 
     const icon =
       type === "success"
         ? "check-circle"
         : type === "error"
-        ? "exclamation-circle"
+        ? "exclamation-triangle"
         : "info-circle";
+
+    const displayMessage =
+      typeof message === "string"
+        ? message
+        : message.message || "An unexpected error occurred";
 
     toast.innerHTML = `
             <div class="d-flex align-items-center">
-                <i class="fas fa-${icon} me-3"></i>
-                <div class="small fw-semibold">${message}</div>
+                <div class="toast-icon-wrapper me-3">
+                    <i class="fas fa-${icon}"></i>
+                </div>
+                <div class="toast-body-content">
+                    <div class="small fw-bold text-uppercase opacity-75 mb-1">${type}</div>
+                    <div class="small fw-semibold msg-content">${displayMessage}</div>
+                </div>
             </div>
-            <button type="button" class="btn-close ms-3" style="font-size: 0.7rem;"></button>
+            <button type="button" class="btn-close ms-3" aria-label="Close"></button>
         `;
 
-    container.appendChild(toast);
+    document.getElementById("toast-container").appendChild(toast);
 
     // Auto-dismiss
+    const duration = type === "error" ? 6000 : 4000;
     const timer = setTimeout(() => {
-      toast.style.animation = "fadeOut 0.3s ease-out forwards";
+      toast.classList.add("fadeOut");
       setTimeout(() => toast.remove(), 300);
-    }, 4000);
+    }, duration);
 
     toast.querySelector(".btn-close").onclick = () => {
       clearTimeout(timer);

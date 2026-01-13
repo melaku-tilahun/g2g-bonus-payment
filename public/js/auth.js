@@ -2,8 +2,17 @@ const auth = {
   async login(email, password) {
     try {
       const data = await api.post("/auth/login", { email, password });
+      return data; // Return data so login.html can check otpRequired
+    } catch (error) {
+      throw error;
+    }
+  },
+
+  async verifyOTP(email, otp) {
+    try {
+      const data = await api.post("/auth/verify-otp", { email, otp });
       this.setSession(data.token, data.user);
-      window.location.href = "/index.html";
+      return data;
     } catch (error) {
       throw error;
     }

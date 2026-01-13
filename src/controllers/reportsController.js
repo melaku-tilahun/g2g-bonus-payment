@@ -1,6 +1,8 @@
 const pool = require("../config/database");
 const ReportGenerator = require("../services/reportGenerator");
 const AuditService = require("../services/auditService");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 /**
  * Reports Controller
@@ -11,21 +13,20 @@ const reportsController = {
    * Get Withholding Tax Report
    * @route GET /api/reports/withholding-tax
    */
-  getWithholdingTaxReport: async (req, res) => {
-    try {
-      const { start_date, end_date, format = "json" } = req.query;
+  getWithholdingTaxReport: catchAsync(async (req, res, next) => {
+    const { start_date, end_date, format = "json" } = req.query;
 
-      // Build date filter
-      let dateFilter = "";
-      const params = [];
-      if (start_date && end_date) {
-        dateFilter = "WHERE b.week_date BETWEEN ? AND ?";
-        params.push(start_date, end_date);
-      }
+    // Build date filter
+    let dateFilter = "";
+    const params = [];
+    if (start_date && end_date) {
+      dateFilter = "WHERE b.week_date BETWEEN ? AND ?";
+      params.push(start_date, end_date);
+    }
 
-      // Get tax data
-      const [taxData] = await pool.query(
-        `SELECT 
+    // Get tax data
+    const [taxData] = await pool.query(
+      `SELECT 
           d.driver_id,
           d.full_name,
           d.tin,
@@ -42,104 +43,94 @@ const reportsController = {
          GROUP BY d.driver_id, d.full_name, d.tin, d.business_name
          HAVING total_tax > 0
          ORDER BY total_tax DESC`,
-        params
+      params
+    );
+
+    if (format === "excel") {
+      // Generate Excel file
+      const filename = await ReportGenerator.generateWithholdingTaxExcel(
+        taxData
       );
-
-      if (format === "excel") {
-        // Generate Excel file
-        const filename = await ReportGenerator.generateWithholdingTaxExcel(
-          taxData
-        );
-        res.download(filename);
-      } else {
-        res.json({
-          success: true,
-          report_type: "withholding_tax",
-          start_date,
-          end_date,
-          total_records: taxData.length,
-          total_tax_collected: taxData.reduce(
-            (sum, row) => sum + parseFloat(row.total_tax),
-            0
-          ),
-          data: taxData,
-        });
-      }
-
-      await AuditService.log(req.user.id, "Generate Report", "report", null, {
-        type: "Withholding Tax",
-        format,
+      res.download(filename);
+    } else {
+      res.json({
+        success: true,
+        report_type: "withholding_tax",
         start_date,
         end_date,
+        total_records: taxData.length,
+        total_tax_collected: taxData.reduce(
+          (sum, row) => sum + parseFloat(row.total_tax),
+          0
+        ),
+        data: taxData,
       });
-    } catch (error) {
-      console.error("Get withholding tax report error:", error);
-      res.status(500).json({ message: "Internal server error" });
     }
-  },
+
+    await AuditService.log(req.user.id, "Generate Report", "report", null, {
+      type: "Withholding Tax",
+      format,
+      start_date,
+      end_date,
+    });
+  }),
 
   /**
    * Get Compliance Summary (KPIs)
    * @route GET /api/reports/compliance-summary
    */
-  getComplianceSummary: async (req, res) => {
-    try {
-      // 1. Total Tax Withheld (All time)
-      const [taxRows] = await pool.query(
-        "SELECT SUM(withholding_tax) as total_tax FROM bonuses"
-      );
+  getComplianceSummary: catchAsync(async (req, res, next) => {
+    // 1. Total Tax Withheld (All time)
+    const [taxRows] = await pool.query(
+      "SELECT SUM(withholding_tax) as total_tax FROM bonuses"
+    );
 
-      // 2. Driver Verification Stats
-      const [verificationRows] = await pool.query(
-        `SELECT 
+    // 2. Driver Verification Stats
+    const [verificationRows] = await pool.query(
+      `SELECT 
           COUNT(*) as total_drivers,
           SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) as verified_drivers,
           SUM(CASE WHEN verified = 0 THEN 1 ELSE 0 END) as unverified_drivers
          FROM drivers`
-      );
+    );
 
-      // 3. Pending TIN Verifications (Unverified drivers with a TIN)
-      const [pendingRows] = await pool.query(
-        "SELECT COUNT(*) as pending FROM drivers WHERE verified = 0 AND tin IS NOT NULL AND tin != ''"
-      );
+    // 3. Pending TIN Verifications (Unverified drivers with a TIN)
+    const [pendingRows] = await pool.query(
+      "SELECT COUNT(*) as pending FROM drivers WHERE verified = 0 AND tin IS NOT NULL AND tin != ''"
+    );
 
-      // 4. Recent Compliance Alerts (e.g., failed verifications in last 7 days)
-      const [alertRows] = await pool.query(
-        `SELECT COUNT(*) as recent_alerts 
+    // 4. Recent Compliance Alerts (e.g., failed verifications in last 7 days)
+    const [alertRows] = await pool.query(
+      `SELECT COUNT(*) as recent_alerts 
          FROM audit_logs 
          WHERE (action LIKE '%FAIL%' OR action LIKE '%REJECT%') 
          AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
-      );
+    );
 
-      res.json({
-        success: true,
-        summary: {
-          total_tax_collected: parseFloat(taxRows[0].total_tax || 0).toFixed(2),
-          verification_stats: verificationRows[0],
-          pending_verifications: pendingRows[0].pending,
-          recent_alerts: alertRows[0].recent_alerts,
-        },
-      });
-    } catch (error) {
-      console.error("Get compliance summary error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    res.json({
+      success: true,
+      summary: {
+        total_tax_collected: parseFloat(taxRows[0].total_tax || 0).toFixed(2),
+        verification_stats: verificationRows[0],
+        pending_verifications: pendingRows[0].pending,
+        recent_alerts: alertRows[0].recent_alerts,
+      },
+    });
+  }),
+
+  getTINVerificationLog: catchAsync(async (req, res, next) => {
+    const { start_date, end_date, format = "json" } = req.query;
+
+    // Get TIN verification logs from audit_logs
+    let dateFilter = "";
+    const params = [];
+    if (start_date && end_date) {
+      dateFilter = "AND al.created_at BETWEEN ? AND ?";
+      params.push(start_date, end_date);
     }
-  },
 
-  getTINVerificationLog: async (req, res) => {
-    try {
-      const { start_date, end_date, format = "json" } = req.query;
-
-      // Get TIN verification logs from audit_logs
-      let dateFilter = "";
-      const params = [];
-      if (start_date && end_date) {
-        dateFilter = "AND al.created_at BETWEEN ? AND ?";
-        params.push(start_date, end_date);
-      }
-
-      const [logs] = await pool.query(
-        `SELECT 
+    const [logs] = await pool.query(
+      `SELECT 
           al.*,
           d.driver_id,
           d.full_name,
@@ -152,68 +143,61 @@ const reportsController = {
          WHERE al.action LIKE '%TIN%' OR al.action LIKE '%VERIF%'
          ${dateFilter}
          ORDER BY al.created_at DESC`,
-        params
-      );
+      params
+    );
 
-      if (format === "excel") {
-        const filename = await ReportGenerator.generateTINVerificationExcel(
-          logs
-        );
-        res.download(filename);
-      } else {
-        res.json({
-          success: true,
-          report_type: "tin_verification",
-          start_date,
-          end_date,
-          total_verifications: logs.length,
-          data: logs,
-        });
-      }
-
-      await AuditService.log(req.user.id, "Generate Report", "report", null, {
-        type: "TIN Verifications",
-        format,
+    if (format === "excel") {
+      const filename = await ReportGenerator.generateTINVerificationExcel(logs);
+      res.download(filename);
+    } else {
+      res.json({
+        success: true,
+        report_type: "tin_verification",
         start_date,
         end_date,
+        total_verifications: logs.length,
+        data: logs,
       });
-    } catch (error) {
-      console.error("Get TIN verification log error:", error);
-      res.status(500).json({ message: "Internal server error" });
     }
-  },
+
+    await AuditService.log(req.user.id, "Generate Report", "report", null, {
+      type: "TIN Verifications",
+      format,
+      start_date,
+      end_date,
+    });
+  }),
 
   /**
    * Generate Driver Statement (PDF)
    * @route GET /api/reports/driver-statement/:driverId
    */
-  generateDriverStatement: async (req, res) => {
-    try {
-      const { driverId } = req.params;
-      const { start_date, end_date } = req.query;
+  generateDriverStatement: catchAsync(async (req, res, next) => {
+    const { driverId } = req.params;
+    const { start_date, end_date } = req.query;
 
-      // Get driver info
-      const [drivers] = await pool.query(
-        "SELECT * FROM drivers WHERE driver_id = ?",
-        [driverId]
-      );
+    // Get driver info
+    const [drivers] = await pool.query(
+      "SELECT * FROM drivers WHERE driver_id = ?",
+      [driverId]
+    );
 
-      if (drivers.length === 0) {
-        return res.status(404).json({ message: "Driver not found" });
-      }
+    if (drivers.length === 0) {
+      throw new AppError("Driver not found", 404);
+    }
 
-      const driver = drivers[0];
+    const driver = drivers[0];
 
-      // Get bonuses
-      let dateFilter = "";
-      const params = [driverId];
-      if (start_date && end_date) {
-        dateFilter = "AND b.week_date BETWEEN ? AND ?";
-        params.push(start_date, end_date);
-      }
+    // Get bonuses
+    let dateFilter = "";
+    const params = [driverId];
+    if (start_date && end_date) {
+      dateFilter = "AND b.week_date BETWEEN ? AND ?";
+      params.push(start_date, end_date);
+    }
 
-      const [bonuses] = await pool.query(
-        `SELECT 
+    const [bonuses] = await pool.query(
+      `SELECT 
           b.*,
           p.payment_date,
           p.payment_method,
@@ -222,184 +206,160 @@ const reportsController = {
          LEFT JOIN payments p ON b.payment_id = p.id
          WHERE b.driver_id = ? ${dateFilter}
          ORDER BY b.week_date DESC`,
-        params
-      );
+      params
+    );
 
-      // Get debt summary
-      const [debts] = await pool.query(
-        `SELECT 
+    // Get debt summary
+    const [debts] = await pool.query(
+      `SELECT 
           SUM(dd.amount) as total_debt,
           SUM(dd.amount - dd.remaining_amount) as total_paid,
           SUM(dd.remaining_amount) as outstanding
          FROM driver_debts dd
          WHERE dd.driver_id = ? AND dd.status = 'active'`,
-        [driverId]
-      );
+      [driverId]
+    );
 
-      // Generate PDF
-      const filename = await ReportGenerator.generateDriverStatementPDF(
-        driver,
-        bonuses,
-        debts[0]
-      );
+    // Generate PDF
+    const filename = await ReportGenerator.generateDriverStatementPDF(
+      driver,
+      bonuses,
+      debts[0]
+    );
 
-      res.download(filename, `statement_${driverId}_${Date.now()}.pdf`);
+    res.download(filename, `statement_${driverId}_${Date.now()}.pdf`);
 
-      await AuditService.log(req.user.id, "Generate Report", "report", null, {
-        type: "Driver Statement",
-        driver_id: driverId,
-        format: "pdf",
-      });
-    } catch (error) {
-      console.error("Generate driver statement error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    await AuditService.log(req.user.id, "Generate Report", "report", null, {
+      type: "Driver Statement",
+      driver_id: driverId,
+      format: "pdf",
+    });
+  }),
 
   /**
    * Get Report Schedules
    * @route GET /api/reports/schedules
    */
-  getSchedules: async (req, res) => {
-    try {
-      const [schedules] = await pool.query(
-        `SELECT rs.*, u.full_name as created_by_name
+  getSchedules: catchAsync(async (req, res, next) => {
+    const [schedules] = await pool.query(
+      `SELECT rs.*, u.full_name as created_by_name
          FROM report_schedules rs
          LEFT JOIN users u ON rs.created_by = u.id
          ORDER BY rs.created_at DESC`
-      );
+    );
 
-      res.json({
-        success: true,
-        schedules,
-      });
-    } catch (error) {
-      console.error("Get schedules error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      schedules,
+    });
+  }),
 
   /**
    * Create Report Schedule
    * @route POST /api/reports/schedules
    */
-  createSchedule: async (req, res) => {
-    try {
-      const { name, report_type, frequency, recipients, parameters } = req.body;
+  createSchedule: catchAsync(async (req, res, next) => {
+    const { name, report_type, frequency, recipients, parameters } = req.body;
 
-      // Validate
-      if (!name || !report_type || !frequency || !recipients) {
-        return res.status(400).json({ message: "Missing required fields" });
-      }
+    // Validate
+    if (!name || !report_type || !frequency || !recipients) {
+      throw new AppError("Missing required fields", 400);
+    }
 
-      // Calculate next run time
-      const nextRun = calculateNextRun(frequency);
+    // Calculate next run time
+    const nextRun = calculateNextRun(frequency);
 
-      const [result] = await pool.query(
-        `INSERT INTO report_schedules 
+    const [result] = await pool.query(
+      `INSERT INTO report_schedules 
          (name, report_type, frequency, recipients, parameters, next_run, created_by) 
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        [
-          name,
-          report_type,
-          frequency,
-          JSON.stringify(recipients),
-          parameters ? JSON.stringify(parameters) : null,
-          nextRun,
-          req.user.id,
-        ]
-      );
+      [
+        name,
+        report_type,
+        frequency,
+        JSON.stringify(recipients),
+        parameters ? JSON.stringify(parameters) : null,
+        nextRun,
+        req.user.id,
+      ]
+    );
 
-      res.json({
-        success: true,
-        message: "Schedule created successfully",
-        schedule_id: result.insertId,
-        next_run: nextRun,
-      });
-    } catch (error) {
-      console.error("Create schedule error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      message: "Schedule created successfully",
+      schedule_id: result.insertId,
+      next_run: nextRun,
+    });
+  }),
 
   /**
    * Update Report Schedule
    * @route PUT /api/reports/schedules/:id
    */
-  updateSchedule: async (req, res) => {
-    try {
-      const { id } = req.params;
-      const { name, frequency, recipients, parameters, is_active } = req.body;
+  updateSchedule: catchAsync(async (req, res, next) => {
+    const { id } = req.params;
+    const { name, frequency, recipients, parameters, is_active } = req.body;
 
-      const updates = [];
-      const params = [];
+    const updates = [];
+    const params = [];
 
-      if (name) {
-        updates.push("name = ?");
-        params.push(name);
-      }
-      if (frequency) {
-        updates.push("frequency = ?");
-        params.push(frequency);
-
-        // Recalculate next run if frequency changed
-        const nextRun = calculateNextRun(frequency);
-        updates.push("next_run = ?");
-        params.push(nextRun);
-      }
-      if (recipients) {
-        updates.push("recipients = ?");
-        params.push(JSON.stringify(recipients));
-      }
-      if (parameters !== undefined) {
-        updates.push("parameters = ?");
-        params.push(parameters ? JSON.stringify(parameters) : null);
-      }
-      if (is_active !== undefined) {
-        updates.push("is_active = ?");
-        params.push(is_active);
-      }
-
-      if (updates.length === 0) {
-        return res.status(400).json({ message: "No updates provided" });
-      }
-
-      params.push(id);
-
-      await pool.query(
-        `UPDATE report_schedules SET ${updates.join(", ")} WHERE id = ?`,
-        params
-      );
-
-      res.json({
-        success: true,
-        message: "Schedule updated successfully",
-      });
-    } catch (error) {
-      console.error("Update schedule error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    if (name) {
+      updates.push("name = ?");
+      params.push(name);
     }
-  },
+    if (frequency) {
+      updates.push("frequency = ?");
+      params.push(frequency);
+
+      // Recalculate next run if frequency changed
+      const nextRun = calculateNextRun(frequency);
+      updates.push("next_run = ?");
+      params.push(nextRun);
+    }
+    if (recipients) {
+      updates.push("recipients = ?");
+      params.push(JSON.stringify(recipients));
+    }
+    if (parameters !== undefined) {
+      updates.push("parameters = ?");
+      params.push(parameters ? JSON.stringify(parameters) : null);
+    }
+    if (is_active !== undefined) {
+      updates.push("is_active = ?");
+      params.push(is_active);
+    }
+
+    if (updates.length === 0) {
+      throw new AppError("No updates provided", 400);
+    }
+
+    params.push(id);
+
+    await pool.query(
+      `UPDATE report_schedules SET ${updates.join(", ")} WHERE id = ?`,
+      params
+    );
+
+    res.json({
+      success: true,
+      message: "Schedule updated successfully",
+    });
+  }),
 
   /**
    * Delete Report Schedule
    * @route DELETE /api/reports/schedules/:id
    */
-  deleteSchedule: async (req, res) => {
-    try {
-      const { id } = req.params;
+  deleteSchedule: catchAsync(async (req, res, next) => {
+    const { id } = req.params;
 
-      await pool.query("DELETE FROM report_schedules WHERE id = ?", [id]);
+    await pool.query("DELETE FROM report_schedules WHERE id = ?", [id]);
 
-      res.json({
-        success: true,
-        message: "Schedule deleted successfully",
-      });
-    } catch (error) {
-      console.error("Delete schedule error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      message: "Schedule deleted successfully",
+    });
+  }),
 };
 
 /**

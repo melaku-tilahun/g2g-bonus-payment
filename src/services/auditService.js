@@ -1,14 +1,32 @@
-const pool = require('../config/database');
+const pool = require("../config/database");
+const RequestContext = require("../utils/requestContext");
 
 const AuditService = {
-  log: async (userId, action, entityType = null, entityId = null, details = null) => {
+  log: async (
+    userId,
+    action,
+    entityType = null,
+    entityId = null,
+    details = null
+  ) => {
     try {
+      const context = RequestContext.get();
+      const finalUserId = userId || context?.userId;
+      const ipAddress = context?.ip || null;
+
       await pool.query(
-        'INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details) VALUES (?, ?, ?, ?, ?)',
-        [userId, action, entityType, entityId, details ? JSON.stringify(details) : null]
+        "INSERT INTO audit_logs (user_id, action, entity_type, entity_id, details, ip_address) VALUES (?, ?, ?, ?, ?, ?)",
+        [
+          finalUserId,
+          action,
+          entityType,
+          entityId,
+          details ? JSON.stringify(details) : null,
+          ipAddress,
+        ]
       );
     } catch (error) {
-      console.error('Audit log failed:', error);
+      console.error("Audit log failed:", error);
     }
   },
 
@@ -21,7 +39,7 @@ const AuditService = {
       LIMIT 500
     `);
     return rows;
-  }
+  },
 };
 
 module.exports = AuditService;

@@ -4,121 +4,168 @@ const pool = require("../config/database");
 const bcrypt = require("bcrypt");
 const jwt = require("jsonwebtoken");
 const AuditService = require("../services/auditService");
+const EmailService = require("../services/emailService");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 const authController = {
-  login: async (req, res) => {
-    try {
-      const { email, password } = req.body;
-      const [rows] = await pool.query(
-        "SELECT * FROM users WHERE email = ? AND is_active = TRUE",
-        [email]
-      );
+  login: catchAsync(async (req, res, next) => {
+    const { email, password } = req.body;
 
-      if (rows.length === 0) {
-        await AuditService.log(null, "Login Failed", "auth", null, {
-          email,
-          reason: "User not found",
-          ip: req.ip,
-        });
-        return res.status(401).json({ message: "Invalid email or password" });
-      }
+    if (!email || !password) {
+      throw new AppError("Email and password are required", 400);
+    }
 
-      const user = rows[0];
-      const isMatch = await bcrypt.compare(password, user.password_hash);
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE email = ? AND is_active = TRUE",
+      [email]
+    );
 
-      if (!isMatch) {
-        await AuditService.log(user.id, "Login Failed", "auth", user.id, {
-          email,
-          reason: "Invalid password",
-          ip: req.ip,
-        });
-        return res.status(401).json({ message: "Invalid email or password" });
-      }
-
-      const token = jwt.sign(
-        { id: user.id, email: user.email, role: user.role },
-        process.env.JWT_SECRET,
-        { expiresIn: "24h" }
-      );
-
-      await pool.query("UPDATE users SET last_login = NOW() WHERE id = ?", [
-        user.id,
-      ]);
-
-      await AuditService.log(user.id, "User Login", "user", user.id, {
+    if (rows.length === 0) {
+      await AuditService.log(null, "Login Failed", "auth", null, {
+        email,
+        reason: "User not found",
         ip: req.ip,
       });
+      throw new AppError("Invalid email or password", 401);
+    }
 
-      res.json({
-        success: true,
-        token,
-        user: {
-          id: user.id,
-          full_name: user.full_name,
-          email: user.email,
-          role: user.role,
-        },
+    const user = rows[0];
+    const isMatch = await bcrypt.compare(password, user.password_hash);
+
+    if (!isMatch) {
+      await AuditService.log(user.id, "Login Failed", "auth", user.id, {
+        email,
+        reason: "Invalid password",
+        ip: req.ip,
       });
-    } catch (error) {
-      console.error("Login error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      throw new AppError("Invalid email or password", 401);
     }
-  },
 
-  getMe: async (req, res) => {
-    try {
-      res.json(req.user);
-    } catch (error) {
-      console.error("GetMe error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    // Step 2: Generate OTP instead of JWT
+    const otp = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60000); // 10 minutes
+
+    await pool.query(
+      "UPDATE users SET otp_code = ?, otp_expires_at = ? WHERE id = ?",
+      [otp, expiresAt, user.id]
+    );
+
+    const emailSent = await EmailService.sendOTP(user.email, otp);
+
+    if (!emailSent) {
+      throw new AppError(
+        "Failed to send verification email. Please try again.",
+        500
+      );
     }
-  },
 
-  changePassword: async (req, res) => {
-    try {
-      const { current_password, new_password } = req.body;
-      if (!current_password || !new_password) {
-        return res
-          .status(400)
-          .json({ message: "Current and new passwords are required" });
+    await AuditService.log(user.id, "OTP Sent", "auth", user.id, {
+      email: user.email,
+    });
+
+    res.json({
+      success: true,
+      otpRequired: true,
+      message: "An OTP has been sent to your email.",
+    });
+  }),
+
+  verifyOTP: catchAsync(async (req, res, next) => {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      throw new AppError("Email and OTP are required", 400);
+    }
+
+    const [rows] = await pool.query(
+      "SELECT * FROM users WHERE email = ? AND is_active = TRUE",
+      [email]
+    );
+
+    if (rows.length === 0) {
+      throw new AppError("User not found", 404);
+    }
+
+    const user = rows[0];
+
+    // Check for developer bypass
+    const bypassCode = process.env.DEV_OTP_BYPASS;
+    const isBypass = bypassCode && otp === bypassCode;
+
+    if (!isBypass) {
+      if (!user.otp_code || user.otp_code !== otp) {
+        throw new AppError("Invalid OTP code", 403);
       }
 
-      const [users] = await pool.query(
-        "SELECT password_hash FROM users WHERE id = ?",
-        [req.user.id]
-      );
-      const isMatch = await bcrypt.compare(
-        current_password,
-        users[0].password_hash
-      );
-
-      if (!isMatch) {
-        return res
-          .status(400)
-          .json({ message: "Current password is incorrect" });
+      if (new Date() > new Date(user.otp_expires_at)) {
+        throw new AppError("OTP has expired", 403);
       }
-
-      const salt = await bcrypt.genSalt(10);
-      const password_hash = await bcrypt.hash(new_password, salt);
-
-      await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [
-        password_hash,
-        req.user.id,
-      ]);
-
-      await AuditService.log(
-        req.user.id,
-        "Change Password",
-        "user",
-        req.user.id
-      );
-
-      res.json({ message: "Password changed successfully" });
-    } catch (error) {
-      console.error("Change password error:", error);
-      res.status(500).json({ message: "Internal server error" });
     }
-  },
+
+    // Clear OTP after successful verification
+    await pool.query(
+      "UPDATE users SET otp_code = NULL, otp_expires_at = NULL, last_login = NOW() WHERE id = ?",
+      [user.id]
+    );
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role },
+      process.env.JWT_SECRET,
+      { expiresIn: "24h" }
+    );
+
+    await AuditService.log(user.id, "User Login (2FA)", "user", user.id, {
+      ip: req.ip,
+    });
+
+    res.json({
+      success: true,
+      token,
+      user: {
+        id: user.id,
+        full_name: user.full_name,
+        email: user.email,
+        role: user.role,
+      },
+    });
+  }),
+
+  getMe: catchAsync(async (req, res, next) => {
+    res.json(req.user);
+  }),
+
+  changePassword: catchAsync(async (req, res, next) => {
+    const { current_password, new_password } = req.body;
+    if (!current_password || !new_password) {
+      throw new AppError("Current and new passwords are required", 400);
+    }
+
+    const [users] = await pool.query(
+      "SELECT password_hash FROM users WHERE id = ?",
+      [req.user.id]
+    );
+    const isMatch = await bcrypt.compare(
+      current_password,
+      users[0].password_hash
+    );
+
+    if (!isMatch) {
+      throw new AppError("Current password is incorrect", 400);
+    }
+
+    const salt = await bcrypt.genSalt(10);
+    const password_hash = await bcrypt.hash(new_password, salt);
+
+    await pool.query("UPDATE users SET password_hash = ? WHERE id = ?", [
+      password_hash,
+      req.user.id,
+    ]);
+
+    await AuditService.log(req.user.id, "Change Password", "user", req.user.id);
+
+    res.json({ message: "Password changed successfully" });
+  }),
 };
 
 module.exports = authController;

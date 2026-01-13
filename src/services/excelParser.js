@@ -230,7 +230,7 @@ const excelParser = {
 
     if (workbook.worksheets.length !== 1) {
       throw new Error(
-        `Excel file contains ${workbook.worksheets.length} sheets. Please upload a file with only one sheet.`
+        `Excel file contains ${workbook.worksheets.length} sheets. Please import a file with only one sheet.`
       );
     }
 
@@ -351,7 +351,9 @@ const excelParser = {
           : parseFloat(v);
       };
 
-      rowData.net_payout = parseNum(getVal(payoutIdx));
+      // Parse the Excel "Net Payout" column - this is the fleet's original value
+      rowData.fleet_net_payout = parseNum(getVal(payoutIdx)); // Store original
+      rowData.net_payout = parseNum(getVal(payoutIdx)); // Keep for backward compatibility
       rowData.balance = parseNum(getVal(balanceIdx));
       rowData.payout = parseNum(getVal(actualPayoutIdx));
       rowData.bank_fee = parseNum(getVal(bankFeeIdx));
@@ -367,21 +369,25 @@ const excelParser = {
       if (rowData.bank_fee === null) rowData.errors.push(`Invalid Bank fee`);
 
       // Calculations
-      if (rowData.net_payout !== null) {
-        // Gross = Net / 0.97
-        rowData.gross_payout = rowData.net_payout / 0.97;
+      if (rowData.fleet_net_payout !== null) {
+        // Step 1: Reverse to gross (assuming 3% withholding was applied)
+        rowData.gross_payout = rowData.fleet_net_payout / 0.97;
 
-        // Withholding
-        if (rowData.gross_payout > 3000) {
-          rowData.withholding_tax = rowData.gross_payout - rowData.net_payout;
+        // Step 2: Calculate withholding tax from gross (3% if > 10000 ETB threshold)
+        if (rowData.gross_payout > 10000) {
+          rowData.withholding_tax = rowData.gross_payout * 0.03;
         } else {
           rowData.withholding_tax = 0;
         }
+
+        // Step 3: Calculate proper net (gross - withholding)
+        rowData.calculated_net = rowData.gross_payout - rowData.withholding_tax;
 
         // Round to 2 decimals
         rowData.gross_payout = Math.round(rowData.gross_payout * 100) / 100;
         rowData.withholding_tax =
           Math.round(rowData.withholding_tax * 100) / 100;
+        rowData.calculated_net = Math.round(rowData.calculated_net * 100) / 100;
       }
 
       if (referenceDate && rowDateStr && rowDateStr !== referenceDate) {

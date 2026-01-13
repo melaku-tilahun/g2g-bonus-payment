@@ -55,8 +55,7 @@ function renderBatchesTable(batches) {
     `;
 
   batches.forEach((batch) => {
-    const statusClass =
-      batch.status === "completed" ? "bg-success" : "bg-warning";
+    const statusClass = batch.status === "paid" ? "bg-success" : "bg-warning";
     html += `
             <tr>
                 <td class="ps-4 fw-bold text-primary">${batch.batch_id}</td>
@@ -94,7 +93,7 @@ async function viewBatchDetails(id) {
 
       document.getElementById("modalBatchId").textContent = batch.batch_id;
       document.getElementById("modalStatus").innerHTML = `<span class="badge ${
-        batch.status === "completed" ? "bg-success" : "bg-warning"
+        batch.status === "paid" ? "bg-success" : "bg-warning"
       }">${batch.status.toUpperCase()}</span>`;
       document.getElementById("modalAmount").textContent = `${parseFloat(
         batch.total_amount
@@ -197,7 +196,7 @@ async function executeBatchConfirmation() {
     }
   } catch (error) {
     console.error("Confirm batch error:", error);
-    if (error.status === 401) {
+    if (error.statusCode === 403) {
       document.getElementById("passwordError").textContent =
         "Incorrect password";
       document.getElementById("passwordError").classList.remove("d-none");

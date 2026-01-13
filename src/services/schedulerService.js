@@ -1,5 +1,8 @@
 const cron = require("node-cron");
 const pool = require("../config/database");
+const fs = require("fs");
+const ReportGenerator = require("./reportGenerator");
+const EmailService = require("./emailService");
 
 /**
  * Scheduler Service
@@ -46,15 +49,115 @@ class SchedulerService {
    * @param {object} schedule - Schedule object
    */
   static async executeReport(schedule) {
+    let filePath = null;
     try {
       console.log(`Executing report: ${schedule.name} (ID: ${schedule.id})`);
 
-      // TODO: Implement report generation based on report_type
-      // - Financial reports
-      // - Compliance reports
-      // - User activity reports
-      // - Driver performance reports
-      // - Debt reports
+      const recipients = JSON.parse(schedule.recipients);
+      const reportType = schedule.report_type;
+
+      // Calculate date range based on frequency
+      const endDate = new Date();
+      let startDate = new Date();
+
+      switch (schedule.frequency) {
+        case "daily":
+          startDate.setDate(endDate.getDate() - 1);
+          break;
+        case "weekly":
+          startDate.setDate(endDate.getDate() - 7);
+          break;
+        case "monthly":
+          startDate.setMonth(endDate.getMonth() - 1);
+          break;
+        default:
+          startDate.setDate(endDate.getDate() - 30);
+      }
+
+      if (reportType === "withholding_tax") {
+        // Fetch data
+        const [taxData] = await pool.query(
+          `SELECT 
+              d.driver_id, d.full_name, d.tin, d.business_name,
+              SUM(b.gross_payout) as total_gross,
+              SUM(b.withholding_tax) as total_tax,
+              SUM(b.net_payout) as total_net,
+              COUNT(b.id) as payment_count,
+              MIN(b.week_date) as first_payment_date,
+              MAX(b.week_date) as last_payment_date
+             FROM drivers d
+             JOIN bonuses b ON d.driver_id = b.driver_id
+             WHERE b.week_date BETWEEN ? AND ?
+             GROUP BY d.driver_id, d.full_name, d.tin, d.business_name
+             HAVING total_tax > 0
+             ORDER BY total_tax DESC`,
+          [startDate, endDate]
+        );
+
+        if (taxData.length > 0) {
+          filePath = await ReportGenerator.generateWithholdingTaxExcel(taxData);
+          await EmailService.sendReport(recipients, schedule.name, filePath);
+        } else {
+          console.log(`No data found for report: ${schedule.name}`);
+        }
+      } else if (reportType === "debt") {
+        const [debtData] = await pool.query(
+          `SELECT 
+              d.driver_id, d.full_name,
+              SUM(dd.amount) as total_debt,
+              SUM(dd.amount - dd.remaining_amount) as amount_paid,
+              SUM(dd.remaining_amount) as outstanding,
+              dd.status,
+              MAX(dd.created_at) as updated_at
+             FROM drivers d
+             JOIN driver_debts dd ON d.driver_id = dd.driver_id
+             WHERE dd.created_at BETWEEN ? AND ?
+             GROUP BY d.driver_id, d.full_name, dd.status
+             HAVING outstanding > 0
+             ORDER BY outstanding DESC`,
+          [startDate, endDate]
+        );
+
+        if (debtData.length > 0) {
+          filePath = await ReportGenerator.generateDebtExcel(debtData);
+          await EmailService.sendReport(recipients, schedule.name, filePath);
+        } else {
+          console.log(`No data found for report: ${schedule.name}`);
+        }
+      } else if (reportType === "compliance") {
+        // Build summary for compliance
+        const [taxRows] = await pool.query(
+          "SELECT SUM(withholding_tax) as total_tax FROM bonuses WHERE week_date BETWEEN ? AND ?",
+          [startDate, endDate]
+        );
+        const [verificationRows] = await pool.query(
+          `SELECT 
+              COUNT(*) as total_drivers,
+              SUM(CASE WHEN verified = 1 THEN 1 ELSE 0 END) as verified_drivers,
+              SUM(CASE WHEN verified = 0 THEN 1 ELSE 0 END) as unverified_drivers
+             FROM drivers`
+        );
+        const [pendingRows] = await pool.query(
+          "SELECT COUNT(*) as pending FROM drivers WHERE verified = 0 AND tin IS NOT NULL AND tin != ''"
+        );
+        const [alertRows] = await pool.query(
+          `SELECT COUNT(*) as recent_alerts 
+             FROM audit_logs 
+             WHERE (action LIKE '%FAIL%' OR action LIKE '%REJECT%') 
+             AND created_at BETWEEN ? AND ?`,
+          [startDate, endDate]
+        );
+
+        const summary = {
+          total_tax_collected: parseFloat(taxRows[0].total_tax || 0).toFixed(2),
+          verification_stats: verificationRows[0],
+          pending_verifications: pendingRows[0].pending,
+          recent_alerts: alertRows[0].recent_alerts,
+        };
+
+        filePath = await ReportGenerator.generateComplianceExcel(summary);
+        await EmailService.sendReport(recipients, schedule.name, filePath);
+      }
 
       // Update last_run timestamp
       await pool.query(
@@ -65,6 +168,15 @@ class SchedulerService {
       console.log(`Report executed successfully: ${schedule.name}`);
     } catch (error) {
       console.error(`Execute report error (${schedule.name}):`, error);
+    } finally {
+      // Cleanup file if it exists
+      if (filePath && fs.existsSync(filePath)) {
+        try {
+          fs.unlinkSync(filePath);
+        } catch (cleanupError) {
+          console.error("Failed to cleanup report file:", cleanupError);
+        }
+      }
     }
   }
 

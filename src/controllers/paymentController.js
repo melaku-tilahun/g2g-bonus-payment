@@ -1,8 +1,10 @@
 const pool = require("../config/database");
 const AuditService = require("../services/auditService");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 const paymentController = {
-  recordPayment: async (req, res) => {
+  recordPayment: catchAsync(async (req, res, next) => {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -18,7 +20,7 @@ const paymentController = {
       } = req.body;
 
       if (!driver_id) {
-        return res.status(400).json({ message: "Driver ID is required" });
+        throw new AppError("Driver ID is required", 400);
       }
 
       // 1. Calculate the actual total from pending bonuses
@@ -30,10 +32,7 @@ const paymentController = {
       const actualTotal = parseFloat(bonusRows[0].actual_total || 0);
 
       if (actualTotal === 0) {
-        await connection.rollback();
-        return res
-          .status(400)
-          .json({ message: "No pending bonuses found for this driver" });
+        throw new AppError("No pending bonuses found for this driver", 400);
       }
 
       // 2. Record the payment using the CALCULATED total
@@ -74,280 +73,260 @@ const paymentController = {
         total_paid: actualTotal,
       });
     } catch (error) {
-      await connection.rollback();
-      console.error("Record payment error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      if (connection) await connection.rollback();
+      throw error;
     } finally {
-      connection.release();
+      if (connection) connection.release();
     }
-  },
+  }),
 
-  getHistory: async (req, res) => {
-    try {
-      const {
-        driver_id,
-        page = 1,
-        limit = 25,
-        startDate,
-        endDate,
-        minAmount,
-        maxAmount,
-        method,
-        sortBy = "payment_date",
-        sortOrder = "DESC",
-      } = req.query;
+  getHistory: catchAsync(async (req, res, next) => {
+    const {
+      driver_id,
+      page = 1,
+      limit = 25,
+      startDate,
+      endDate,
+      minAmount,
+      maxAmount,
+      method,
+      sortBy = "payment_date",
+      sortOrder = "DESC",
+    } = req.query;
 
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const limitNum = parseInt(limit);
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
-      let whereClause = " WHERE p.status IN ('paid', 'processing')";
-      const params = [];
+    let whereClause = " WHERE p.status IN ('paid', 'processing')";
+    const params = [];
 
-      // FILTERS
-      if (driver_id) {
-        whereClause += " AND p.driver_id LIKE ?";
-        params.push(`%${driver_id}%`);
-      }
-
-      if (startDate) {
-        whereClause += " AND p.payment_date >= ?";
-        params.push(startDate);
-      }
-
-      if (endDate) {
-        whereClause += " AND p.payment_date <= ?";
-        params.push(`${endDate} 23:59:59`);
-      }
-
-      if (minAmount) {
-        whereClause += " AND p.total_amount >= ?";
-        params.push(parseFloat(minAmount));
-      }
-
-      if (maxAmount) {
-        whereClause += " AND p.total_amount <= ?";
-        params.push(parseFloat(maxAmount));
-      }
-
-      if (method && method !== "All") {
-        whereClause += " AND p.payment_method = ?";
-        params.push(method);
-      }
-
-      // SORTING
-      const validColumns = [
-        "payment_date",
-        "total_amount",
-        "driver_name",
-        "driver_id",
-      ];
-      const sortColumn = validColumns.includes(sortBy)
-        ? sortBy
-        : "payment_date";
-      const order = sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
-
-      // Get Total Count
-      const [countRows] = await pool.query(
-        `SELECT COUNT(*) as total 
-         FROM payments p
-         LEFT JOIN drivers d ON p.driver_id = d.driver_id 
-         ${whereClause}`,
-        params
-      );
-
-      // Get Paginated Data
-      const query = `
-        SELECT p.*, d.full_name as driver_name, u.full_name as processed_by_name 
-        FROM payments p
-        LEFT JOIN drivers d ON p.driver_id = d.driver_id
-        LEFT JOIN users u ON p.processed_by = u.id
-        ${whereClause}
-        ORDER BY 
-          ${
-            sortColumn === "driver_name"
-              ? "d.full_name"
-              : sortColumn === "driver_id"
-              ? "p.driver_id"
-              : `p.${sortColumn}`
-          } ${order}
-        LIMIT ? OFFSET ?
-      `;
-
-      const [rows] = await pool.query(query, [...params, limitNum, offset]);
-
-      res.json({
-        payments: rows,
-        total: countRows[0].total,
-        pagination: {
-          page: parseInt(page),
-          limit: limitNum,
-          total_pages: Math.ceil(countRows[0].total / limitNum),
-        },
-      });
-    } catch (error) {
-      console.error("Get payment history error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    // FILTERS
+    if (driver_id) {
+      whereClause += " AND p.driver_id LIKE ?";
+      params.push(`%${driver_id}%`);
     }
-  },
 
-  getPendingPayments: async (req, res) => {
-    try {
-      const { page = 1, limit = 25, q = "", status = "pending" } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const limitNum = parseInt(limit);
+    if (startDate) {
+      whereClause += " AND p.payment_date >= ?";
+      params.push(startDate);
+    }
 
-      // Define where clause based on status
-      let whereClause = "";
-      if (status === "processing") {
-        whereClause =
-          "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'";
-      } else {
-        // Default to 'pending' (bonuses with no payment_id yet)
-        // Allow Verified OR Force Pay
-        whereClause =
-          "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL";
-      }
+    if (endDate) {
+      whereClause += " AND p.payment_date <= ?";
+      params.push(`${endDate} 23:59:59`);
+    }
 
-      const params = [];
+    if (minAmount) {
+      whereClause += " AND p.total_amount >= ?";
+      params.push(parseFloat(minAmount));
+    }
 
-      if (q) {
-        whereClause += " AND (d.full_name LIKE ? OR d.driver_id LIKE ?)";
-        params.push(`%${q}%`, `%${q}%`);
-      }
+    if (maxAmount) {
+      whereClause += " AND p.total_amount <= ?";
+      params.push(parseFloat(maxAmount));
+    }
 
-      // Get Total Count
-      const [countRows] = await pool.query(
-        `SELECT COUNT(DISTINCT d.driver_id) as total 
-         FROM drivers d
-         JOIN bonuses b ON d.driver_id = b.driver_id
-         LEFT JOIN payments p ON b.payment_id = p.id
-         ${whereClause}`,
-        params
-      );
+    if (method && method !== "All") {
+      whereClause += " AND p.payment_method = ?";
+      params.push(method);
+    }
 
-      // Get Paginated Data
-      // Refactor: When status is 'processing', include the batch_id
-      const query = `
-        SELECT 
-          d.driver_id, d.full_name, d.phone_number,
-          COUNT(DISTINCT b.id) as pending_weeks,
-          MIN(b.week_date) as earliest_bonus_date,
-          MAX(b.week_date) as latest_bonus_date,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
-          COALESCE(p.status, 'pending') as status,
-          p.batch_id
-        FROM drivers d
-        JOIN bonuses b ON d.driver_id = b.driver_id
-        LEFT JOIN payments p ON b.payment_id = p.id
-        ${whereClause}
-        GROUP BY d.driver_id, p.status, p.batch_id
-        HAVING total_pending_amount > 0
-        ORDER BY total_pending_amount DESC
-        LIMIT ? OFFSET ?
-      `;
-      const [rows] = await pool.query(query, [...params, limitNum, offset]);
+    // SORTING
+    const validColumns = [
+      "payment_date",
+      "total_amount",
+      "driver_name",
+      "driver_id",
+    ];
+    const sortColumn = validColumns.includes(sortBy) ? sortBy : "payment_date";
+    const order = sortOrder.toUpperCase() === "ASC" ? "ASC" : "DESC";
 
-      // Get counts for both tabs to update UI badges
-      const [pendingCount] = await pool.query(
-        `SELECT COUNT(*) as count FROM (
-           SELECT d.driver_id 
-           FROM drivers d 
-           JOIN bonuses b ON d.driver_id = b.driver_id 
-           WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
-           GROUP BY d.driver_id
-           HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
-         ) as valid_drivers`
-      );
+    // Get Total Count
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total 
+       FROM payments p
+       LEFT JOIN drivers d ON p.driver_id = d.driver_id 
+       ${whereClause}`,
+      params
+    );
 
-      const [processingCount] = await pool.query(
-        `SELECT COUNT(DISTINCT d.driver_id) as count 
+    // Get Paginated Data
+    const query = `
+      SELECT p.*, d.full_name as driver_name, u.full_name as processed_by_name 
+      FROM payments p
+      LEFT JOIN drivers d ON p.driver_id = d.driver_id
+      LEFT JOIN users u ON p.processed_by = u.id
+      ${whereClause}
+      ORDER BY 
+        ${
+          sortColumn === "driver_name"
+            ? "d.full_name"
+            : sortColumn === "driver_id"
+            ? "p.driver_id"
+            : `p.${sortColumn}`
+        } ${order}
+      LIMIT ? OFFSET ?
+    `;
+
+    const [rows] = await pool.query(query, [...params, limitNum, offset]);
+
+    res.json({
+      payments: rows,
+      total: countRows[0].total,
+      pagination: {
+        page: parseInt(page),
+        limit: limitNum,
+        total_pages: Math.ceil(countRows[0].total / limitNum),
+      },
+    });
+  }),
+
+  getPendingPayments: catchAsync(async (req, res, next) => {
+    const { page = 1, limit = 25, q = "", status = "pending" } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    // Define where clause based on status
+    let whereClause = "";
+    if (status === "processing") {
+      whereClause =
+        "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'";
+    } else {
+      // Default to 'pending' (bonuses with no payment_id yet)
+      // Allow Verified OR Force Pay
+      whereClause =
+        "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL";
+    }
+
+    const params = [];
+
+    if (q) {
+      whereClause += " AND (d.full_name LIKE ? OR d.driver_id LIKE ?)";
+      params.push(`%${q}%`, `%${q}%`);
+    }
+
+    // Get Total Count
+    const [countRows] = await pool.query(
+      `SELECT COUNT(DISTINCT d.driver_id) as total 
+       FROM drivers d
+       JOIN bonuses b ON d.driver_id = b.driver_id
+       LEFT JOIN payments p ON b.payment_id = p.id
+       ${whereClause}`,
+      params
+    );
+
+    // Get Paginated Data
+    // Refactor: When status is 'processing', include the batch_id
+    const query = `
+      SELECT 
+        d.driver_id, d.full_name, d.phone_number,
+        COUNT(DISTINCT b.id) as pending_weeks,
+        MIN(b.week_date) as earliest_bonus_date,
+        MAX(b.week_date) as latest_bonus_date,
+        SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
+        COALESCE(p.status, 'pending') as status,
+        p.batch_id
+      FROM drivers d
+      JOIN bonuses b ON d.driver_id = b.driver_id
+      LEFT JOIN payments p ON b.payment_id = p.id
+      ${whereClause}
+      GROUP BY d.driver_id, p.status, p.batch_id
+      HAVING total_pending_amount > 0
+      ORDER BY total_pending_amount DESC
+      LIMIT ? OFFSET ?
+    `;
+    const [rows] = await pool.query(query, [...params, limitNum, offset]);
+
+    // Get counts for both tabs to update UI badges
+    const [pendingCount] = await pool.query(
+      `SELECT COUNT(*) as count FROM (
+         SELECT d.driver_id 
          FROM drivers d 
          JOIN bonuses b ON d.driver_id = b.driver_id 
-         JOIN payments p ON b.payment_id = p.id
-         WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'`
-      );
+         WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
+         GROUP BY d.driver_id
+         HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
+       ) as valid_drivers`
+    );
 
-      res.json({
-        pending_drivers: rows,
-        total: countRows[0].total,
-        counts: {
-          pending: pendingCount[0].count,
-          processing: processingCount[0].count,
-        },
-        pagination: {
-          page: parseInt(page),
-          limit: limitNum,
-          total_pages: Math.ceil(countRows[0].total / limitNum),
-        },
-      });
-    } catch (error) {
-      console.error("Get pending payments error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    const [processingCount] = await pool.query(
+      `SELECT COUNT(DISTINCT d.driver_id) as count 
+       FROM drivers d 
+       JOIN bonuses b ON d.driver_id = b.driver_id 
+       JOIN payments p ON b.payment_id = p.id
+       WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'`
+    );
+
+    res.json({
+      pending_drivers: rows,
+      total: countRows[0].total,
+      counts: {
+        pending: pendingCount[0].count,
+        processing: processingCount[0].count,
+      },
+      pagination: {
+        page: parseInt(page),
+        limit: limitNum,
+        total_pages: Math.ceil(countRows[0].total / limitNum),
+      },
+    });
+  }),
+
+  getAccumulatedPayments: catchAsync(async (req, res, next) => {
+    const { page = 1, limit = 25, q = "" } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
+
+    let whereClause = "WHERE d.verified = FALSE AND b.payment_id IS NULL";
+    const params = [];
+
+    if (q) {
+      whereClause += " AND (d.full_name LIKE ? OR d.driver_id LIKE ?)";
+      params.push(`%${q}%`, `%${q}%`);
     }
-  },
 
-  getAccumulatedPayments: async (req, res) => {
-    try {
-      const { page = 1, limit = 25, q = "" } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const limitNum = parseInt(limit);
+    // Get Total Count
+    const [countRows] = await pool.query(
+      `SELECT COUNT(DISTINCT d.driver_id) as total 
+       FROM drivers d
+       JOIN bonuses b ON d.driver_id = b.driver_id
+       ${whereClause}`,
+      params
+    );
 
-      let whereClause = "WHERE d.verified = FALSE AND b.payment_id IS NULL";
-      const params = [];
+    const query = `
+      SELECT 
+          d.driver_id, 
+          d.full_name, 
+          d.phone_number,
+          COUNT(b.id) as pending_weeks,
+          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
+          MIN(b.week_date) as earliest_bonus_date,
+          MAX(b.week_date) as latest_bonus_date
+      FROM drivers d
+      JOIN bonuses b ON d.driver_id = b.driver_id
+      ${whereClause}
+      GROUP BY d.driver_id, d.full_name, d.phone_number
+      ORDER BY total_pending_amount DESC
+      LIMIT ? OFFSET ?
+    `;
+    const [rows] = await pool.query(query, [...params, limitNum, offset]);
 
-      if (q) {
-        whereClause += " AND (d.full_name LIKE ? OR d.driver_id LIKE ?)";
-        params.push(`%${q}%`, `%${q}%`);
-      }
+    res.json({
+      accumulated_drivers: rows,
+      total: countRows[0].total,
+      pagination: {
+        page: parseInt(page),
+        limit: limitNum,
+        total_pages: Math.ceil(countRows[0].total / limitNum),
+      },
+    });
+  }),
 
-      // Get Total Count
-      const [countRows] = await pool.query(
-        `SELECT COUNT(DISTINCT d.driver_id) as total 
-         FROM drivers d
-         JOIN bonuses b ON d.driver_id = b.driver_id
-         ${whereClause}`,
-        params
-      );
-
-      const query = `
-        SELECT 
-            d.driver_id, 
-            d.full_name, 
-            d.phone_number,
-            COUNT(b.id) as pending_weeks,
-            SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
-            MIN(b.week_date) as earliest_bonus_date,
-            MAX(b.week_date) as latest_bonus_date
-        FROM drivers d
-        JOIN bonuses b ON d.driver_id = b.driver_id
-        ${whereClause}
-        GROUP BY d.driver_id, d.full_name, d.phone_number
-        ORDER BY total_pending_amount DESC
-        LIMIT ? OFFSET ?
-      `;
-      const [rows] = await pool.query(query, [...params, limitNum, offset]);
-
-      res.json({
-        accumulated_drivers: rows,
-        total: countRows[0].total,
-        pagination: {
-          page: parseInt(page),
-          limit: limitNum,
-          total_pages: Math.ceil(countRows[0].total / limitNum),
-        },
-      });
-    } catch (error) {
-      console.error("Get accumulated payments error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
-
-  exportPendingPayments: async (req, res) => {
+  exportPendingPayments: catchAsync(async (req, res, next) => {
     // Fix #9: Validate user authentication
     if (!req.user || !req.user.id) {
-      return res
-        .status(401)
-        .json({ message: "Authentication required for export" });
+      throw new AppError("Authentication required for export", 401);
     }
 
     const connection = await pool.getConnection();
@@ -358,23 +337,37 @@ const paymentController = {
       const workbook = new ExcelJS.Workbook();
       const worksheet = workbook.addWorksheet("Pending Payments");
 
-      // 1. Identify all drivers that have FRESH pending bonuses (never exported)
-      const [drivers] = await connection.query(`
-        SELECT d.driver_id, d.phone_number
-        FROM drivers d
-        JOIN bonuses b ON d.driver_id = b.driver_id
-        WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
-        GROUP BY d.driver_id, d.phone_number
-        HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
+      // 1. Identify all INDIVIDUAL bonuses that are pending (never exported)
+      // Changed from driver-level to bonus-level for proper tax calculation
+      const [bonuses] = await connection.query(`
+        SELECT 
+          b.id as bonus_id,
+          b.driver_id,
+          b.week_date,
+          COALESCE(b.final_payout, b.net_payout) as amount,
+          b.gross_payout,
+          b.withholding_tax,
+          d.phone_number,
+          d.verified,
+          b.force_pay
+        FROM bonuses b
+        JOIN drivers d ON b.driver_id = d.driver_id
+        WHERE (d.verified = TRUE OR b.force_pay = TRUE) 
+          AND d.is_blocked = FALSE 
+          AND b.payment_id IS NULL
+          AND COALESCE(b.final_payout, b.net_payout) > 0
+        ORDER BY d.driver_id, b.week_date
       `);
 
-      if (drivers.length === 0) {
-        await connection.rollback();
-        return res.status(400).json({
-          message:
-            "No fresh pending bonuses to export. If you need to re-download a previous export, please check the Export History.",
-        });
+      if (bonuses.length === 0) {
+        throw new AppError(
+          "No fresh pending bonuses to export. If you need to re-download a previous export, please check the Export History.",
+          400
+        );
       }
+
+      // Count unique drivers for batch metadata
+      const uniqueDrivers = [...new Set(bonuses.map((b) => b.driver_id))];
 
       // Generate a unique Batch ID with timestamp and incremental suffix for display
       const now = new Date();
@@ -397,74 +390,47 @@ const paymentController = {
       // Create the internal batch record first
       const [batchResult] = await connection.query(
         "INSERT INTO payment_batches (batch_id, total_amount, driver_count, status, exported_by) VALUES (?, ?, ?, ?, ?)",
-        [batchDisplayId, 0, drivers.length, "processing", req.user.id]
+        [batchDisplayId, 0, uniqueDrivers.length, "processing", req.user.id]
       );
       const batchInternalId = batchResult.insertId;
 
       let totalBatchAmount = 0;
 
-      // 2. Process each driver: Create a new processing payment for this batch
-      for (const driver of drivers) {
-        if (!driver.phone_number || driver.phone_number.trim() === "") {
-          await connection.rollback();
-          return res.status(400).json({
-            message: `Driver ${driver.driver_id} has no phone number. Cannot export.`,
-          });
+      // 2. Process each BONUS individually (not by driver)
+      // This ensures proper withholding tax calculation per bonus
+      for (const bonus of bonuses) {
+        if (!bonus.phone_number || bonus.phone_number.trim() === "") {
+          throw new AppError(
+            `Driver ${bonus.driver_id} (Bonus ID: ${bonus.bonus_id}) has no phone number. Cannot export.`,
+            400
+          );
         }
 
-        // Create new processing payment linked to THIS batch
+        // Create ONE payment per bonus
         const [pResult] = await connection.query(
           "INSERT INTO payments (driver_id, total_amount, payment_date, payment_method, status, processed_by, notes, batch_id, batch_internal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
-            driver.driver_id,
-            0,
+            bonus.driver_id,
+            bonus.amount,
             now,
             "Telebirr",
             "processing",
             req.user.id,
-            `Isolated in ${batchDisplayId}`,
+            `Bonus ${bonus.week_date} in ${batchDisplayId}`,
             batchDisplayId,
             batchInternalId,
           ]
         );
         const paymentId = pResult.insertId;
 
-        // Link only the CURRENTLY UNLINKED bonuses for this driver to this payment
-        // For unverified drivers, ONLY link bonuses with force_pay = TRUE
-        // For verified drivers, link all unpaid bonuses
-        const [driverInfo] = await connection.query(
-          "SELECT verified FROM drivers WHERE driver_id = ?",
-          [driver.driver_id]
-        );
-
-        const isVerified = driverInfo[0]?.verified || false;
-
-        if (isVerified) {
-          // Verified driver: link all unpaid bonuses
-          await connection.query(
-            "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL",
-            [paymentId, driver.driver_id]
-          );
-        } else {
-          // Unverified driver: ONLY link force_pay bonuses
-          await connection.query(
-            "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL AND force_pay = TRUE",
-            [paymentId, driver.driver_id]
-          );
-        }
-
-        // Update the payment's total_amount
-        const [sumResult] = await connection.query(
-          "SELECT SUM(COALESCE(final_payout, net_payout)) as total FROM bonuses WHERE payment_id = ?",
-          [paymentId]
-        );
-        const totalAmount = parseFloat(sumResult[0].total || 0);
-        totalBatchAmount += totalAmount;
-
+        // Link THIS specific bonus to this payment (one-to-one)
         await connection.query(
-          "UPDATE payments SET total_amount = ? WHERE id = ?",
-          [totalAmount, paymentId]
+          "UPDATE bonuses SET payment_id = ? WHERE id = ?",
+          [paymentId, bonus.bonus_id]
         );
+
+        // Ensure amount is treated as number, not string
+        totalBatchAmount += parseFloat(bonus.amount);
       }
 
       // Update the batch summary
@@ -473,17 +439,23 @@ const paymentController = {
         [totalBatchAmount, batchInternalId]
       );
 
-      // 3. Fetch data for this SPECIFIC BATCH only for Excel generation
+      // 3. Fetch data for this SPECIFIC BATCH for Excel generation
+      // Now returns ONE ROW PER BONUS
       const [exportRows] = await connection.query(
         `
         SELECT 
-            d.driver_id, 
+            b.id as bonus_id,
+            b.driver_id,
+            b.week_date,
             d.phone_number,
-            p.total_amount
-        FROM drivers d
-        JOIN payments p ON d.driver_id = p.driver_id
+            p.total_amount,
+            b.gross_payout,
+            b.withholding_tax
+        FROM bonuses b
+        JOIN drivers d ON b.driver_id = d.driver_id
+        JOIN payments p ON b.payment_id = p.id
         WHERE p.batch_internal_id = ?
-        ORDER BY p.total_amount DESC
+        ORDER BY d.driver_id, b.week_date
       `,
         [batchInternalId]
       );
@@ -495,10 +467,10 @@ const paymentController = {
         const phone = digits.length >= 9 ? digits.slice(-9) : digits;
 
         if (phone.length !== 9 || !/^\d{9}$/.test(phone)) {
-          await connection.rollback();
-          return res.status(400).json({
-            message: `Invalid phone for driver ${row.driver_id}. Phone '${rawPhone}' needs attention.`,
-          });
+          throw new AppError(
+            `Invalid phone for driver ${row.driver_id} (Bonus ID: ${row.bonus_id}). Phone '${rawPhone}' needs attention.`,
+            400
+          );
         }
       }
 
@@ -508,13 +480,10 @@ const paymentController = {
         const digits = rawPhone.replace(/\D/g, ""); // Remove ALL non-digits
         const phone = digits.length >= 9 ? digits.slice(-9) : digits;
 
-        return [
-          "MSISDN",
-          phone,
-          "",
-          parseFloat(row.total_amount),
-          `${row.driver_id},${batchDisplayId}`,
-        ];
+        // Format: DriverID,BonusID,WeekDate,BatchID
+        const comment = `${row.driver_id},${row.bonus_id},${row.week_date},${batchDisplayId}`;
+
+        return ["MSISDN", phone, "", parseFloat(row.total_amount), comment];
       });
 
       // Add Table with style and filters
@@ -578,213 +547,222 @@ const paymentController = {
       res.end();
     } catch (error) {
       if (connection) await connection.rollback();
-      console.error("Export pending payments error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      throw error;
     } finally {
       if (connection) connection.release();
     }
-  },
-  confirmPayment: async (req, res) => {
-    try {
-      const { paymentId } = req.params;
-      const [result] = await pool.query(
-        "UPDATE payments SET status = 'paid' WHERE id = ?",
-        [paymentId]
-      );
+  }),
+  confirmPayment: catchAsync(async (req, res, next) => {
+    const { paymentId } = req.params;
+    const [result] = await pool.query(
+      "UPDATE payments SET status = 'paid' WHERE id = ?",
+      [paymentId]
+    );
 
-      if (result.affectedRows === 0) {
-        return res.status(404).json({ message: "Payment not found" });
-      }
-
-      await AuditService.log(
-        req.user.id,
-        "Confirm Payment",
-        "payment",
-        paymentId,
-        { status: "paid" }
-      );
-      res.json({ message: "Payment confirmed as Paid" });
-    } catch (error) {
-      console.error("Confirm payment error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    if (result.affectedRows === 0) {
+      throw new AppError("Payment not found", 404);
     }
-  },
 
-  validateReconciliation: async (req, res) => {
+    await AuditService.log(
+      req.user.id,
+      "Confirm Payment",
+      "payment",
+      paymentId,
+      { status: "paid" }
+    );
+    res.json({ message: "Payment confirmed as Paid" });
+  }),
+
+  validateReconciliation: catchAsync(async (req, res, next) => {
     const ExcelJS = require("exceljs");
-    const fs = require("fs");
 
     if (!req.file) {
-      return res.status(400).json({ message: "No file uploaded" });
+      throw new AppError("No file imported", 400);
     }
 
     const filePath = req.file.path;
     const workbook = new ExcelJS.Workbook();
 
-    try {
-      await workbook.xlsx.readFile(filePath);
-      const worksheet = workbook.getWorksheet(1);
+    await workbook.xlsx.readFile(filePath);
+    const worksheet = workbook.getWorksheet(1);
 
-      const checklist = [
-        { item: "File is readable", status: "passed", icon: "✅" },
-        { item: "Header: 'Credit Msisdn' found", status: "failed", icon: "❌" },
-        { item: "Header: 'Amount' found", status: "failed", icon: "❌" },
-        { item: "Header: 'Status' found", status: "failed", icon: "❌" },
-        { item: "Contains payment records", status: "failed", icon: "❌" },
-        {
-          item: "Amounts match internal records",
-          status: "passed",
-          icon: "✅",
-        },
-      ];
+    const checklist = [
+      { item: "File is readable", status: "passed", icon: "✅" },
+      { item: "Header: 'Credit Msisdn' found", status: "failed", icon: "❌" },
+      { item: "Header: 'Amount' found", status: "failed", icon: "❌" },
+      { item: "Header: 'Status' found", status: "failed", icon: "❌" },
+      { item: "Contains payment records", status: "failed", icon: "❌" },
+      {
+        item: "Amounts match internal records",
+        status: "passed",
+        icon: "✅",
+      },
+    ];
 
-      if (!worksheet) {
-        checklist[0].status = "failed";
-        checklist[0].icon = "❌";
-        return res.json({
-          success: false,
-          checklist,
-          message: "Excel file is empty or invalid.",
-        });
-      }
+    if (!worksheet) {
+      checklist[0].status = "failed";
+      checklist[0].icon = "❌";
+      return res.json({
+        success: false,
+        checklist,
+        message: "Excel file is empty or invalid.",
+      });
+    }
 
-      // Metadata extraction (Dynamic based on labels)
-      let bulkPlanId = null;
-      let organizationName = null;
+    // Metadata extraction (Dynamic based on labels)
+    let bulkPlanId = null;
+    let organizationName = null;
 
-      // Check Row 1 for "Bulk Plan ID"
-      const r1c1 = worksheet.getRow(1).getCell(1).value
-        ? worksheet.getRow(1).getCell(1).value.toString().toLowerCase()
-        : "";
-      if (r1c1.includes("plan id")) {
-        bulkPlanId = worksheet.getRow(2).getCell(1).value;
-      }
+    // Check Row 1 for "Bulk Plan ID"
+    const r1c1 = worksheet.getRow(1).getCell(1).value
+      ? worksheet.getRow(1).getCell(1).value.toString().toLowerCase()
+      : "";
+    if (r1c1.includes("plan id")) {
+      bulkPlanId = worksheet.getRow(2).getCell(1).value;
+    }
 
-      // Check Row 4 for "Organization Name"
-      const r4c1 = worksheet.getRow(4).getCell(1).value
-        ? worksheet.getRow(4).getCell(1).value.toString().toLowerCase()
-        : "";
-      if (r4c1.includes("organization")) {
-        organizationName = worksheet.getRow(5).getCell(1).value;
-      }
+    // Check Row 4 for "Organization Name"
+    const r4c1 = worksheet.getRow(4).getCell(1).value
+      ? worksheet.getRow(4).getCell(1).value.toString().toLowerCase()
+      : "";
+    if (r4c1.includes("organization")) {
+      organizationName = worksheet.getRow(5).getCell(1).value;
+    }
 
-      // Find Header Row (Search first 20 rows)
-      let headerRowIndex = -1;
-      let phoneCol = 3; // Default C
-      let amountCol = 8; // Default H
-      let statusCol = 12; // Default L
-      let commentCol = -1;
+    // Find Header Row (Search first 20 rows)
+    let headerRowIndex = -1;
+    let phoneCol = 3; // Default C
+    let amountCol = 8; // Default H
+    let statusCol = 12; // Default L
+    let commentCol = -1;
 
-      for (let i = 1; i <= 20; i++) {
-        const row = worksheet.getRow(i);
-        let foundMsisdn = false;
-        row.eachCell((cell, colNumber) => {
-          const val = cell.value ? cell.value.toString().toLowerCase() : "";
-          if (val.includes("msisdn")) {
-            foundMsisdn = true;
-            phoneCol = colNumber;
-          }
-          if (val.includes("amount")) amountCol = colNumber;
-          if (val.includes("status")) statusCol = colNumber;
-          if (val.includes("comment")) commentCol = colNumber;
-        });
-
-        if (foundMsisdn) {
-          headerRowIndex = i;
-          checklist[1].status = "passed";
-          checklist[1].icon = "✅";
-
-          // Double check amount and status in the SAME row
-          const amountHeader = row.getCell(amountCol).value
-            ? row.getCell(amountCol).value.toString().toLowerCase()
-            : "";
-          const statusHeader = row.getCell(statusCol).value
-            ? row.getCell(statusCol).value.toString().toLowerCase()
-            : "";
-
-          if (amountHeader.includes("amount")) {
-            checklist[2].status = "passed";
-            checklist[2].icon = "✅";
-          }
-          if (statusHeader.includes("status")) {
-            checklist[3].status = "passed";
-            checklist[3].icon = "✅";
-          }
-          break;
+    for (let i = 1; i <= 20; i++) {
+      const row = worksheet.getRow(i);
+      let foundMsisdn = false;
+      row.eachCell((cell, colNumber) => {
+        const val = cell.value ? cell.value.toString().toLowerCase() : "";
+        if (val.includes("msisdn")) {
+          foundMsisdn = true;
+          phoneCol = colNumber;
         }
-      }
-
-      const summary = {
-        totalRows: 0,
-        validPayments: 0,
-        unmatched: 0,
-        alreadyPaid: 0,
-        totalAmount: 0,
-        unmatchedPhones: [],
-        amountMismatches: [], // New field
-        metadata:
-          bulkPlanId || organizationName
-            ? {
-                organization: organizationName,
-                planId: bulkPlanId,
-              }
-            : null,
-      };
-
-      if (headerRowIndex === -1) {
-        return res.json({
-          success: false,
-          summary: { ...summary, metadata: null }, // Explicitly nullify metadata on failure
-          checklist,
-          message:
-            "Could not find 'Credit Msisdn' column. Please ensure this is a valid Telebirr Bulk Report.",
-        });
-      }
-
-      const cleanPhone = (phone) => {
-        if (!phone) return null;
-        const str = phone.toString().replace(/\D/g, "");
-        return str.length >= 9 ? str.slice(-9) : str;
-      };
-
-      const rows = [];
-      worksheet.eachRow((row, rowNumber) => {
-        if (rowNumber > headerRowIndex) {
-          const phone = row.getCell(phoneCol).value;
-          const status = row.getCell(statusCol).value
-            ? row.getCell(statusCol).value.toString().trim()
-            : "";
-          const amount = row.getCell(amountCol).value;
-          const comment =
-            commentCol !== -1 ? row.getCell(commentCol).value : null;
-
-          if (phone) {
-            summary.totalRows++;
-            // Accept "Completed", "Success", "Succeeded", etc.
-            const normalizedStatus = status.toLowerCase();
-            if (
-              normalizedStatus === "completed" ||
-              normalizedStatus === "success" ||
-              normalizedStatus === "succeeded"
-            ) {
-              rows.push({
-                phone: cleanPhone(phone),
-                originalPhone: phone,
-                amount: parseFloat(amount || 0),
-                comment: comment ? comment.toString() : null,
-              });
-            }
-          }
-        }
+        if (val.includes("amount")) amountCol = colNumber;
+        if (val.includes("status")) statusCol = colNumber;
+        if (val.includes("comment")) commentCol = colNumber;
       });
 
-      if (summary.totalRows > 0) {
-        checklist[4].status = "passed";
-        checklist[4].icon = "✅";
+      if (foundMsisdn) {
+        headerRowIndex = i;
+        checklist[1].status = "passed";
+        checklist[1].icon = "✅";
+
+        // Double check amount and status in the SAME row
+        const amountHeader = row.getCell(amountCol).value
+          ? row.getCell(amountCol).value.toString().toLowerCase()
+          : "";
+        const statusHeader = row.getCell(statusCol).value
+          ? row.getCell(statusCol).value.toString().toLowerCase()
+          : "";
+
+        if (amountHeader.includes("amount")) {
+          checklist[2].status = "passed";
+          checklist[2].icon = "✅";
+        }
+        if (statusHeader.includes("status")) {
+          checklist[3].status = "passed";
+          checklist[3].icon = "✅";
+        }
+        break;
+      }
+    }
+
+    const summary = {
+      totalRows: 0,
+      validPayments: 0,
+      unmatched: 0,
+      alreadyPaid: 0,
+      totalAmount: 0,
+      unmatchedPhones: [],
+      amountMismatches: [], // New field
+      metadata:
+        bulkPlanId || organizationName
+          ? {
+              organization: organizationName,
+              planId: bulkPlanId,
+            }
+          : null,
+    };
+
+    if (headerRowIndex === -1) {
+      return res.json({
+        success: false,
+        summary: { ...summary, metadata: null }, // Explicitly nullify metadata on failure
+        checklist,
+        message:
+          "Could not find 'Credit Msisdn' column. Please ensure this is a valid Telebirr Bulk Report.",
+      });
+    }
+
+    const cleanPhone = (phone) => {
+      if (!phone) return null;
+      const str = phone.toString().replace(/\D/g, "");
+      return str.length >= 9 ? str.slice(-9) : str;
+    };
+
+    const rows = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber > headerRowIndex) {
+        const phone = row.getCell(phoneCol).value;
+        const status = row.getCell(statusCol).value
+          ? row.getCell(statusCol).value.toString().trim()
+          : "";
+        const amount = row.getCell(amountCol).value;
+        const comment =
+          commentCol !== -1 ? row.getCell(commentCol).value : null;
+
+        if (phone) {
+          summary.totalRows++;
+          // Accept "Completed", "Success", "Succeeded", etc.
+          const normalizedStatus = status.toLowerCase();
+          if (
+            normalizedStatus === "completed" ||
+            normalizedStatus === "success" ||
+            normalizedStatus === "succeeded"
+          ) {
+            rows.push({
+              phone: cleanPhone(phone),
+              originalPhone: phone,
+              amount: parseFloat(amount || 0),
+              comment: comment ? comment.toString() : null,
+            });
+          }
+        }
+      }
+    });
+
+    if (summary.totalRows > 0) {
+      checklist[4].status = "passed";
+      checklist[4].icon = "✅";
+    }
+
+    for (const rowData of rows) {
+      // Parse comment to extract bonus details
+      // Format: DriverID,BonusID,WeekDate,BatchID
+      let driverId = null;
+      let bonusId = null;
+      let batchId = null;
+
+      if (rowData.comment && rowData.comment.includes(",")) {
+        const parts = rowData.comment.split(",");
+        if (parts.length >= 4) {
+          driverId = parts[0].trim();
+          bonusId = parseInt(parts[1].trim());
+          // weekDate = parts[2].trim(); // Not needed for matching
+          batchId = parts[3].trim();
+        }
       }
 
-      for (const rowData of rows) {
-        // Find driver by last 9 digits
+      // If comment parsing failed, try to find driver by phone
+      if (!driverId || !bonusId) {
         const [drivers] = await pool.query(
           "SELECT driver_id FROM drivers WHERE phone_number LIKE ?",
           [`%${rowData.phone}`]
@@ -796,90 +774,97 @@ const paymentController = {
           continue;
         }
 
-        const driver = drivers[0];
-
-        // EXTREMELY IMPORTANT: Extract Batch ID from comment if available
-        let batchIdFromComment = null;
-        if (rowData.comment && rowData.comment.includes(",")) {
-          const parts = rowData.comment.split(",");
-          if (parts.length >= 2) {
-            batchIdFromComment = parts[1].trim();
-          }
-        }
-
-        // Check for processing payments
-        let payments;
-        if (batchIdFromComment) {
-          // Precise match by Batch ID
-          [payments] = await pool.query(
-            "SELECT id, total_amount FROM payments WHERE driver_id = ? AND batch_id = ? AND status = 'processing' LIMIT 1",
-            [driver.driver_id, batchIdFromComment]
-          );
-        } else {
-          // Fallback to latest processing
-          [payments] = await pool.query(
-            "SELECT id, total_amount FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
-            [driver.driver_id]
-          );
-        }
-
-        if (payments.length > 0) {
-          const dbAmount = parseFloat(payments[0].total_amount);
-          // Compare amounts
-          if (Math.abs(dbAmount - rowData.amount) > 0.01) {
-            summary.amountMismatches.push({
-              phone: rowData.originalPhone,
-              fileAmount: rowData.amount,
-              dbAmount: dbAmount,
-            });
-            checklist[5].status = "failed";
-            checklist[5].icon = "❌";
-          } else {
-            summary.validPayments++;
-            summary.totalAmount += rowData.amount;
-          }
-        } else {
-          summary.alreadyPaid++;
-        }
+        driverId = drivers[0].driver_id;
+        // Without bonus_id, we can't match precisely
+        summary.unmatched++;
+        summary.unmatchedPhones.push(rowData.originalPhone);
+        continue;
       }
 
-      const isOverallSuccess = checklist.every((c) => c.status === "passed");
-      let responseMessage = null;
-      if (!isOverallSuccess && summary.amountMismatches.length > 0) {
-        responseMessage = `Amount mismatch detected for ${summary.amountMismatches.length} records. Please verify the report.`;
+      // Find the specific bonus and its payment
+      const [bonusPayment] = await pool.query(
+        `SELECT 
+          b.id as bonus_id,
+          b.driver_id,
+          p.id as payment_id,
+          p.total_amount,
+          p.status,
+          p.batch_id
+        FROM bonuses b
+        LEFT JOIN payments p ON b.payment_id = p.id
+        WHERE b.id = ? AND b.driver_id = ?`,
+        [bonusId, driverId]
+      );
+
+      if (bonusPayment.length === 0) {
+        summary.unmatched++;
+        summary.unmatchedPhones.push(rowData.originalPhone);
+        continue;
       }
 
-      res.json({
-        success: isOverallSuccess,
-        summary,
-        checklist,
-        message: responseMessage,
-        tempFileName: req.file.filename,
-      });
-    } catch (error) {
-      console.error("Validation error:", error);
-      res.status(400).json({ success: false, message: error.message });
-    } finally {
-      // In a real robust system, we might keep it for a few minutes.
-      // For now, let's keep it if successful so the 'process' step can use it.
+      const bonus = bonusPayment[0];
+
+      // Check if payment is in processing status
+      if (bonus.status !== "processing") {
+        summary.alreadyPaid++;
+        continue;
+      }
+
+      // Verify batch ID matches (if provided)
+      if (batchId && bonus.batch_id !== batchId) {
+        summary.unmatched++;
+        summary.unmatchedPhones.push(rowData.originalPhone);
+        continue;
+      }
+
+      // Compare amounts (should match exactly for individual bonus)
+      const dbAmount = parseFloat(bonus.total_amount);
+      if (Math.abs(dbAmount - rowData.amount) > 0.01) {
+        summary.amountMismatches.push({
+          phone: rowData.originalPhone,
+          bonusId: bonusId,
+          fileAmount: rowData.amount,
+          dbAmount: dbAmount,
+        });
+        checklist[5].status = "failed";
+        checklist[5].icon = "❌";
+      } else {
+        summary.validPayments++;
+        summary.totalAmount += rowData.amount;
+      }
     }
-  },
 
-  processReconciliation: async (req, res) => {
+    const isOverallSuccess = checklist.every((c) => c.status === "passed");
+    let responseMessage = null;
+    if (!isOverallSuccess && summary.amountMismatches.length > 0) {
+      responseMessage = `Amount mismatch detected for ${summary.amountMismatches.length} records. Please verify the report.`;
+    }
+
+    res.json({
+      success: isOverallSuccess,
+      summary,
+      checklist,
+      message: responseMessage,
+      tempFileName: req.file.filename,
+    });
+  }),
+
+  processReconciliation: catchAsync(async (req, res, next) => {
     const ExcelJS = require("exceljs");
     const fs = require("fs");
     const path = require("path");
 
     const fileName = req.body.fileName;
     if (!fileName) {
-      return res.status(400).json({ message: "File name is required" });
+      throw new AppError("File name is required", 400);
     }
 
-    const filePath = path.join("uploads", fileName);
+    const filePath = path.join("imports", fileName);
     if (!fs.existsSync(filePath)) {
-      return res.status(400).json({
-        message: "Reconciliation file not found. Please upload again.",
-      });
+      throw new AppError(
+        "Reconciliation file not found. Please import again.",
+        400
+      );
     }
 
     // Fix #4: Add database transaction
@@ -902,6 +887,7 @@ const paymentController = {
       let headerRowIndex = -1;
       let phoneCol = 3;
       let statusCol = 12;
+      let commentCol = -1;
 
       for (let i = 1; i <= 20; i++) {
         const row = worksheet.getRow(i);
@@ -913,6 +899,7 @@ const paymentController = {
             phoneCol = colNumber;
           }
           if (val.includes("status")) statusCol = colNumber;
+          if (val.includes("comment")) commentCol = colNumber;
         });
         if (foundMsisdn) {
           headerRowIndex = i;
@@ -921,7 +908,10 @@ const paymentController = {
       }
 
       if (headerRowIndex === -1) {
-        throw new Error("Could not find headers in reconciliation file.");
+        throw new AppError(
+          "Could not find headers in reconciliation file.",
+          400
+        );
       }
 
       const rows = [];
@@ -951,44 +941,95 @@ const paymentController = {
       for (const rowData of rows) {
         // Added loop for rows
         try {
-          // Identify Batch ID if possible
-          let batchIdFromComment = null;
+          // Parse comment to extract bonus details
+          // Format: DriverID,BonusID,WeekDate,BatchID
+          let driverId = null;
+          let bonusId = null;
+          let batchId = null;
+
           if (rowData.comment && rowData.comment.includes(",")) {
             const parts = rowData.comment.split(",");
-            if (parts.length >= 2) batchIdFromComment = parts[1].trim();
+            if (parts.length >= 4) {
+              driverId = parts[0].trim();
+              bonusId = parseInt(parts[1].trim());
+              batchId = parts[3].trim();
+            }
           }
 
-          const [drivers] = await connection.query(
-            "SELECT driver_id FROM drivers WHERE phone_number LIKE ?",
-            [`%${rowData.phone}`]
+          // If comment parsing failed, try to find driver by phone (fallback)
+          if (!driverId || !bonusId) {
+            const [drivers] = await connection.query(
+              "SELECT driver_id FROM drivers WHERE phone_number LIKE ?",
+              [`%${rowData.phone}`]
+            );
+
+            if (drivers.length > 0) {
+              driverId = drivers[0].driver_id;
+              // Without bonus_id, try to find latest processing payment
+              const [payments] = await connection.query(
+                "SELECT id, batch_internal_id FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
+                [driverId]
+              );
+
+              if (payments.length > 0) {
+                const payment = payments[0];
+                await connection.query(
+                  "UPDATE payments SET status = 'paid', payment_date = NOW() WHERE id = ?",
+                  [payment.id]
+                );
+
+                // Update batch status if all payments are paid
+                if (payment.batch_internal_id) {
+                  const [remaining] = await connection.query(
+                    "SELECT COUNT(*) as count FROM payments WHERE batch_internal_id = ? AND status != 'paid'",
+                    [payment.batch_internal_id]
+                  );
+                  if (remaining[0].count === 0) {
+                    await connection.query(
+                      "UPDATE payment_batches SET status = 'paid' WHERE id = ?",
+                      [payment.batch_internal_id]
+                    );
+                  }
+                }
+
+                await AuditService.log(
+                  req.user.id,
+                  "Reconcile Payment",
+                  "payment",
+                  payment.id,
+                  { driver_id: driverId }
+                );
+                results.success++;
+              }
+            }
+            continue;
+          }
+
+          // Find the specific bonus payment
+          const [bonusPayment] = await connection.query(
+            `SELECT 
+              p.id as payment_id,
+              p.batch_internal_id,
+              p.status,
+              b.driver_id
+            FROM bonuses b
+            JOIN payments p ON b.payment_id = p.id
+            WHERE b.id = ? AND b.driver_id = ?`,
+            [bonusId, driverId]
           );
 
-          if (drivers.length > 0) {
-            const driver = drivers[0];
-            let payments;
+          if (bonusPayment.length > 0) {
+            const payment = bonusPayment[0];
 
-            if (batchIdFromComment) {
-              [payments] = await connection.query(
-                "SELECT id, batch_internal_id FROM payments WHERE driver_id = ? AND batch_id = ? AND status = 'processing' LIMIT 1",
-                [driver.driver_id, batchIdFromComment]
-              );
-            } else {
-              [payments] = await connection.query(
-                "SELECT id, batch_internal_id FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
-                [driver.driver_id]
-              );
-            }
-
-            if (payments.length > 0) {
-              const payment = payments[0];
+            // Only update if status is processing
+            if (payment.status === "processing") {
               await connection.query(
                 "UPDATE payments SET status = 'paid', payment_date = NOW() WHERE id = ?",
-                [payment.id]
+                [payment.payment_id]
               );
 
-              // IF there was a batch_internal_id, we might need to update the batch status
+              // Update batch status if all payments in batch are paid
               if (payment.batch_internal_id) {
-                // Check if all payments in this batch are now paid
                 const [remaining] = await connection.query(
                   "SELECT COUNT(*) as count FROM payments WHERE batch_internal_id = ? AND status != 'paid'",
                   [payment.batch_internal_id]
@@ -1005,8 +1046,12 @@ const paymentController = {
                 req.user.id,
                 "Reconcile Payment",
                 "payment",
-                payment.id,
-                { driver_id: driver.driver_id, batch_id: batchIdFromComment }
+                payment.payment_id,
+                {
+                  driver_id: payment.driver_id,
+                  bonus_id: bonusId,
+                  batch_id: batchId,
+                }
               );
               results.success++;
             }
@@ -1033,8 +1078,7 @@ const paymentController = {
       });
     } catch (error) {
       if (connection) await connection.rollback();
-      console.error("Reconciliation processing error:", error);
-      res.status(500).json({ message: "Processing failed: " + error.message });
+      throw error;
     } finally {
       // Fix #5: Ensure file cleanup in finally block
       if (connection) connection.release();
@@ -1046,62 +1090,56 @@ const paymentController = {
         }
       }
     }
-  },
+  }),
 
-  getBatches: async (req, res) => {
-    try {
-      const { page = 1, limit = 20 } = req.query;
-      const offset = (parseInt(page) - 1) * parseInt(limit);
-      const limitNum = parseInt(limit);
+  getBatches: catchAsync(async (req, res, next) => {
+    const { page = 1, limit = 20 } = req.query;
+    const offset = (parseInt(page) - 1) * parseInt(limit);
+    const limitNum = parseInt(limit);
 
-      const [batches] = await pool.query(
-        `SELECT b.*, u.full_name as exported_by_name,
+    const [batches] = await pool.query(
+      `SELECT b.*, u.full_name as exported_by_name,
                 (SELECT COUNT(*) FROM payments WHERE batch_internal_id = b.id AND status = 'paid') as paid_count,
                 b.driver_count as total_count
          FROM payment_batches b 
          LEFT JOIN users u ON b.exported_by = u.id 
          ORDER BY b.exported_at DESC 
          LIMIT ? OFFSET ?`,
-        [limitNum, offset]
-      );
+      [limitNum, offset]
+    );
 
-      const [countRows] = await pool.query(
-        "SELECT COUNT(*) as total FROM payment_batches"
-      );
+    const [countRows] = await pool.query(
+      "SELECT COUNT(*) as total FROM payment_batches"
+    );
 
-      res.json({
-        batches,
-        pagination: {
-          page: parseInt(page),
-          total: countRows[0].total,
-          total_pages: Math.ceil(countRows[0].total / limitNum),
-        },
-      });
-    } catch (error) {
-      console.error("Get batches error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    res.json({
+      batches,
+      pagination: {
+        page: parseInt(page),
+        total: countRows[0].total,
+        total_pages: Math.ceil(countRows[0].total / limitNum),
+      },
+    });
+  }),
+
+  downloadBatchExcel: catchAsync(async (req, res, next) => {
+    const { batchId } = req.params;
+
+    // Get batch metadata
+    const [batchRows] = await pool.query(
+      "SELECT * FROM payment_batches WHERE batch_id = ?",
+      [batchId]
+    );
+
+    if (batchRows.length === 0) {
+      throw new AppError("Batch not found", 404);
     }
-  },
 
-  downloadBatchExcel: async (req, res) => {
-    try {
-      const { batchId } = req.params;
+    const batch = batchRows[0];
 
-      // Get batch metadata
-      const [batchRows] = await pool.query(
-        "SELECT * FROM payment_batches WHERE batch_id = ?",
-        [batchId]
-      );
-
-      if (batchRows.length === 0) {
-        return res.status(404).json({ message: "Batch not found" });
-      }
-
-      const batch = batchRows[0];
-
-      // Get payments for this batch
-      const [exportRows] = await pool.query(
-        `
+    // Get payments for this batch
+    const [exportRows] = await pool.query(
+      `
         SELECT 
             d.driver_id, 
             d.phone_number,
@@ -1111,72 +1149,68 @@ const paymentController = {
         WHERE p.batch_internal_id = ?
         ORDER BY p.total_amount DESC
       `,
-        [batch.id]
-      );
+      [batch.id]
+    );
 
-      const ExcelJS = require("exceljs");
-      const workbook = new ExcelJS.Workbook();
-      const worksheet = workbook.addWorksheet("Pending Payments");
+    const ExcelJS = require("exceljs");
+    const workbook = new ExcelJS.Workbook();
+    const worksheet = workbook.addWorksheet("Pending Payments");
 
-      const tableData = exportRows.map((row) => {
-        const rawPhone = row.phone_number || "";
-        const digits = rawPhone.replace(/\D/g, "");
-        const phone = digits.length >= 9 ? digits.slice(-9) : digits;
+    const tableData = exportRows.map((row) => {
+      const rawPhone = row.phone_number || "";
+      const digits = rawPhone.replace(/\D/g, "");
+      const phone = digits.length >= 9 ? digits.slice(-9) : digits;
 
-        return [
-          "MSISDN",
-          phone,
-          "",
-          parseFloat(row.total_amount),
-          `${row.driver_id},${batchId}`,
-        ];
-      });
+      return [
+        "MSISDN",
+        phone,
+        "",
+        parseFloat(row.total_amount),
+        `${row.driver_id},${batchId}`,
+      ];
+    });
 
-      worksheet.addTable({
-        name: "PendingPaymentsTable",
-        ref: "A1",
-        headerRow: true,
-        totalsRow: false,
-        style: {
-          theme: "TableStyleMedium2",
-          showRowStripes: true,
-        },
-        columns: [
-          { name: "IdentifierType", filterButton: true },
-          { name: "IdentifierValue", filterButton: true },
-          { name: "Validation KYC value(O)", filterButton: true },
-          { name: "Amount", filterButton: true },
-          { name: "Comment", filterButton: true },
-        ],
-        rows: tableData,
-      });
+    worksheet.addTable({
+      name: "PendingPaymentsTable",
+      ref: "A1",
+      headerRow: true,
+      totalsRow: false,
+      style: {
+        theme: "TableStyleMedium2",
+        showRowStripes: true,
+      },
+      columns: [
+        { name: "IdentifierType", filterButton: true },
+        { name: "IdentifierValue", filterButton: true },
+        { name: "Validation KYC value(O)", filterButton: true },
+        { name: "Amount", filterButton: true },
+        { name: "Comment", filterButton: true },
+      ],
+      rows: tableData,
+    });
 
-      worksheet.getColumn(1).width = 15;
-      worksheet.getColumn(2).width = 18;
-      worksheet.getColumn(3).width = 25;
-      worksheet.getColumn(4).width = 15;
-      worksheet.getColumn(5).width = 50;
-      worksheet.getColumn(4).numFmt = "#,##0.00";
-      worksheet.getColumn(1).alignment = { horizontal: "center" };
-      worksheet.getColumn(2).alignment = { horizontal: "left" };
-      worksheet.getColumn(4).alignment = { horizontal: "right" };
+    worksheet.getColumn(1).width = 15;
+    worksheet.getColumn(2).width = 18;
+    worksheet.getColumn(3).width = 25;
+    worksheet.getColumn(4).width = 15;
+    worksheet.getColumn(5).width = 50;
+    worksheet.getColumn(4).numFmt = "#,##0.00";
+    worksheet.getColumn(1).alignment = { horizontal: "center" };
+    worksheet.getColumn(2).alignment = { horizontal: "left" };
+    worksheet.getColumn(4).alignment = { horizontal: "right" };
 
-      const filename = `G2G_Batch_${batchId.replace(/-/g, "_")}.xlsx`;
-      res.setHeader(
-        "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-      );
-      res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
+    const filename = `G2G_Batch_${batchId.replace(/-/g, "_")}.xlsx`;
+    res.setHeader(
+      "Content-Type",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    );
+    res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
 
-      await workbook.xlsx.write(res);
-      res.end();
-    } catch (error) {
-      console.error("Download batch error:", error);
-      res.status(500).json({ message: "Failed to generate Excel file" });
-    }
-  },
+    await workbook.xlsx.write(res);
+    res.end();
+  }),
 
-  revertPayment: async (req, res) => {
+  revertPayment: catchAsync(async (req, res, next) => {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -1184,8 +1218,7 @@ const paymentController = {
       const { password } = req.body;
 
       if (!password) {
-        await connection.rollback();
-        return res.status(400).json({ message: "Password is required" });
+        throw new AppError("Password is required", 400);
       }
 
       // 1. Verify Password
@@ -1198,8 +1231,7 @@ const paymentController = {
       const isValid = await bcrypt.compare(password, users[0].password_hash);
 
       if (!isValid) {
-        await connection.rollback();
-        return res.status(401).json({ message: "Invalid password" });
+        throw new AppError("Invalid password", 403);
       }
 
       // 2. Fetch Payment Details
@@ -1209,8 +1241,7 @@ const paymentController = {
       );
 
       if (payments.length === 0) {
-        await connection.rollback();
-        return res.status(404).json({ message: "Payment not found" });
+        throw new AppError("Payment not found", 404);
       }
 
       const payment = payments[0];
@@ -1229,8 +1260,8 @@ const paymentController = {
           [paymentId]
         );
 
-        // B. Find and Void associated Verification Penalty Debts
-        // We find debts linked to these bonuses with reason 'Verification Penalty'
+        // B. Find and Void associated Additional Withholding Tax Debts
+        // We find debts linked to these bonuses with reason 'Additional Withholding Tax'
         const bonusIds = revertBonuses.map((b) => b.id);
         const placeholder = bonusIds.map(() => "?").join(",");
 
@@ -1239,7 +1270,7 @@ const paymentController = {
           `SELECT DISTINCT d.id 
            FROM driver_debts d
            JOIN bonus_deductions bd ON d.id = bd.debt_id
-           WHERE bd.bonus_id IN (${placeholder}) AND d.reason = 'Verification Penalty'`,
+           WHERE bd.bonus_id IN (${placeholder}) AND d.reason = 'Additional Withholding Tax'`,
           [...bonusIds]
         );
 
@@ -1295,25 +1326,24 @@ const paymentController = {
       await connection.commit();
       res.json({ success: true, message: "Payment reverted successfully" });
     } catch (error) {
-      await connection.rollback();
-      console.error("Revert payment error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      if (connection) await connection.rollback();
+      throw error;
     } finally {
-      connection.release();
+      if (connection) connection.release();
     }
-  },
-  search: async (req, res) => {
-    try {
-      const { q, status, page = 1, limit = 25 } = req.query;
+  }),
 
-      const pageNum = parseInt(page) || 1;
-      const limitNum = parseInt(limit) || 25;
-      const offset = (pageNum - 1) * limitNum;
+  search: catchAsync(async (req, res, next) => {
+    const { q, status, page = 1, limit = 25 } = req.query;
 
-      const qStr = q ? `%${q}%` : "%";
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 25;
+    const offset = (pageNum - 1) * limitNum;
 
-      // Part 1: Actual payment records
-      let pQuery = `
+    const qStr = q ? `%${q}%` : "%";
+
+    // Part 1: Actual payment records
+    let pQuery = `
         SELECT 
             CAST(p.id AS CHAR) COLLATE utf8mb4_general_ci as id, 
             p.driver_id as driver_ref_id, 
@@ -1326,11 +1356,11 @@ const paymentController = {
         WHERE (p.id LIKE ? OR d.full_name LIKE ? OR d.driver_id LIKE ?)
         ${status && status !== "all" ? "AND p.status = ?" : ""}
       `;
-      let pParams = [qStr, qStr, qStr];
-      if (status && status !== "all") pParams.push(status);
+    let pParams = [qStr, qStr, qStr];
+    if (status && status !== "all") pParams.push(status);
 
-      // Part 2: Accumulated bonuses (floating pending)
-      let aQuery = `
+    // Part 2: Accumulated bonuses (floating pending)
+    let aQuery = `
         SELECT 
             CONCAT('PEND-', d.driver_id) COLLATE utf8mb4_general_ci as id, 
             d.driver_id as driver_ref_id, 
@@ -1345,47 +1375,43 @@ const paymentController = {
         GROUP BY d.driver_id
         HAVING total_amount > 0
       `;
-      let aParams = [qStr, qStr];
+    let aParams = [qStr, qStr];
 
-      let finalSubQuery = "";
-      let finalParams = [];
+    let finalSubQuery = "";
+    let finalParams = [];
 
-      if (!status || status === "all" || status === "pending") {
-        finalSubQuery = `(${pQuery}) UNION ALL (${aQuery})`;
-        finalParams = [...pParams, ...aParams];
-      } else {
-        finalSubQuery = pQuery;
-        finalParams = pParams;
-      }
+    if (!status || status === "all" || status === "pending") {
+      finalSubQuery = `(${pQuery}) UNION ALL (${aQuery})`;
+      finalParams = [...pParams, ...aParams];
+    } else {
+      finalSubQuery = pQuery;
+      finalParams = pParams;
+    }
 
-      // Wrap for total count and pagination
-      const [countRows] = await pool.query(
-        `SELECT COUNT(*) as total FROM (${finalSubQuery}) as t`,
-        finalParams
-      );
-      const total = countRows[0] ? countRows[0].total : 0;
+    // Wrap for total count and pagination
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total FROM (${finalSubQuery}) as t`,
+      finalParams
+    );
+    const total = countRows[0] ? countRows[0].total : 0;
 
-      const [rows] = await pool.query(
-        `SELECT * FROM (${finalSubQuery}) as t 
+    const [rows] = await pool.query(
+      `SELECT * FROM (${finalSubQuery}) as t 
          ORDER BY payment_date DESC 
          LIMIT ? OFFSET ?`,
-        [...finalParams, limitNum, offset]
-      );
+      [...finalParams, limitNum, offset]
+    );
 
-      res.json({
-        payments: rows,
-        total: total,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total_pages: Math.ceil(total / limitNum),
-        },
-      });
-    } catch (error) {
-      console.error("Search payments error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      payments: rows,
+      total: total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total_pages: Math.ceil(total / limitNum),
+      },
+    });
+  }),
 };
 
 module.exports = paymentController;

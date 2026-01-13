@@ -7,13 +7,13 @@ router.use(authenticate);
 
 const authorize = require("../middleware/authorize"); // Correct path
 
-// Create new debt (Admin only)
+// Create new debt (Admins only)
 router.post("/", authorize(["admin", "director"]), debtController.createDebt);
 
 // Search debts
 router.get("/search", debtController.search);
 
-// Debt Analytics (Admin only)
+// Debt Analytics (Admins only)
 router.get(
   "/analytics/overview",
   authorize(["admin", "director", "manager"]),

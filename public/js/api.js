@@ -21,18 +21,31 @@ const api = {
       headers,
     });
 
-    const data = await response.json();
+    let data;
+    try {
+      data = await response.json();
+    } catch (e) {
+      data = { message: "Unexpected server response" };
+    }
 
     if (!response.ok) {
-      if (response.status === 401 || response.status === 403) {
-        // Handle unauthorized/token expired
+      // Handle unauthorized/token expired
+      if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
         if (window.location.pathname !== "/pages/login.html") {
           window.location.href = "/pages/login.html";
+          return;
         }
       }
-      throw new Error(data.message || "Something went wrong");
+
+      const errorMessage =
+        data.message || data.error?.message || "Something went wrong";
+      const error = new Error(errorMessage);
+      error.status = data.status || "fail";
+      error.statusCode = response.status;
+      error.data = data;
+      throw error;
     }
 
     return data;

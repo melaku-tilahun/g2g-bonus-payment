@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Import Bonuses - Driver Bonus Platform</title>
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+    <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
+</head>
+<body class="bg-light">
+    <!-- Header injected by ui.js -->
+
+    <div class="main-wrapper">
+        <div class="row justify-content-center">
+            <div class="col-lg-10">
+                <div class="d-flex justify-content-between align-items-end mb-4">
+                    <div>
+                        <h1 class="display-6 mb-1">Import Weekly Bonuses</h1>
+                        <p class="text-muted fs-5 mb-0">Import your Yango Excel files to update driver balances.</p>
+                    </div>
+                </div>
+
+                <div class="row g-4">
+                    <!-- Left Column: Upload Form -->
+                    <div class="col-md-7">
+                        <div class="card-premium p-4 h-100">
+                            <h3 class="h5 mb-4 d-flex align-items-center">
+                                <span class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center me-2" style="width: 24px; height: 24px; font-size: 0.8rem;">1</span>
+                                Select Excel File
+                            </h3>
+                            
+                            <form id="importForm">
+                                <div id="dropZone" class="mb-4 text-center p-5 border-2 border-dashed rounded-3 bg-light" style="border-color: #cbd5e1; cursor: pointer; transition: all 0.2s;">
+                                    <div class="mb-3 fs-1 text-primary">
+                                        <i class="fas fa-file-excel"></i>
+                                    </div>
+                                    <h5 class="fw-bold">Drop Excel file here</h5>
+                                    <p class="text-muted small">or click to browse your computer</p>
+                                    <p class="text-muted smaller mt-2" style="font-size: 0.75rem;">Required Columns: ID, Full Name, Date, Net Payout, Work terms, Status, Balance, Payout, Bank fee</p>
+                                    <input type="file" id="excelFile" accept=".xlsx,.xls" class="d-none">
+                                </div>
+
+                                <div id="fileSelectionInfo" class="d-none mb-4 p-3 rounded-3 bg-white border d-flex align-items-center justify-content-between">
+                                    <div class="d-flex align-items-center">
+                                        <i class="fas fa-check-circle text-success fs-4 me-3"></i>
+                                        <div>
+                                            <div id="selectedFileName" class="fw-bold text-dark">filename.xlsx</div>
+                                            <div id="selectedFileSize" class="small text-muted">0.0 MB</div>
+                                        </div>
+                                    </div>
+                                    <button type="button" id="removeFileBtn" class="btn btn-link text-danger p-0"><i class="fas fa-times"></i></button>
+                                </div>
+
+                                <!-- File Analysis Section (Replaces Date Picker) -->
+                                <div id="fileAnalysis" class="d-none mb-4">
+                                    <h5 class="fw-bold text-muted mb-3 small text-uppercase">File Analysis</h5>
+                                    <div class="p-4 bg-light rounded-3 border">
+                                        <div class="d-flex align-items-center mb-3">
+                                            <div class="bg-primary bg-opacity-10 text-primary rounded px-3 py-2 me-3">
+                                                <i class="fas fa-calendar-alt fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <div class="small text-muted fw-bold">DETECTED WEEK DATE</div>
+                                                <div class="h5 mb-0 fw-bold text-dark" id="detectedDateDisplay">Scanning...</div>
+                                            </div>
+                                        </div>
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-success bg-opacity-10 text-success rounded px-3 py-2 me-3">
+                                                <i class="fas fa-check-circle fs-4"></i>
+                                            </div>
+                                            <div>
+                                                <div class="small text-muted fw-bold">VALIDATION STATUS</div>
+                                                <div class="h5 mb-0 fw-bold text-success">Ready to Import</div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="form-text mt-2 small text-muted"><i class="fas fa-info-circle me-1"></i> The system detected this date from your file. Validations will be performed against this date.</div>
+                                </div>
+
+                                <button type="submit" id="importBtn" class="btn btn-brand w-100 py-3 shadow-none mt-2" disabled>
+                                    <i class="fas fa-file-import me-2"></i> Start Import Process
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Right Column: Verification & Checklist -->
+                    <div class="col-md-5">
+                        <div class="card-premium p-4 h-100">
+                            <h3 class="h5 mb-4">Verification Checklist</h3>
+                            
+                            <div id="validationChecklist" class="list-group list-group-flush border-0">
+                                <div class="list-group-item px-0 py-3 d-flex align-items-center border-bottom-0 opacity-50" data-item="readable">
+                                    <div class="checklist-icon me-3 fs-5"><i class="far fa-circle text-muted"></i></div>
+                                    <div>File is readable</div>
+                                </div>
+                                <div class="list-group-item px-0 py-3 d-flex align-items-center border-bottom-0 opacity-50" data-item="sheet">
+                                    <div class="checklist-icon me-3 fs-5"><i class="far fa-circle text-muted"></i></div>
+                                    <div>Single worksheet only</div>
+                                </div>
+                                <div class="list-group-item px-0 py-3 d-flex align-items-center border-bottom-0 opacity-50" data-item="columns">
+                                    <div class="checklist-icon me-3 fs-5"><i class="far fa-circle text-muted"></i></div>
+                                    <div>Required columns present</div>
+                                </div>
+                                <div class="list-group-item px-0 py-3 d-flex align-items-center border-bottom-0 opacity-50" data-item="data">
+                                    <div class="checklist-icon me-3 fs-5"><i class="far fa-circle text-muted"></i></div>
+                                    <div>Valid record formatting</div>
+                                </div>
+                                <div class="list-group-item px-0 py-3 d-flex align-items-center border-bottom-0 opacity-50" data-item="date">
+                                    <div class="checklist-icon me-3 fs-5"><i class="far fa-circle text-muted"></i></div>
+                                    <div>Dates are consistent</div>
+                                </div>
+                            </div>
+                            
+                            <div id="validationStatus" class="mt-4 p-3 rounded-3 d-none">
+                                <!-- Status messages go here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Results Section (Initially Hidden) -->
+                <div id="importResults" class="mt-5 d-none">
+                    <div class="card-premium p-5 border-0 bg-white">
+                        <div class="text-center mb-5">
+                            <div id="resultIcon" class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3 shadow-lg" style="width: 80px; height: 80px; font-size: 2.5rem;">
+                                <i class="fas fa-check"></i>
+                            </div>
+                            <h2 class="h3 fw-bold" id="resultTitle">Import Successfully Completed!</h2>
+                            <p class="text-muted" id="resultSubtitle">Details of the processed file are below.</p>
+                        </div>
+
+                        <div class="row g-4 mb-5">
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 bg-light rounded-3 text-center border">
+                                    <div class="text-muted small fw-bold text-uppercase mb-1">Total Found</div>
+                                    <div class="h3 mb-0 fw-bold" id="resTotal">0</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 bg-light rounded-3 text-center border border-success border-opacity-25" style="border-left: 4px solid var(--success-green) !important;">
+                                    <div class="text-muted small fw-bold text-uppercase mb-1">Imported</div>
+                                    <div class="h3 mb-0 fw-bold text-success" id="resSuccess">0</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 bg-light rounded-3 text-center border border-warning border-opacity-25" style="border-left: 4px solid var(--warning-orange) !important;">
+                                    <div class="text-muted small fw-bold text-uppercase mb-1">Skipped</div>
+                                    <div class="h3 mb-0 fw-bold text-warning" id="resSkipped">0</div>
+                                </div>
+                            </div>
+                            <div class="col-sm-6 col-md-3">
+                                <div class="p-3 bg-light rounded-3 text-center border border-danger border-opacity-25" style="border-left: 4px solid var(--error-red) !important;">
+                                    <div class="text-muted small fw-bold text-uppercase mb-1">Errors</div>
+                                    <div class="h3 mb-0 fw-bold text-danger" id="resErrors">0</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="errorDetailsSection" class="d-none">
+                            <h4 class="h6 text-uppercase fw-bold text-danger mb-3"><i class="fas fa-exclamation-triangle me-2"></i> Error Details</h4>
+                            <div class="table-responsive rounded-3 border">
+                                <table class="table table-hover mb-0">
+                                    <thead class="bg-light">
+                                        <tr><th class="small">Row</th><th class="small">Description</th></tr>
+                                    </thead>
+                                    <tbody id="errorTableBody"></tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <div class="text-center mt-5">
+                            <button onclick="window.location.reload()" class="btn btn-outline-secondary me-3 px-4 rounded-pill">Import Another</button>
+                            <a href="/index.html" class="btn btn-brand px-5 rounded-pill shadow-none me-3">Back to Dashboard</a>
+                            <button onclick="downloadReport()" class="btn btn-outline-primary px-4 rounded-pill border-2"><i class="fas fa-download me-2"></i> Download Report</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- History Section -->
+                <div class="mt-5">
+                    <h3 class="h4 mb-4">Recent Import History</h3>
+                    <div class="card-premium p-0 overflow-hidden shadow-none border">
+                        <div class="table-responsive">
+                            <table class="table table-hover mb-0">
+                                <thead class="bg-light">
+                                    <tr class="small text-uppercase text-muted">
+                                        <th class="ps-4">Date</th>
+                                        <th>File Name</th>
+                                        <th>Week Date</th>
+                                        <th class="text-center">Total</th>
+                                        <th class="text-center text-success">Success</th>
+                                        <th class="text-center text-warning">Skipped</th>
+                                        <th class="text-center text-danger">Errors</th>
+                                        <th>Imported By</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTableBody">
+                                    <tr><td colspan="8" class="text-center py-4"><span class="spinner-border spinner-border-sm text-primary"></span></td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/ui.js"></script>
+    <script src="../js/import.js"></script>
+</body>
+</html>

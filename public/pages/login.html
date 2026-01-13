@@ -4,9 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Driver Bonus Platform</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../css/styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
     <style>
         body {
             background: linear-gradient(135deg, #f3f4f6 0%, #e5e7eb 100%);
@@ -38,31 +38,64 @@
                 <div id="loginAlert" class="alert alert-danger d-none border-0 small py-3 mb-4 rounded-3 shadow-sm"></div>
                 
                 <form id="loginForm">
-                    <div class="mb-4">
-                        <label for="email" class="form-label small fw-bold text-muted text-uppercase">Work Email</label>
-                        <div class="input-group input-group-lg bg-light rounded-3 overflow-hidden border">
-                            <span class="input-group-text border-0 bg-transparent text-muted"><i class="fas fa-envelope"></i></span>
-                            <input type="email" class="form-control border-0 bg-transparent shadow-none" id="email" placeholder="name@company.com" required>
+                    <div id="credentialsSection">
+                        <div class="mb-4">
+                            <label for="email" class="form-label small fw-bold text-muted text-uppercase">Work Email</label>
+                            <div class="input-group input-group-lg bg-light rounded-3 overflow-hidden border">
+                                <span class="input-group-text border-0 bg-transparent text-muted"><i class="fas fa-envelope"></i></span>
+                                <input type="email" class="form-control border-0 bg-transparent shadow-none" id="email" placeholder="name@g2gitsolutions.com" required>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <div class="d-flex justify-content-between">
+                                <label for="password" class="form-label small fw-bold text-muted text-uppercase">Password</label>
+                                <a href="#" class="small text-decoration-none fw-bold">Forgot?</a>
+                            </div>
+                            <div class="input-group input-group-lg bg-light rounded-3 overflow-hidden border">
+                                <span class="input-group-text border-0 bg-transparent text-muted"><i class="fas fa-lock"></i></span>
+                                <input type="password" class="form-control border-0 bg-transparent shadow-none" id="password" placeholder="••••••••" required>
+                            </div>
+                        </div>
+                        
+                        <button type="submit" class="btn btn-brand w-100 py-3 shadow-sm rounded-3 mt-2 fs-5">
+                            Sign In to Dashboard
+                        </button>
+                    </div>
+
+                    <div id="otpSection" class="d-none">
+                        <div class="text-center mb-4">
+                            <div class="bg-primary bg-opacity-10 text-primary d-inline-flex p-3 rounded-circle mb-3">
+                                <i class="fas fa-shield-alt fa-2x"></i>
+                            </div>
+                            <h4 class="fw-bold">Verify Identity</h4>
+                            <p class="text-muted small">We've sent a 6-digit code to <span id="displayEmail" class="fw-bold"></span></p>
+                        </div>
+
+                        <div class="mb-4">
+                            <label for="otp" class="form-label small fw-bold text-muted text-uppercase text-center w-100">Enter Verification Code</label>
+                            <div class="input-group input-group-lg bg-light rounded-3 overflow-hidden border">
+                                <span class="input-group-text border-0 bg-transparent text-muted"><i class="fas fa-key"></i></span>
+                                <input type="text" class="form-control border-0 bg-transparent shadow-none text-center fw-bold fs-3" id="otp" placeholder="••••••" maxlength="6" inputmode="numeric">
+                            </div>
+                        </div>
+
+                        <button type="button" id="verifyBtn" class="btn btn-brand w-100 py-3 shadow-sm rounded-3 mb-3 fs-5">
+                            Verify & Access System
+                        </button>
+                        
+                        <div class="text-center">
+                            <button type="button" class="btn btn-link btn-sm text-decoration-none" onclick="location.reload()">
+                                <i class="fas fa-arrow-left me-1"></i> Back to Login
+                            </button>
+                            <button type="button" id="devBypassBtn" class="btn btn-link btn-sm text-decoration-none text-muted small ms-2" style="font-size: 0.7rem;">
+                                Dev Bypass
+                            </button>
                         </div>
                     </div>
-                    
-                    <div class="mb-4">
-                        <div class="d-flex justify-content-between">
-                            <label for="password" class="form-label small fw-bold text-muted text-uppercase">Password</label>
-                            <a href="#" class="small text-decoration-none fw-bold">Forgot?</a>
-                        </div>
-                        <div class="input-group input-group-lg bg-light rounded-3 overflow-hidden border">
-                            <span class="input-group-text border-0 bg-transparent text-muted"><i class="fas fa-lock"></i></span>
-                            <input type="password" class="form-control border-0 bg-transparent shadow-none" id="password" placeholder="••••••••" required>
-                        </div>
-                    </div>
-                    
-                    <button type="submit" class="btn btn-brand w-100 py-3 shadow-sm rounded-3 mt-2 fs-5">
-                        Sign In to Dashboard
-                    </button>
-                    
+
                     <div class="text-center mt-5">
-                        <p class="small text-muted mb-0">© 2025 Yango Ride Service Provider</p>
+                        <p class="small text-muted mb-0">© 2025 G2G IT Solutions</p>
                         <p class="small text-muted">A G2G Bonus Management Solution</p>
                     </div>
                 </form>
@@ -75,6 +108,12 @@
     <script>
         const loginForm = document.getElementById('loginForm');
         const loginAlert = document.getElementById('loginAlert');
+        const credentialsSection = document.getElementById('credentialsSection');
+        const otpSection = document.getElementById('otpSection');
+        const verifyBtn = document.getElementById('verifyBtn');
+        const displayEmail = document.getElementById('displayEmail');
+
+        let pendingEmail = '';
 
         loginForm.addEventListener('submit', async (e) => {
             e.preventDefault();
@@ -83,28 +122,71 @@
 
             try {
                 loginAlert.classList.add('d-none');
-                const btn = loginForm.querySelector('button');
+                const btn = loginForm.querySelector('button[type="submit"]');
                 const originalText = btn.innerHTML;
                 btn.disabled = true;
                 btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Signing in...';
 
-                const response = await api.post('/auth/login', { email, password });
+                const response = await auth.login(email, password);
                 
-                if (response.success) {
-                    auth.setSession(response.token, response.user);
-                    window.location.href = '/index.html';
-                } else {
-                    loginAlert.textContent = response.error || 'Login failed';
+                if (response.otpRequired) {
+                    pendingEmail = email;
+                    displayEmail.textContent = email;
+                    credentialsSection.classList.add('d-none');
+                    otpSection.classList.remove('d-none');
+                    loginAlert.className = 'alert alert-info border-0 small py-3 mb-4 rounded-3 shadow-sm';
+                    loginAlert.textContent = response.message;
                     loginAlert.classList.remove('d-none');
-                    btn.disabled = false;
-                    btn.innerHTML = originalText;
                 }
             } catch (error) {
+                loginAlert.className = 'alert alert-danger d-none border-0 small py-3 mb-4 rounded-3 shadow-sm';
                 loginAlert.textContent = error.message;
                 loginAlert.classList.remove('d-none');
-                loginForm.querySelector('button').disabled = false;
-                loginForm.querySelector('button').innerHTML = 'Sign In to Dashboard';
+                loginForm.querySelector('button[type="submit"]').disabled = false;
+                loginForm.querySelector('button[type="submit"]').innerHTML = 'Sign In to Dashboard';
             }
+        });
+
+        verifyBtn.addEventListener('click', async () => {
+            if (!pendingEmail) {
+                loginAlert.className = 'alert alert-danger border-0 small py-3 mb-4 rounded-3 shadow-sm';
+                loginAlert.textContent = 'Invalid session. Please login with your password first.';
+                loginAlert.classList.remove('d-none');
+                setTimeout(() => location.reload(), 2000);
+                return;
+            }
+            const otp = document.getElementById('otp').value;
+            if (!otp || otp.length !== 6) {
+                loginAlert.className = 'alert alert-danger d-none border-0 small py-3 mb-4 rounded-3 shadow-sm';
+                loginAlert.textContent = 'Please enter a valid 6-digit code';
+                loginAlert.classList.remove('d-none');
+                return;
+            }
+
+            try {
+                loginAlert.classList.add('d-none');
+                verifyBtn.disabled = true;
+                const originalText = verifyBtn.innerHTML;
+                verifyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Verifying...';
+
+                const response = await auth.verifyOTP(pendingEmail, otp);
+                
+                if (response.success) {
+                    window.location.href = '/index.html';
+                }
+            } catch (error) {
+                loginAlert.className = 'alert alert-danger d-none border-0 small py-3 mb-4 rounded-3 shadow-sm';
+                loginAlert.textContent = error.message;
+                loginAlert.classList.remove('d-none');
+                verifyBtn.disabled = false;
+                verifyBtn.innerHTML = 'Verify & Access System';
+            }
+        });
+
+        document.getElementById('devBypassBtn').addEventListener('click', () => {
+            const otpInput = document.getElementById('otp');
+            otpInput.value = '123456';
+            verifyBtn.click();
         });
     </script>
 </body>

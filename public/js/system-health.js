@@ -81,15 +81,15 @@ function updateDashboard(metrics, performance) {
 
   // Storage
   const totalStorage = (
-    parseFloat(metrics.storage.uploads_size_mb) +
+    parseFloat(metrics.storage.imports_size_mb) +
     parseFloat(metrics.storage.photos_size_mb)
   ).toFixed(2);
   document.getElementById(
     "storageSummary"
   ).textContent = `${totalStorage} MB Total`;
   document.getElementById(
-    "uploadsSize"
-  ).textContent = `${metrics.storage.uploads_size_mb} MB`;
+    "importsSize"
+  ).textContent = `${metrics.storage.imports_size_mb} MB`;
 
   // Environment
   document.getElementById("envPlatform").textContent = sys.platform;

@@ -336,7 +336,7 @@ document.addEventListener("DOMContentLoaded", async () => {
       if (
         data.managerPhoto.startsWith("http") ||
         data.managerPhoto.startsWith("data:image") ||
-        data.managerPhoto.startsWith("/uploads")
+        data.managerPhoto.startsWith("/imports")
       ) {
         photoImg.src = data.managerPhoto;
       } else {
@@ -968,7 +968,7 @@ function renderDriver(driver, bonuses, currentUser) {
         if (
           driver.manager_photo.startsWith("http") ||
           driver.manager_photo.startsWith("data:image") ||
-          driver.manager_photo.startsWith("/uploads")
+          driver.manager_photo.startsWith("/imports")
         ) {
           photoImg.src = driver.manager_photo;
         } else {

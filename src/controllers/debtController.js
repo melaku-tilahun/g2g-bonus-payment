@@ -1,7 +1,9 @@
 const pool = require("../config/database");
+const catchAsync = require("../utils/catchAsync");
+const AppError = require("../utils/appError");
 
 const debtController = {
-  createDebt: async (req, res) => {
+  createDebt: catchAsync(async (req, res, next) => {
     const connection = await pool.getConnection();
     try {
       await connection.beginTransaction();
@@ -9,7 +11,10 @@ const debtController = {
       const { driverId, amount, reason, notes } = req.body;
 
       if (!driverId || !amount || !reason) {
-        throw new Error("Missing required fields: driverId, amount, reason");
+        throw new AppError(
+          "Missing required fields: driverId, amount, reason",
+          400
+        );
       }
 
       // 0. Check if driver is verified
@@ -19,11 +24,11 @@ const debtController = {
       );
 
       if (driverResult.length === 0) {
-        throw new Error("Driver not found.");
+        throw new AppError("Driver not found.", 404);
       }
 
       if (!driverResult[0].verified) {
-        throw new Error("Cannot create debt for an unverified driver.");
+        throw new AppError("Cannot create debt for an unverified driver.", 400);
       }
 
       // 0.5. Check for processing payments (MUST be cleared or reverted first)
@@ -33,8 +38,9 @@ const debtController = {
       );
 
       if (processingPayments.length > 0) {
-        throw new Error(
-          "Driver has a processing payment. Please REVERT it (to apply debt) or CONFIRM(make payment) it first."
+        throw new AppError(
+          "Driver has a processing payment. Please REVERT it (to apply debt) or CONFIRM(make payment) it first.",
+          400
         );
       }
 
@@ -45,8 +51,9 @@ const debtController = {
       );
 
       if (existingDebts.length > 0) {
-        throw new Error(
-          "Driver already has an active debt. Please clear it first."
+        throw new AppError(
+          "Driver already has an active debt. Please clear it first.",
+          400
         );
       }
 
@@ -71,12 +78,17 @@ const debtController = {
         if (currentRemaining <= 0) break;
 
         // Calculate available amount in this bonus
-        // If final_payout is null, assume full net_payout is available
-        // If final_payout is already set (partial previous deduction), use that
-        let available =
-          bonus.final_payout !== null
-            ? parseFloat(bonus.final_payout)
-            : parseFloat(bonus.net_payout);
+        // If final_payout is set, use it (already has previous deductions)
+        // Otherwise calculate from gross - withholding (proper net)
+        let available;
+        if (bonus.final_payout !== null) {
+          available = parseFloat(bonus.final_payout);
+        } else {
+          // Calculate net from gross - withholding (for old records without final_payout)
+          const gross = parseFloat(bonus.gross_payout || 0);
+          const withholding = parseFloat(bonus.withholding_tax || 0);
+          available = gross - withholding;
+        }
 
         if (available > 0) {
           // Determine how much to take
@@ -116,116 +128,102 @@ const debtController = {
         deducted_retroactively: amount - currentRemaining,
       });
     } catch (error) {
-      await connection.rollback();
-      console.error("Create debt error:", error);
-      res
-        .status(500)
-        .json({ message: error.message || "Internal server error" });
+      if (connection) await connection.rollback();
+      throw error;
     } finally {
-      connection.release();
+      if (connection) connection.release();
     }
-  },
+  }),
 
-  search: async (req, res) => {
-    try {
-      const { q, status, page = 1, limit = 25 } = req.query;
+  search: catchAsync(async (req, res, next) => {
+    const { q, status, page = 1, limit = 25 } = req.query;
 
-      const pageNum = parseInt(page) || 1;
-      const limitNum = parseInt(limit) || 25;
-      const offset = (pageNum - 1) * limitNum;
+    const pageNum = parseInt(page) || 1;
+    const limitNum = parseInt(limit) || 25;
+    const offset = (pageNum - 1) * limitNum;
 
-      let whereConditions = [];
-      let queryParams = [];
+    let whereConditions = [];
+    let queryParams = [];
 
-      if (q) {
-        whereConditions.push(
-          "(dd.notes LIKE ? OR dd.reason LIKE ? OR d.full_name LIKE ? OR d.driver_id LIKE ?)"
-        );
-        queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
-      }
-
-      if (status && status !== "all") {
-        whereConditions.push("dd.status = ?");
-        queryParams.push(status);
-      }
-
-      const whereClause =
-        whereConditions.length > 0
-          ? "WHERE " + whereConditions.join(" AND ")
-          : "";
-
-      // Count Query
-      const [countRows] = await pool.query(
-        `SELECT COUNT(*) as total 
-         FROM driver_debts dd
-         JOIN drivers d ON dd.driver_id = d.driver_id
-         ${whereClause}`,
-        queryParams
+    if (q) {
+      whereConditions.push(
+        "(dd.notes LIKE ? OR dd.reason LIKE ? OR d.full_name LIKE ? OR d.driver_id LIKE ?)"
       );
-
-      const total = countRows[0] ? countRows[0].total : 0;
-
-      // Data Query
-      const [rows] = await pool.query(
-        `SELECT dd.*, d.full_name, d.driver_id as driver_ref_id
-         FROM driver_debts dd
-         JOIN drivers d ON dd.driver_id = d.driver_id
-         ${whereClause}
-         ORDER BY dd.created_at DESC
-         LIMIT ? OFFSET ?`,
-        [...queryParams, limitNum, offset]
-      );
-
-      res.json({
-        debts: rows,
-        total: total,
-        pagination: {
-          page: pageNum,
-          limit: limitNum,
-          total_pages: Math.ceil(total / limitNum),
-        },
-      });
-    } catch (error) {
-      console.error("Search debts error:", error);
-      res.status(500).json({ message: "Internal server error" });
+      queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`, `%${q}%`);
     }
-  },
 
-  getDebtsByDriver: async (req, res) => {
-    try {
-      const { driverId } = req.params;
-
-      // Get Debts
-      const [debts] = await pool.query(
-        `SELECT d.*, u.full_name as created_by_name 
-         FROM driver_debts d 
-         LEFT JOIN users u ON d.created_by = u.id 
-         WHERE d.driver_id = ? 
-         ORDER BY d.created_at DESC`,
-        [driverId]
-      );
-
-      // Get Deduction History
-      const [deductions] = await pool.query(
-        `SELECT bd.*, b.week_date, dd.reason 
-         FROM bonus_deductions bd 
-         JOIN bonuses b ON bd.bonus_id = b.id 
-         JOIN driver_debts dd ON bd.debt_id = dd.id 
-         WHERE b.driver_id = ? 
-         ORDER BY bd.created_at DESC`,
-        [driverId]
-      );
-
-      res.json({ debts, deductions });
-    } catch (error) {
-      console.error("Get debts error:", error);
-      res.status(500).json({ message: "Internal server error" });
+    if (status && status !== "all") {
+      whereConditions.push("dd.status = ?");
+      queryParams.push(status);
     }
-  },
 
-  getDebtOverview: async (req, res) => {
-    try {
-      const [overview] = await pool.query(`
+    const whereClause =
+      whereConditions.length > 0
+        ? "WHERE " + whereConditions.join(" AND ")
+        : "";
+
+    // Count Query
+    const [countRows] = await pool.query(
+      `SELECT COUNT(*) as total 
+       FROM driver_debts dd
+       JOIN drivers d ON dd.driver_id = d.driver_id
+       ${whereClause}`,
+      queryParams
+    );
+
+    const total = countRows[0] ? countRows[0].total : 0;
+
+    // Data Query
+    const [rows] = await pool.query(
+      `SELECT dd.*, d.full_name, d.driver_id as driver_ref_id
+       FROM driver_debts dd
+       JOIN drivers d ON dd.driver_id = d.driver_id
+       ${whereClause}
+       ORDER BY dd.created_at DESC
+       LIMIT ? OFFSET ?`,
+      [...queryParams, limitNum, offset]
+    );
+
+    res.json({
+      debts: rows,
+      total: total,
+      pagination: {
+        page: pageNum,
+        limit: limitNum,
+        total_pages: Math.ceil(total / limitNum),
+      },
+    });
+  }),
+
+  getDebtsByDriver: catchAsync(async (req, res, next) => {
+    const { driverId } = req.params;
+
+    // Get Debts
+    const [debts] = await pool.query(
+      `SELECT d.*, u.full_name as created_by_name 
+       FROM driver_debts d 
+       LEFT JOIN users u ON d.created_by = u.id 
+       WHERE d.driver_id = ? 
+       ORDER BY d.created_at DESC`,
+      [driverId]
+    );
+
+    // Get Deduction History
+    const [deductions] = await pool.query(
+      `SELECT bd.*, b.week_date, dd.reason 
+       FROM bonus_deductions bd 
+       JOIN bonuses b ON bd.bonus_id = b.id 
+       JOIN driver_debts dd ON bd.debt_id = dd.id 
+       WHERE b.driver_id = ? 
+       ORDER BY bd.created_at DESC`,
+      [driverId]
+    );
+
+    res.json({ debts, deductions });
+  }),
+
+  getDebtOverview: catchAsync(async (req, res, next) => {
+    const [overview] = await pool.query(`
         SELECT 
           COALESCE(SUM(amount), 0) as total_debt_issued,
           COALESCE(SUM(remaining_amount), 0) as total_outstanding,
@@ -235,14 +233,14 @@ const debtController = {
         WHERE status != 'void'
       `);
 
-      const [breakdown] = await pool.query(`
+    const [breakdown] = await pool.query(`
         SELECT reason, SUM(remaining_amount) as total_amount
         FROM driver_debts
         WHERE status = 'active'
         GROUP BY reason
       `);
 
-      const [topDebtors] = await pool.query(`
+    const [topDebtors] = await pool.query(`
         SELECT d.full_name, d.driver_id, dd.amount as total_amount, dd.remaining_amount,
                (SELECT MAX(created_at) FROM bonus_deductions WHERE debt_id = dd.id) as last_repayment_date
         FROM driver_debts dd
@@ -252,23 +250,18 @@ const debtController = {
         LIMIT 10
       `);
 
-      res.json({
-        success: true,
-        stats: {
-          ...overview[0],
-          breakdown_by_reason: breakdown,
-          top_debtors: topDebtors,
-        },
-      });
-    } catch (error) {
-      console.error("Get debt overview error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({
+      success: true,
+      stats: {
+        ...overview[0],
+        breakdown_by_reason: breakdown,
+        top_debtors: topDebtors,
+      },
+    });
+  }),
 
-  getAgingReport: async (req, res) => {
-    try {
-      const [rows] = await pool.query(`
+  getAgingReport: catchAsync(async (req, res, next) => {
+    const [rows] = await pool.query(`
         SELECT 
           COALESCE(SUM(CASE WHEN DATEDIFF(NOW(), created_at) <= 30 THEN remaining_amount ELSE 0 END), 0) as period_0_30,
           COALESCE(SUM(CASE WHEN DATEDIFF(NOW(), created_at) > 30 AND DATEDIFF(NOW(), created_at) <= 60 THEN remaining_amount ELSE 0 END), 0) as period_31_60,
@@ -278,18 +271,13 @@ const debtController = {
         WHERE status = 'active'
       `);
 
-      res.json({ success: true, aging: rows[0] });
-    } catch (error) {
-      console.error("Get debt aging error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({ success: true, aging: rows[0] });
+  }),
 
-  getRepaymentTrends: async (req, res) => {
-    try {
-      const { months = 6 } = req.query;
-      const [trends] = await pool.query(
-        `
+  getRepaymentTrends: catchAsync(async (req, res, next) => {
+    const { months = 6 } = req.query;
+    const [trends] = await pool.query(
+      `
         SELECT 
           m.month,
           COALESCE(d.debt_created, 0) as debt_created,
@@ -311,15 +299,11 @@ const debtController = {
         ) r ON m.month = r.month
         ORDER BY m.month ASC
       `,
-        []
-      );
+      []
+    );
 
-      res.json({ success: true, trends });
-    } catch (error) {
-      console.error("Get repayment trends error:", error);
-      res.status(500).json({ message: "Internal server error" });
-    }
-  },
+    res.json({ success: true, trends });
+  }),
 };
 
 module.exports = debtController;

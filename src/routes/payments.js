@@ -8,14 +8,14 @@ const path = require("path");
 const fs = require("fs");
 
 // Ensure uploads directory exists
-const uploadDir = "uploads";
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir);
+const importDir = "imports";
+if (!fs.existsSync(importDir)) {
+  fs.mkdirSync(importDir);
 }
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    cb(null, uploadDir);
+    cb(null, importDir);
   },
   filename: (req, file, cb) => {
     cb(null, "reconcile_" + Date.now() + path.extname(file.originalname));
