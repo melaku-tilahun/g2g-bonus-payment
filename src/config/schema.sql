@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS import_logs (
   skipped_details JSON,
   imported_by INT,
   imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  status ENUM('success', 'partial', 'failed') DEFAULT 'success',
+  status ENUM('success', 'partial', 'failed', 'processing') DEFAULT 'success',
   error_message TEXT,
   FOREIGN KEY (imported_by) REFERENCES users(id),
   INDEX idx_week_date (week_date)
@@ -73,8 +73,8 @@ CREATE TABLE IF NOT EXISTS payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
   driver_id VARCHAR(50) NOT NULL,
   total_amount DECIMAL(10, 2) NOT NULL,
-  batch_id VARCHAR(50) NULL,
-  status ENUM('pending', 'processing', 'paid') DEFAULT 'pending',
+
+  status ENUM('processing', 'paid') DEFAULT 'processing',
   payment_date DATETIME NOT NULL,
   payment_method VARCHAR(50),
   bonus_period_start DATE,

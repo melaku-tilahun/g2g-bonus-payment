@@ -1,6 +1,9 @@
 const AppError = require("../utils/appError");
 
+const logger = require("../utils/logger");
+
 const sendErrorDev = (err, req, res) => {
+  logger.error(err); // Log error in dev
   return res.status(err.statusCode).json({
     status: err.status,
     error: err,
@@ -19,7 +22,7 @@ const sendErrorProd = (err, req, res) => {
   }
 
   // Programming or other unknown error: don't leak error details
-  console.error("ERROR 💥", err);
+  logger.error(err); // Log error in prod
   return res.status(500).json({
     status: "error",
     message: "Something went very wrong!",

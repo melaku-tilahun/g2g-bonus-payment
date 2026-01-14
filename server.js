@@ -28,7 +28,11 @@ const PORT = process.env.PORT || 3000;
 
 const RequestContext = require("./src/utils/requestContext");
 
+const logger = require("./src/utils/logger");
+const pinoHttp = require("pino-http")({ logger });
+
 // Middleware
+app.use(pinoHttp);
 app.use(
   helmet({
     contentSecurityPolicy: false,
@@ -83,7 +87,7 @@ app.use(globalErrorHandler);
 const SchedulerService = require("./src/services/schedulerService");
 
 app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
+  logger.info(`Server is running on port ${PORT}`);
 
   // Initialize scheduled reports
   SchedulerService.init();

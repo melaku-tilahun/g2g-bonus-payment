@@ -8,8 +8,18 @@ const authenticate = require("../middleware/authenticate");
 router.use(authenticate);
 
 router.get("/", driverController.getAll);
+router.post(
+  "/",
+  authorize(["admin", "director", "manager"]),
+  driverController.createDriver
+);
 router.get("/search", driverController.search);
 router.get("/tin/:tin", driverController.lookupTIN);
+router.put(
+  "/:id",
+  authorize(["admin", "director", "manager"]),
+  driverController.updateDriver
+);
 router.get("/:id", driverController.getById);
 router.put(
   "/:id/verify",

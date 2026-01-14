@@ -660,6 +660,9 @@ document.addEventListener("DOMContentLoaded", () => {
       .map(
         (batch) => `
       <tr>
+          <script>console.log("Batch Render:", ${JSON.stringify(
+            batch
+          )});</script>
         <td class="px-4 py-3 small text-muted">${new Date(
           batch.exported_at
         ).toLocaleString()}</td>
@@ -670,19 +673,19 @@ document.addEventListener("DOMContentLoaded", () => {
         ).toLocaleString()} ETB</td>
         <td class="py-3 text-center">
           <span class="badge ${
-            batch.paid_count === batch.total_count
+            batch.paid_count === batch.payment_count
               ? "bg-success"
               : batch.paid_count > 0
               ? "bg-warning"
               : "bg-secondary"
           } bg-opacity-10 ${
-          batch.paid_count === batch.total_count
+          batch.paid_count === batch.num_payments
             ? "text-success"
             : batch.paid_count > 0
             ? "text-warning"
             : "text-muted"
         } rounded-pill px-3">
-            ${batch.paid_count}/${batch.total_count} Paid
+            ${batch.paid_count || 0}/${batch.num_payments || 0} Paid
           </span>
         </td>
         <td class="py-3 small text-muted">${

@@ -5,6 +5,11 @@ uploads/
 package-lock.json
 .DS_Store
 *.log
+*.xlsx
+*.xls
+*.csv
+*.pdf
+*.log
 
 # Standard Node filters (from remote)
 # Logs

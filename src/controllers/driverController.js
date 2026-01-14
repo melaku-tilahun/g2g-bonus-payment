@@ -246,6 +246,65 @@ const driverController = {
     });
   }),
 
+  createDriver: catchAsync(async (req, res, next) => {
+    const { driver_id, full_name, phone_number, business_name, tin } = req.body;
+
+    if (!driver_id || !full_name || !phone_number) {
+      throw new AppError(
+        "Driver ID, Full Name, and Phone Number are required",
+        400
+      );
+    }
+
+    // Check if driver exists
+    const [existing] = await pool.query(
+      "SELECT id FROM drivers WHERE driver_id = ?",
+      [driver_id]
+    );
+
+    if (existing.length > 0) {
+      throw new AppError("Driver ID already exists", 400);
+    }
+
+    await pool.query(
+      "INSERT INTO drivers (driver_id, full_name, phone_number, business_name, tin, verified) VALUES (?, ?, ?, ?, ?, FALSE)",
+      [driver_id, full_name, phone_number, business_name || null, tin || null]
+    );
+
+    await AuditService.log(req.user.id, "Create Driver", "driver", driver_id, {
+      full_name,
+      phone_number,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Driver created successfully",
+    });
+  }),
+
+  updateDriver: catchAsync(async (req, res, next) => {
+    const { id } = req.params; // This is the driver_id (string)
+    const { full_name, phone_number, business_name, tin } = req.body;
+
+    // We only allow updating basic info here.
+    // Sensitive fields like verification status should handle by verify endpoint.
+
+    await pool.query(
+      "UPDATE drivers SET full_name = ?, phone_number = ?, business_name = ?, tin = ? WHERE driver_id = ?",
+      [full_name, phone_number, business_name || null, tin || null, id]
+    );
+
+    await AuditService.log(req.user.id, "Update Driver", "driver", id, {
+      full_name,
+      phone_number,
+    });
+
+    res.json({
+      success: true,
+      message: "Driver updated successfully",
+    });
+  }),
+
   releaseUnverifiedPayout: catchAsync(async (req, res, next) => {
     const connection = await pool.getConnection();
     try {

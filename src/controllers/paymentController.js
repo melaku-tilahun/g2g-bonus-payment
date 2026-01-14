@@ -481,7 +481,13 @@ const paymentController = {
         const phone = digits.length >= 9 ? digits.slice(-9) : digits;
 
         // Format: DriverID,BonusID,WeekDate,BatchID
-        const comment = `${row.driver_id},${row.bonus_id},${row.week_date},${batchDisplayId}`;
+        const date = new Date(row.week_date);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, "0");
+        const day = String(date.getDate()).padStart(2, "0");
+        const formattedDate = `${year}-${month}-${day}`;
+
+        const comment = `${row.driver_id},${row.bonus_id},${formattedDate},${batchDisplayId}`;
 
         return ["MSISDN", phone, "", parseFloat(row.total_amount), comment];
       });
@@ -1100,7 +1106,7 @@ const paymentController = {
     const [batches] = await pool.query(
       `SELECT b.*, u.full_name as exported_by_name,
                 (SELECT COUNT(*) FROM payments WHERE batch_internal_id = b.id AND status = 'paid') as paid_count,
-                b.driver_count as total_count
+                (SELECT COUNT(*) FROM payments WHERE batch_internal_id = b.id) as num_payments
          FROM payment_batches b 
          LEFT JOIN users u ON b.exported_by = u.id 
          ORDER BY b.exported_at DESC 

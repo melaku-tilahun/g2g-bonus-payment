@@ -1,0 +1,166 @@
+--- START SCHEMA CHECK ---
+
+### TABLE: users ###
+CREATE TABLE `users` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `full_name` varchar(255) NOT NULL,
+  `email` varchar(255) NOT NULL,
+  `password_hash` varchar(255) NOT NULL,
+  `role` enum('admin','staff','director','manager','auditor') NOT NULL DEFAULT 'staff',
+  `is_active` tinyint(1) DEFAULT 1,
+  `last_login` timestamp NULL DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `created_by` int(11) DEFAULT NULL,
+  `otp_code` varchar(10) DEFAULT NULL,
+  `otp_expires_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `email` (`email`),
+  KEY `idx_email` (`email`),
+  KEY `idx_role` (`role`),
+  KEY `created_by` (`created_by`),
+  CONSTRAINT `users_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=12 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: drivers ###
+CREATE TABLE `drivers` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` varchar(64) NOT NULL,
+  `full_name` varchar(255) NOT NULL,
+  `phone_number` varchar(20) DEFAULT NULL,
+  `email` varchar(255) DEFAULT NULL,
+  `verified` tinyint(1) DEFAULT 0,
+  `is_blocked` tinyint(1) DEFAULT 0,
+  `verified_date` date DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `verified_by` int(11) DEFAULT NULL,
+  `tin` varchar(50) DEFAULT NULL,
+  `business_name` varchar(255) DEFAULT NULL,
+  `licence_number` varchar(100) DEFAULT NULL,
+  `manager_name` varchar(255) DEFAULT NULL,
+  `manager_photo` text DEFAULT NULL,
+  `tin_verified_at` timestamp NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `driver_id` (`driver_id`),
+  KEY `idx_driver_id` (`driver_id`),
+  KEY `idx_verified` (`verified`),
+  KEY `idx_name` (`full_name`),
+  KEY `idx_tin` (`tin`),
+  KEY `idx_is_blocked` (`is_blocked`)
+) ENGINE=InnoDB AUTO_INCREMENT=9226 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: import_logs ###
+CREATE TABLE `import_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `file_name` varchar(255) NOT NULL,
+  `week_date` date NOT NULL,
+  `total_records` int(11) NOT NULL,
+  `success_count` int(11) NOT NULL,
+  `skipped_count` int(11) DEFAULT 0,
+  `error_count` int(11) DEFAULT 0,
+  `skipped_details` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`skipped_details`)),
+  `imported_by` int(11) DEFAULT NULL,
+  `imported_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `status` enum('success','partial','failed','processing') DEFAULT 'success',
+  `error_message` text DEFAULT NULL,
+  `new_drivers_count` int(11) DEFAULT 0,
+  `existing_drivers_count` int(11) DEFAULT 0,
+  `rejected_verified_count` int(11) DEFAULT 0,
+  `file_path` varchar(255) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `imported_by` (`imported_by`),
+  KEY `idx_week_date` (`week_date`),
+  CONSTRAINT `import_logs_ibfk_1` FOREIGN KEY (`imported_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=76 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: audit_logs ###
+CREATE TABLE `audit_logs` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `action` varchar(255) NOT NULL,
+  `entity_type` varchar(50) DEFAULT NULL,
+  `entity_id` varchar(64) DEFAULT NULL,
+  `details` text DEFAULT NULL,
+  `ip_address` varchar(45) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `user_id` (`user_id`),
+  CONSTRAINT `1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
+  CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=404 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: payments ###
+CREATE TABLE `payments` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` varchar(50) NOT NULL,
+  `total_amount` decimal(10,2) NOT NULL,
+  `status` enum('processing','paid') NOT NULL DEFAULT 'processing',
+  `batch_id` varchar(50) DEFAULT NULL,
+  `payment_date` date NOT NULL,
+  `payment_method` varchar(50) DEFAULT NULL,
+  `bonus_period_start` date DEFAULT NULL,
+  `bonus_period_end` date DEFAULT NULL,
+  `processed_by` int(11) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `batch_internal_id` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `processed_by` (`processed_by`),
+  KEY `idx_driver_id` (`driver_id`),
+  KEY `idx_payment_date` (`payment_date`),
+  KEY `batch_internal_id` (`batch_internal_id`),
+  CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `payments_ibfk_2` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`),
+  CONSTRAINT `payments_ibfk_3` FOREIGN KEY (`batch_internal_id`) REFERENCES `payment_batches` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=4555 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: payment_batches ###
+CREATE TABLE `payment_batches` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `batch_id` varchar(50) NOT NULL,
+  `total_amount` decimal(15,2) NOT NULL,
+  `driver_count` int(11) NOT NULL,
+  `status` enum('processing','paid') DEFAULT 'processing',
+  `exported_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `completed_at` timestamp NULL DEFAULT NULL,
+  `exported_by` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `batch_id` (`batch_id`),
+  UNIQUE KEY `unique_batch_id` (`batch_id`),
+  KEY `exported_by` (`exported_by`),
+  CONSTRAINT `payment_batches_ibfk_1` FOREIGN KEY (`exported_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: bonuses ###
+CREATE TABLE `bonuses` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` varchar(64) NOT NULL,
+  `week_date` date NOT NULL,
+  `net_payout` decimal(10,2) NOT NULL,
+  `fleet_net_payout` decimal(10,2) DEFAULT NULL COMMENT 'Original Net Payout value from fleet Excel file',
+  `work_terms` varchar(255) DEFAULT NULL,
+  `status` varchar(50) DEFAULT NULL,
+  `payment_status` varchar(50) DEFAULT 'Pending',
+  `balance` decimal(10,2) DEFAULT NULL,
+  `payout` decimal(10,2) DEFAULT NULL,
+  `bank_fee` decimal(10,2) DEFAULT NULL,
+  `gross_payout` decimal(10,2) DEFAULT NULL,
+  `withholding_tax` decimal(10,2) DEFAULT NULL,
+  `imported_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `import_log_id` int(11) DEFAULT NULL,
+  `payment_id` int(11) DEFAULT NULL,
+  `final_payout` decimal(10,2) DEFAULT NULL,
+  `force_pay` tinyint(1) DEFAULT 0,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_driver_week` (`driver_id`,`week_date`),
+  KEY `import_log_id` (`import_log_id`),
+  KEY `idx_driver_week` (`driver_id`,`week_date`),
+  KEY `idx_week_date` (`week_date`),
+  KEY `fk_payment` (`payment_id`),
+  CONSTRAINT `bonuses_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `bonuses_ibfk_2` FOREIGN KEY (`import_log_id`) REFERENCES `import_logs` (`id`),
+  CONSTRAINT `fk_payment` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=95509 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+--- END SCHEMA CHECK ---

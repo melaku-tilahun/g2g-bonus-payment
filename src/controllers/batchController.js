@@ -18,9 +18,13 @@ const batchController = {
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     let query = `
-        SELECT pb.*, u.full_name as exported_by_name
+        SELECT pb.*, 
+               u.full_name as exported_by_name,
+               COUNT(p.id) as num_payments,
+               SUM(CASE WHEN p.status = 'paid' THEN 1 ELSE 0 END) as paid_count
         FROM payment_batches pb
         LEFT JOIN users u ON pb.exported_by = u.id
+        LEFT JOIN payments p ON pb.id = p.batch_internal_id
       `;
     const params = [];
 
@@ -29,10 +33,14 @@ const batchController = {
       params.push(status);
     }
 
+    // Group by is required for aggregation
+    query += " GROUP BY pb.id";
+
     query += " ORDER BY pb.exported_at DESC LIMIT ? OFFSET ?";
     params.push(parseInt(limit), offset);
 
     const [rows] = await pool.query(query, params);
+
     const [countResult] = await pool.query(
       "SELECT COUNT(*) as total FROM payment_batches"
     );

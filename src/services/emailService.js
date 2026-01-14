@@ -29,7 +29,7 @@ const EmailService = {
           </div>
           <p style="color: #6b7280; font-size: 14px;">This code will expire in 10 minutes. If you did not request this, please ignore this email.</p>
           <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">© 2025 Yango Ride Service Provider - G2G Bonus Management Solution</p>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">© 2026 Yango Ride Service Provider - G2G Bonus Management Solution</p>
         </div>
       `,
     };
@@ -60,7 +60,7 @@ const EmailService = {
           </div>
           <p style="color: #6b7280; font-size: 14px;">Please find the attached file for the full report details.</p>
           <hr style="border: 0; border-top: 1px solid #e5e7eb; margin: 20px 0;">
-          <p style="color: #9ca3af; font-size: 12px; text-align: center;">© 2025 Yango Ride Service Provider - G2G Bonus Management Solution</p>
+          <p style="color: #9ca3af; font-size: 12px; text-align: center;">© 2026 Yango Ride Service Provider - G2G Bonus Management Solution</p>
         </div>
       `,
       attachments: [

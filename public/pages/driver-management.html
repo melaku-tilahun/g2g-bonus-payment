@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Driver Management - Driver Bonus Platform</title>
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="../css/styles.css">
+</head>
+<body class="bg-light">
+    <!-- Header injected by ui.js -->
+
+    <div class="container mt-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h1>Driver Management</h1>
+            <div class="d-flex gap-2">
+                 <div class="input-group">
+                    <input type="text" id="searchInput" class="form-control" placeholder="Search drivers...">
+                    <button class="btn btn-outline-secondary" type="button" onclick="loadDrivers()">Search</button>
+                </div>
+                <button class="btn btn-success text-nowrap" data-bs-toggle="modal" data-bs-target="#driverModal" onclick="resetForm()">Create New Driver</button>
+            </div>
+           
+        </div>
+
+        <div class="card shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Driver ID</th>
+                                <th>Full Name</th>
+                                <th>Phone</th>
+                                <th>Business Name</th>
+                                <th>TIN</th>
+                                <th>Status</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="driverTableBody">
+                            <tr><td colspan="7" class="text-center">Loading drivers...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+                 <!-- Pagination -->
+                 <nav aria-label="Page navigation" class="mt-4">
+                    <ul class="pagination justify-content-center" id="pagination">
+                        <!-- Pagination items will be injected here -->
+                    </ul>
+                </nav>
+            </div>
+        </div>
+    </div>
+
+    <!-- Driver Modal -->
+    <div class="modal fade" id="driverModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="modalTitle">Create Driver</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="driverForm">
+                        <input type="hidden" id="editDriverId"> <!-- Original Driver ID for updates -->
+                        <div class="mb-3">
+                            <label class="form-label">Driver ID</label>
+                            <input type="text" id="driverId" class="form-control" required placeholder="e.g., DRV-001">
+                            <div class="form-text">Unique identifier for the driver. Cannot be changed once created.</div>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" id="fullName" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Phone Number</label>
+                            <input type="tel" id="phoneNumber" class="form-control" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Business Name (Optional)</label>
+                            <input type="text" id="businessName" class="form-control">
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">TIN (Optional)</label>
+                            <input type="text" id="tin" class="form-control">
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" id="saveDriverBtn">Save Driver</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/ui.js"></script>
+    <script>
+        // Permission Check
+        const user = auth.getUser();
+        if (!user || !['admin', 'director', 'manager'].includes(user.role)) {
+            window.location.href = '/index.html';
+        }
+
+        let currentPage = 1;
+        const limit = 20;
+
+        async function loadDrivers(page = 1) {
+            try {
+                const search = document.getElementById('searchInput').value;
+                const params = new URLSearchParams({ page, limit, q: search });
+                
+                const response = await api.get(`/drivers/search?${params.toString()}`);
+                const drivers = response.drivers || [];
+                const total = response.total || 0;
+                
+                const tbody = document.getElementById('driverTableBody');
+                tbody.innerHTML = '';
+                
+                if (drivers.length === 0) {
+                     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4">No drivers found.</td></tr>';
+                     return;
+                }
+
+                drivers.forEach(d => {
+                    const tr = document.createElement('tr');
+                    tr.innerHTML = `
+                        <td>${d.driver_id}</td>
+                        <td>${d.full_name}</td>
+                        <td>${d.phone_number || '-'}</td>
+                        <td>${d.business_name || '-'}</td>
+                         <td>${d.tin || '-'}</td>
+                        <td>
+                            <span class="badge ${d.verified ? 'bg-success' : 'bg-warning text-dark'}">
+                                ${d.verified ? 'Verified' : 'Unverified'}
+                            </span>
+                             ${d.is_blocked ? '<span class="badge bg-danger">Blocked</span>' : ''}
+                        </td>
+                        <td>
+                            <button class="btn btn-sm btn-outline-primary" onclick='editDriver(${JSON.stringify(d).replace(/'/g, "&#39;")})'>Edit</button>
+                        </td>
+                    `;
+                    tbody.appendChild(tr);
+                });
+                
+                renderPagination(page, Math.ceil(total / limit));
+                currentPage = page;
+
+            } catch (error) {
+                console.error(error);
+                ui.toast('Failed to load drivers', 'error');
+            }
+        }
+        
+        function renderPagination(page, totalPages) {
+            const pagination = document.getElementById('pagination');
+            pagination.innerHTML = '';
+
+            if (totalPages <= 1) return;
+
+             // Previous
+            const prevLi = document.createElement('li');
+            prevLi.className = `page-item ${page === 1 ? 'disabled' : ''}`;
+            prevLi.innerHTML = `<a class="page-link" href="#" onclick="loadDrivers(${page - 1})">Previous</a>`;
+            pagination.appendChild(prevLi);
+
+            // Page Numbers (Simple version)
+            for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
+                 const li = document.createElement('li');
+                li.className = `page-item ${i === page ? 'active' : ''}`;
+                li.innerHTML = `<a class="page-link" href="#" onclick="loadDrivers(${i})">${i}</a>`;
+                pagination.appendChild(li);
+            }
+
+            // Next
+            const nextLi = document.createElement('li');
+            nextLi.className = `page-item ${page === totalPages ? 'disabled' : ''}`;
+            nextLi.innerHTML = `<a class="page-link" href="#" onclick="loadDrivers(${page + 1})">Next</a>`;
+            pagination.appendChild(nextLi);
+        }
+
+        function resetForm() {
+            document.getElementById('driverForm').reset();
+            document.getElementById('editDriverId').value = '';
+            document.getElementById('modalTitle').textContent = 'Create Driver';
+            document.getElementById('driverId').disabled = false; // Enable ID for creation
+        }
+
+        function editDriver(driver) {
+            document.getElementById('editDriverId').value = driver.driver_id; // Using driver_id string as ID
+            document.getElementById('driverId').value = driver.driver_id;
+            document.getElementById('driverId').disabled = true; // Cannot change ID
+            
+            document.getElementById('fullName').value = driver.full_name;
+            document.getElementById('phoneNumber').value = driver.phone_number;
+            document.getElementById('businessName').value = driver.business_name || '';
+            document.getElementById('tin').value = driver.tin || '';
+            
+            document.getElementById('modalTitle').textContent = 'Edit Driver';
+            
+            const modal = new bootstrap.Modal(document.getElementById('driverModal'));
+            modal.show();
+        }
+
+        document.getElementById('saveDriverBtn').addEventListener('click', async () => {
+            const originalDriverId = document.getElementById('editDriverId').value; // if set, we are editing
+            const driverId = document.getElementById('driverId').value;
+            
+            const data = {
+                driver_id: driverId,
+                full_name: document.getElementById('fullName').value,
+                phone_number: document.getElementById('phoneNumber').value,
+                business_name: document.getElementById('businessName').value,
+                tin: document.getElementById('tin').value
+            };
+
+            try {
+                if (originalDriverId) {
+                    await api.put(`/drivers/${originalDriverId}`, data); // Assuming endpoint uses driver_id string
+                    ui.toast('Driver updated successfully', 'success');
+                } else {
+                    await api.post('/drivers', data);
+                    ui.toast('Driver created successfully', 'success');
+                }
+                
+                const modal = bootstrap.Modal.getInstance(document.getElementById('driverModal'));
+                if(modal) modal.hide();
+                
+                loadDrivers(currentPage);
+            } catch (error) {
+                ui.toast(error.message || 'Failed to save driver', 'error');
+            }
+        });
+
+        // Search on Enter
+        document.getElementById('searchInput').addEventListener('keypress', function (e) {
+            if (e.key === 'Enter') {
+                loadDrivers(1);
+            }
+        });
+
+        loadDrivers();
+    </script>
+</body>
+</html>
