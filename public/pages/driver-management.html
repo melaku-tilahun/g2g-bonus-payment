@@ -5,49 +5,92 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Driver Management - Driver Bonus Platform</title>
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        .avatar-driver {
+            width: 40px;
+            height: 40px;
+            background-color: #f0fdf4;
+            color: var(--success-green);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 12px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-right: 12px;
+            border: 1px solid #dcfce7;
+        }
+        .avatar-driver.unverified {
+            background-color: #fff7ed;
+            color: var(--warning-orange);
+            border-color: #ffedd5;
+        }
+    </style>
 </head>
 <body class="bg-light">
     <!-- Header injected by ui.js -->
 
-    <div class="container mt-4">
+    <div class="main-wrapper">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>Driver Management</h1>
-            <div class="d-flex gap-2">
-                 <div class="input-group">
-                    <input type="text" id="searchInput" class="form-control" placeholder="Search drivers...">
-                    <button class="btn btn-outline-secondary" type="button" onclick="loadDrivers()">Search</button>
-                </div>
-                <button class="btn btn-success text-nowrap" data-bs-toggle="modal" data-bs-target="#driverModal" onclick="resetForm()">Create New Driver</button>
+            <div>
+                <h1 class="h3 fw-bold mb-1">Driver Management</h1>
+                <p class="text-muted small">Maintain the central registry of all active and pending drivers.</p>
             </div>
-           
+            <button class="btn btn-brand" data-bs-toggle="modal" data-bs-target="#driverModal" onclick="resetForm()">
+                <i class="fas fa-plus-circle me-2"></i> Register New Driver
+            </button>
         </div>
 
-        <div class="card shadow-sm">
+        <!-- Search & Filter Card -->
+        <div class="card card-premium mb-4 border-0">
             <div class="card-body">
-                <div class="table-responsive">
-                    <table class="table table-hover">
-                        <thead>
-                            <tr>
-                                <th>Driver ID</th>
-                                <th>Full Name</th>
-                                <th>Phone</th>
-                                <th>Business Name</th>
-                                <th>TIN</th>
-                                <th>Status</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="driverTableBody">
-                            <tr><td colspan="7" class="text-center">Loading drivers...</td></tr>
-                        </tbody>
-                    </table>
+                <div class="row g-3 align-items-center">
+                    <div class="col-md-6">
+                        <div class="search-container-modern w-100">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="searchInput" class="form-control" placeholder="Search by name, ID, or phone..." onkeyup="handleSearch(event)">
+                        </div>
+                    </div>
+                    <div class="col-md-auto ms-auto">
+                        <button class="btn btn-light px-4" onclick="loadDrivers()">
+                            <i class="fas fa-filter me-2 text-muted"></i> Apply Filter
+                        </button>
+                    </div>
                 </div>
-                 <!-- Pagination -->
-                 <nav aria-label="Page navigation" class="mt-4">
-                    <ul class="pagination justify-content-center" id="pagination">
-                        <!-- Pagination items will be injected here -->
-                    </ul>
+            </div>
+        </div>
+
+        <!-- Drivers Table Card -->
+        <div class="card card-premium border-0 overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom-0 d-flex justify-content-between align-items-center">
+                <h5 class="fw-bold mb-0">Driver Registry</h5>
+                <span class="text-muted small" id="totalCountDisplay"></span>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-excel table-hover mb-0 align-middle">
+                    <thead>
+                        <tr>
+                            <th class="ps-4">Driver Profile</th>
+                            <th>Contact Info</th>
+                            <th>Business Details</th>
+                            <th>TIN</th>
+                            <th>Status</th>
+                            <th class="text-end pe-4">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="driverTableBody">
+                        <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
+                    </tbody>
+                </table>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="p-3 border-top d-flex justify-content-between align-items-center bg-light bg-opacity-50">
+                <div class="small text-muted" id="paginationInfo"></div>
+                <nav aria-label="Page navigation">
+                    <ul class="pagination pagination-sm mb-0" id="pagination"></ul>
                 </nav>
             </div>
         </div>
@@ -55,41 +98,45 @@
 
     <!-- Driver Modal -->
     <div class="modal fade" id="driverModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Create Driver</h5>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-bottom-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold" id="modalTitle">Register Driver</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body px-4">
                     <form id="driverForm">
-                        <input type="hidden" id="editDriverId"> <!-- Original Driver ID for updates -->
-                        <div class="mb-3">
-                            <label class="form-label">Driver ID</label>
-                            <input type="text" id="driverId" class="form-control" required placeholder="e.g., DRV-001">
-                            <div class="form-text">Unique identifier for the driver. Cannot be changed once created.</div>
+                        <input type="hidden" id="editDriverId">
+                        
+                        <div class="bg-light p-3 rounded-3 mb-4 border-start border-4 border-primary">
+                            <label class="form-label small fw-bold text-muted text-uppercase mb-1">System Identifier</label>
+                            <input type="text" id="driverId" class="form-control form-control-lg border-0 shadow-sm" required placeholder="e.g. DRV-1025">
+                            <div class="form-text x-small mt-2">The unique ID used across all bonus statements.</div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Full Name</label>
-                            <input type="text" id="fullName" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Phone Number</label>
-                            <input type="tel" id="phoneNumber" class="form-control" required>
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">Business Name (Optional)</label>
-                            <input type="text" id="businessName" class="form-control">
-                        </div>
-                        <div class="mb-3">
-                            <label class="form-label">TIN (Optional)</label>
-                            <input type="text" id="tin" class="form-control">
+
+                        <div class="row g-3">
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold text-muted">Legal Full Name</label>
+                                <input type="text" id="fullName" class="form-control form-control-lg" placeholder="As per Identity Document" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-muted">Phone Number</label>
+                                <input type="tel" id="phoneNumber" class="form-control form-control-lg" placeholder="e.g. 0912..." required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-muted">TIN Number</label>
+                                <input type="text" id="tin" class="form-control form-control-lg" placeholder="Optional">
+                            </div>
+                            <div class="col-12">
+                                <label class="form-label small fw-semibold text-muted">Business / Fleet Name</label>
+                                <input type="text" id="businessName" class="form-control form-control-lg" placeholder="e.g. Ride Fleet A">
+                            </div>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveDriverBtn">Save Driver</button>
+                <div class="modal-footer border-top-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-brand px-4" id="saveDriverBtn">Save Registry Entry</button>
                 </div>
             </div>
         </div>
@@ -110,6 +157,11 @@
         const limit = 20;
 
         async function loadDrivers(page = 1) {
+            const tbody = document.getElementById('driverTableBody');
+            if (page === 1) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>';
+            }
+
             try {
                 const search = document.getElementById('searchInput').value;
                 const params = new URLSearchParams({ page, limit, q: search });
@@ -118,30 +170,55 @@
                 const drivers = response.drivers || [];
                 const total = response.total || 0;
                 
-                const tbody = document.getElementById('driverTableBody');
                 tbody.innerHTML = '';
                 
                 if (drivers.length === 0) {
-                     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4">No drivers found.</td></tr>';
+                     tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No drivers found matching your search.</td></tr>';
+                     document.getElementById('totalCountDisplay').textContent = '';
+                     document.getElementById('paginationInfo').textContent = '';
                      return;
                 }
 
+                document.getElementById('totalCountDisplay').textContent = `Total: ${total} Drivers`;
+                
                 drivers.forEach(d => {
+                    const initials = d.full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
                     const tr = document.createElement('tr');
+                    
                     tr.innerHTML = `
-                        <td>${d.driver_id}</td>
-                        <td>${d.full_name}</td>
-                        <td>${d.phone_number || '-'}</td>
-                        <td>${d.business_name || '-'}</td>
-                         <td>${d.tin || '-'}</td>
-                        <td>
-                            <span class="badge ${d.verified ? 'bg-success' : 'bg-warning text-dark'}">
-                                ${d.verified ? 'Verified' : 'Unverified'}
-                            </span>
-                             ${d.is_blocked ? '<span class="badge bg-danger">Blocked</span>' : ''}
+                        <td class="ps-4">
+                            <div class="d-flex align-items-center">
+                                <div class="avatar-driver ${d.verified ? '' : 'unverified'}">${initials}</div>
+                                <div>
+                                    <div class="fw-bold text-dark">${d.full_name}</div>
+                                    <div class="x-small text-muted font-monospace">${d.driver_id}</div>
+                                </div>
+                            </div>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick='editDriver(${JSON.stringify(d).replace(/'/g, "&#39;")})'>Edit</button>
+                            <div class="small">
+                                <div class="text-dark">${d.phone_number || '<span class="text-muted italic">No Phone</span>'}</div>
+                                <div class="x-small text-muted">Mobile</div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="small">
+                                <div class="text-dark">${d.business_name || '-'}</div>
+                            </div>
+                        </td>
+                        <td><span class="text-muted small font-monospace">${d.tin || '-'}</span></td>
+                        <td>
+                            <div class="d-flex flex-column gap-1">
+                                <span class="badge ${d.verified ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-dark'} rounded-pill px-3 py-2 small w-fit">
+                                    ${d.verified ? 'VERIFIED' : 'UNVERIFIED'}
+                                </span>
+                                ${d.is_blocked ? '<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1 x-small w-fit">BLOCKED</span>' : ''}
+                            </div>
+                        </td>
+                        <td class="text-end pe-4">
+                            <button class="btn btn-sm btn-outline-primary border-0 rounded-circle" onclick='editDriver(${JSON.stringify(d).replace(/'/g, "&#39;")})' title="Edit Driver">
+                                <i class="fas fa-edit"></i>
+                            </button>
                         </td>
                     `;
                     tbody.appendChild(tr);
@@ -150,9 +227,13 @@
                 renderPagination(page, Math.ceil(total / limit));
                 currentPage = page;
 
+                const start = (page - 1) * limit + 1;
+                const end = Math.min(page * limit, total);
+                document.getElementById('paginationInfo').textContent = `Showing ${start}-${end} of ${total}`;
+
             } catch (error) {
                 console.error(error);
-                ui.toast('Failed to load drivers', 'error');
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-danger font-bold">Failed to connect to driver service</td></tr>';
             }
         }
         
@@ -165,49 +246,63 @@
              // Previous
             const prevLi = document.createElement('li');
             prevLi.className = `page-item ${page === 1 ? 'disabled' : ''}`;
-            prevLi.innerHTML = `<a class="page-link" href="#" onclick="loadDrivers(${page - 1})">Previous</a>`;
+            prevLi.innerHTML = `<a class="page-link border-0 rounded-start" href="#" onclick="loadDrivers(${page - 1})"><i class="fas fa-chevron-left"></i></a>`;
             pagination.appendChild(prevLi);
 
-            // Page Numbers (Simple version)
-            for (let i = Math.max(1, page - 2); i <= Math.min(totalPages, page + 2); i++) {
-                 const li = document.createElement('li');
+            // Page Numbers
+            const startPage = Math.max(1, page - 2);
+            const endPage = Math.min(totalPages, page + 2);
+            
+            for (let i = startPage; i <= endPage; i++) {
+                const li = document.createElement('li');
                 li.className = `page-item ${i === page ? 'active' : ''}`;
-                li.innerHTML = `<a class="page-link" href="#" onclick="loadDrivers(${i})">${i}</a>`;
+                li.innerHTML = `<a class="page-link border-0 mx-1 rounded" href="#" onclick="loadDrivers(${i})">${i}</a>`;
                 pagination.appendChild(li);
             }
 
             // Next
             const nextLi = document.createElement('li');
             nextLi.className = `page-item ${page === totalPages ? 'disabled' : ''}`;
-            nextLi.innerHTML = `<a class="page-link" href="#" onclick="loadDrivers(${page + 1})">Next</a>`;
+            nextLi.innerHTML = `<a class="page-link border-0 rounded-end" href="#" onclick="loadDrivers(${page + 1})"><i class="fas fa-chevron-right"></i></a>`;
             pagination.appendChild(nextLi);
+        }
+
+        function handleSearch(e) {
+            if (e.key === 'Enter') {
+                loadDrivers(1);
+            } else if (document.getElementById('searchInput').value === '') {
+                // Auto-refresh when cleared
+                loadDrivers(1);
+            }
         }
 
         function resetForm() {
             document.getElementById('driverForm').reset();
             document.getElementById('editDriverId').value = '';
-            document.getElementById('modalTitle').textContent = 'Create Driver';
-            document.getElementById('driverId').disabled = false; // Enable ID for creation
+            document.getElementById('modalTitle').textContent = 'Register New Driver';
+            document.getElementById('saveDriverBtn').textContent = 'Save Registry Entry';
+            document.getElementById('driverId').disabled = false;
         }
 
         function editDriver(driver) {
-            document.getElementById('editDriverId').value = driver.driver_id; // Using driver_id string as ID
+            document.getElementById('editDriverId').value = driver.driver_id;
             document.getElementById('driverId').value = driver.driver_id;
-            document.getElementById('driverId').disabled = true; // Cannot change ID
+            document.getElementById('driverId').disabled = true;
             
             document.getElementById('fullName').value = driver.full_name;
             document.getElementById('phoneNumber').value = driver.phone_number;
             document.getElementById('businessName').value = driver.business_name || '';
             document.getElementById('tin').value = driver.tin || '';
             
-            document.getElementById('modalTitle').textContent = 'Edit Driver';
+            document.getElementById('modalTitle').textContent = 'Update Driver Registry';
+            document.getElementById('saveDriverBtn').textContent = 'Update Registry';
             
             const modal = new bootstrap.Modal(document.getElementById('driverModal'));
             modal.show();
         }
 
         document.getElementById('saveDriverBtn').addEventListener('click', async () => {
-            const originalDriverId = document.getElementById('editDriverId').value; // if set, we are editing
+            const originalDriverId = document.getElementById('editDriverId').value;
             const driverId = document.getElementById('driverId').value;
             
             const data = {
@@ -218,13 +313,18 @@
                 tin: document.getElementById('tin').value
             };
 
+            const btn = document.getElementById('saveDriverBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
             try {
                 if (originalDriverId) {
-                    await api.put(`/drivers/${originalDriverId}`, data); // Assuming endpoint uses driver_id string
+                    await api.put(`/drivers/${originalDriverId}`, data);
                     ui.toast('Driver updated successfully', 'success');
                 } else {
                     await api.post('/drivers', data);
-                    ui.toast('Driver created successfully', 'success');
+                    ui.toast('Driver registered successfully', 'success');
                 }
                 
                 const modal = bootstrap.Modal.getInstance(document.getElementById('driverModal'));
@@ -233,13 +333,9 @@
                 loadDrivers(currentPage);
             } catch (error) {
                 ui.toast(error.message || 'Failed to save driver', 'error');
-            }
-        });
-
-        // Search on Enter
-        document.getElementById('searchInput').addEventListener('keypress', function (e) {
-            if (e.key === 'Enter') {
-                loadDrivers(1);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
         });
 

@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const navHtml = `
     <nav class="navbar navbar-expand-lg navbar-modern mb-3 sticky-top">
         <div class="container-fluid px-4">
-            <a class="navbar-brand d-flex align-items-center" href="/index.html">
+            <a class="navbar-brand d-flex align-items-center" href="/">
                  BonusTracker
             </a>
             
@@ -20,52 +20,50 @@ document.addEventListener("DOMContentLoaded", () => {
                 <ul class="navbar-nav ms-lg-4 me-auto">
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath === "/index.html" || currentPath === "/"
+                          currentPath === "/index" || currentPath === "/"
                             ? "active"
                             : ""
-                        }" href="/index.html">Dashboard</a>
+                        }" href="/">Dashboard</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.endsWith("/pending-payments.html")
+                          currentPath.includes("/pending-payments")
                             ? "active"
                             : ""
-                        }" href="/pages/pending-payments.html">Pending</a>
+                        }" href="/pages/pending-payments">Pending</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.endsWith("/verified-drivers.html")
+                          currentPath.includes("/verified-drivers")
                             ? "active"
                             : ""
-                        }" href="/pages/verified-drivers.html">Verified</a>
+                        }" href="/pages/verified-drivers">Verified</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.endsWith("/unverified-drivers.html")
+                          currentPath.includes("/unverified-drivers")
                             ? "active"
                             : ""
-                        }" href="/pages/unverified-drivers.html">Unverified</a>
+                        }" href="/pages/unverified-drivers">Unverified</a>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.endsWith("/payments.html") ? "active" : ""
-                        }" href="/pages/payments.html">Payment History</a>
+                          currentPath.includes("/payments") ? "active" : ""
+                        }" href="/pages/payments">Payment History</a>
                     </li>
                     ${
                       user && user.role !== "auditor"
                         ? `<li class="nav-item">
                             <a class="nav-link ${
-                              currentPath.endsWith("/import.html")
-                                ? "active"
-                                : ""
-                            }" href="/pages/import.html">Import</a>
+                              currentPath.includes("/import") ? "active" : ""
+                            }" href="/pages/import">Import</a>
                         </li>`
                         : ""
                     }
                     <li class="nav-item">
                         <a class="nav-link ${
-                          currentPath.endsWith("/search.html") ? "active" : ""
-                        }" href="/pages/search.html">Search</a>
+                          currentPath.includes("/search") ? "active" : ""
+                        }" href="/pages/search">Search</a>
                     </li>
                    
                     ${(() => {
@@ -119,25 +117,25 @@ document.addEventListener("DOMContentLoaded", () => {
                                       canViewFinancials
                                         ? `
                                         <li><h6 class="dropdown-header">Analytics & Reporting</h6></li>
-                                        <li><a class="dropdown-item" href="/pages/analytics-dashboard.html">Financial Analytics</a></li>
+                                        <li><a class="dropdown-item" href="/pages/analytics-dashboard">Financial Analytics</a></li>
                                     `
                                         : ""
                                     }
                                     ${
                                       canViewAudit
-                                        ? `<li><a class="dropdown-item" href="/pages/user-activity.html">Audit Trail & Activity</a></li>`
+                                        ? `<li><a class="dropdown-item" href="/pages/user-activity">Audit Trail & Activity</a></li>`
                                         : ""
                                     }
                                     ${
                                       canViewDebt
-                                        ? `<li><a class="dropdown-item" href="/pages/debt-analytics.html">Debt Analytics</a></li>`
+                                        ? `<li><a class="dropdown-item" href="/pages/debt-analytics">Debt Analytics</a></li>`
                                         : ""
                                     }
                                     ${
                                       canViewReports
                                         ? `
-                                        <li><a class="dropdown-item" href="/pages/compliance-reports.html">Compliance Reports</a></li>
-                                        <li><a class="dropdown-item" href="/pages/scheduled-reports.html">Scheduled Reports</a></li>
+                                        <li><a class="dropdown-item" href="/pages/compliance-reports">Compliance Reports</a></li>
+                                        <li><a class="dropdown-item" href="/pages/scheduled-reports">Scheduled Reports</a></li>
                                     `
                                         : ""
                                     }
@@ -152,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                       canViewAdvancedSearch
                                         ? `
                                         <li><h6 class="dropdown-header">Search & Data</h6></li>
-                                        <li><a class="dropdown-item" href="/pages/advanced-search.html">Advanced Search</a></li>
+                                        <li><a class="dropdown-item" href="/pages/advanced-search">Advanced Search</a></li>
                                     `
                                         : ""
                                     }
@@ -168,18 +166,18 @@ document.addEventListener("DOMContentLoaded", () => {
                                     
                                     ${
                                       canViewUserMgmt
-                                        ? `<li><a class="dropdown-item" href="/pages/users.html">User Management</a></li>
-                                           <li><a class="dropdown-item" href="/pages/driver-management.html">Driver Management</a></li>`
+                                        ? `<li><a class="dropdown-item" href="/pages/users">User Management</a></li>
+                                           <li><a class="dropdown-item" href="/pages/driver-management">Driver Management</a></li>`
                                         : ""
                                     }
                                     ${
                                       canViewFinancials
-                                        ? `<li><a class="dropdown-item" href="/pages/batch-management.html">Batch Management</a></li>`
+                                        ? `<li><a class="dropdown-item" href="/pages/batch-management">Batch Management</a></li>`
                                         : ""
                                     }
                                     ${
                                       canViewSystemHealth
-                                        ? `<li><a class="dropdown-item" href="/pages/system-health.html">System Health</a></li>`
+                                        ? `<li><a class="dropdown-item" href="/pages/system-health">System Health</a></li>`
                                         : ""
                                     }
                                 </ul>

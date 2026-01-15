@@ -3,7 +3,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   const driverId = params.get("id");
 
   if (!driverId) {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 
@@ -32,9 +32,8 @@ document.addEventListener("DOMContentLoaded", async () => {
     // Load Debt Info
     loadDebts(driverId);
 
-    // Show Add Debt button for admins
-    // Show Add Debt button for admins
-    if (currentUser && currentUser.role === "admin") {
+    // Show Add Debt button for admins and directors
+    if (currentUser && ["admin", "director"].includes(currentUser.role)) {
       document.getElementById("addDebtBtn").style.display = "block";
     }
 
@@ -575,7 +574,7 @@ async function loadDebts(driverId) {
 
     // Get current user for permission check
     const user = auth.getUser();
-    const isAdmin = user && user.role === "admin";
+    const canAddDebt = user && ["admin", "director"].includes(user.role);
 
     if (debts.length === 0 && deductions.length === 0) {
       // EMPTY STATE
@@ -583,8 +582,8 @@ async function loadDebts(driverId) {
       headerBtn.style.display = "none"; // Hide header button
       emptyState.classList.remove("d-none");
 
-      // Show central button only for admins
-      if (isAdmin) {
+      // Show central button only for authorized roles
+      if (canAddDebt) {
         centralBtn.style.display = "inline-block";
       } else {
         centralBtn.style.display = "none";
@@ -600,8 +599,8 @@ async function loadDebts(driverId) {
     dataRow.classList.remove("d-none");
     emptyState.classList.add("d-none");
 
-    // Show header button if admin
-    if (isAdmin) {
+    // Show header button if authorized
+    if (canAddDebt) {
       if (totalActive > 0) {
         // Enforce Single Active Debt Rules
         headerBtn.style.display = "block";

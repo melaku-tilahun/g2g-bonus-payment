@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Permission Check
   const user = auth.getUser();
   if (!user || !["admin", "director", "manager"].includes(user.role)) {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 
@@ -39,8 +39,8 @@ function renderBatchesTable(batches) {
   }
 
   let html = `
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
+        <table class="table table-excel table-hover align-middle mb-0">
+            <thead>
                 <tr>
                     <th class="ps-4">Batch ID</th>
                     <th>Status</th>
@@ -55,24 +55,47 @@ function renderBatchesTable(batches) {
     `;
 
   batches.forEach((batch) => {
-    const statusClass = batch.status === "paid" ? "bg-success" : "bg-warning";
+    const isPaid = batch.status === "paid";
+    const statusClass = isPaid
+      ? "bg-success bg-opacity-10 text-success"
+      : "bg-warning bg-opacity-10 text-dark";
     html += `
             <tr>
-                <td class="ps-4 fw-bold text-primary">${batch.batch_id}</td>
-                <td>
-                    <span class="badge ${statusClass}">${batch.status.toUpperCase()}</span>
+                <td class="ps-4">
+                    <span class="fw-bold text-dark">${batch.batch_id}</span>
                 </td>
-                <td class="fw-bold">${parseFloat(
-                  batch.total_amount
-                ).toLocaleString()} ETB</td>
-                <td>${batch.driver_count}</td>
-                <td>${new Date(batch.exported_at).toLocaleString()}</td>
-                <td>${batch.exported_by_name || "System"}</td>
+                <td>
+                    <span class="badge ${statusClass} rounded-pill px-3 py-2 small">${batch.status.toUpperCase()}</span>
+                </td>
+                <td>
+                    <span class="fw-bold text-primary">${parseFloat(
+                      batch.total_amount
+                    ).toLocaleString()} ETB</span>
+                </td>
+                <td><span class="badge bg-light text-muted border-0">${
+                  batch.driver_count
+                } Drivers</span></td>
+                <td>
+                    <div class="small">
+                        <div class="text-dark">${new Date(
+                          batch.exported_at
+                        ).toLocaleDateString()}</div>
+                        <div class="text-muted x-small">${new Date(
+                          batch.exported_at
+                        ).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}</div>
+                    </div>
+                </td>
+                <td><span class="text-muted small">${
+                  batch.exported_by_name || "System"
+                }</span></td>
                 <td class="text-end pe-4">
-                    <button class="btn btn-light btn-sm rounded-circle me-1" onclick="viewBatchDetails(${
+                    <button class="btn btn-sm btn-outline-primary border-0 rounded-circle" onclick="viewBatchDetails(${
                       batch.id
-                    })">
-                        <i class="fas fa-eye text-primary"></i>
+                    })" title="View Details">
+                        <i class="fas fa-eye"></i>
                     </button>
                 </td>
             </tr>
@@ -91,35 +114,57 @@ async function viewBatchDetails(id) {
       const batch = data.batch;
       const payments = data.payments;
 
-      document.getElementById("modalBatchId").textContent = batch.batch_id;
-      document.getElementById("modalStatus").innerHTML = `<span class="badge ${
-        batch.status === "paid" ? "bg-success" : "bg-warning"
-      }">${batch.status.toUpperCase()}</span>`;
+      const idDisplay = document.getElementById("modalBatchIdDisplay");
+      if (idDisplay) idDisplay.textContent = `Batch ID: ${batch.batch_id}`;
+
+      const isPaid = batch.status === "paid";
+      const statusClass = isPaid
+        ? "bg-success bg-opacity-10 text-success"
+        : "bg-warning bg-opacity-10 text-dark";
+
+      document.getElementById(
+        "modalStatus"
+      ).innerHTML = `<span class="badge ${statusClass} rounded-pill px-3 py-2 small">${batch.status.toUpperCase()}</span>`;
       document.getElementById("modalAmount").textContent = `${parseFloat(
         batch.total_amount
       ).toLocaleString()} ETB`;
-      document.getElementById("modalCount").textContent = batch.driver_count;
+      document.getElementById(
+        "modalCount"
+      ).textContent = `${batch.driver_count} Drivers`;
       document.getElementById("modalDate").textContent = new Date(
         batch.exported_at
-      ).toLocaleString();
+      ).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
 
       const tableBody = document.querySelector("#modalPaymentsTable tbody");
       tableBody.innerHTML = "";
 
       payments.forEach((p) => {
+        const pIsPaid = p.status === "paid";
+        const pStatusClass = pIsPaid
+          ? "bg-success bg-opacity-10 text-success"
+          : "bg-light text-muted";
+
         tableBody.innerHTML += `
                     <tr>
-                        <td>
-                            <div class="fw-bold">${
+                        <td class="ps-4">
+                            <div class="fw-bold text-dark">${
                               p.driver_name || "Unknown"
                             }</div>
-                            <div class="small text-muted">${p.driver_id}</div>
+                            <div class="x-small text-muted">${p.driver_id}</div>
                         </td>
-                        <td class="fw-bold">${parseFloat(
-                          p.total_amount
-                        ).toLocaleString()} ETB</td>
-                        <td><span class="badge bg-light text-dark border">${p.status.toUpperCase()}</span></td>
-                        <td>${p.processed_by || "System"}</td>
+                        <td>
+                            <div class="fw-bold text-primary">${parseFloat(
+                              p.total_amount
+                            ).toLocaleString()} ETB</div>
+                        </td>
+                        <td>
+                            <span class="badge ${pStatusClass} rounded-pill px-3 py-1 small">${p.status.toUpperCase()}</span>
+                        </td>
+                        <td class="pe-4">
+                            <span class="text-muted small">${
+                              p.processed_by || "System"
+                            }</span>
+                        </td>
                     </tr>
                 `;
       });

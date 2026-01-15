@@ -5,21 +5,69 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>User Management - Driver Bonus Platform</title>
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        .avatar-initials {
+            width: 36px;
+            height: 36px;
+            background-color: #eff6ff;
+            color: var(--primary-blue);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 14px;
+            margin-right: 12px;
+            border: 1px solid #dbeafe;
+        }
+        .user-row:hover {
+            cursor: pointer;
+        }
+    </style>
 </head>
 <body class="bg-light">
     <!-- Header injected by ui.js -->
 
-    <div class="container mt-4">
+    <div class="main-wrapper">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1>User Management</h1>
-            <button class="btn btn-success" data-bs-toggle="modal" data-bs-target="#userModal" onclick="resetForm()">Create New User</button>
+            <div>
+                <h1 class="h3 fw-bold mb-1">User Management</h1>
+                <p class="text-muted small">Manage system access and permissions for your team.</p>
+            </div>
+            <button class="btn btn-brand" data-bs-toggle="modal" data-bs-target="#userModal" onclick="resetForm()">
+                <i class="fas fa-user-plus me-2"></i> Create New User
+            </button>
         </div>
 
-        <div class="card shadow-sm">
+        <div class="card card-premium mb-4">
             <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-5">
+                        <div class="search-container-modern w-100">
+                            <i class="fas fa-search"></i>
+                            <input type="text" id="userSearch" class="form-control" placeholder="Search by name or email..." onkeyup="filterUsers()">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="roleFilter" class="form-select" onchange="filterUsers()">
+                            <option value="all">All Roles</option>
+                            <option value="admin">Admin</option>
+                            <option value="director">Director</option>
+                            <option value="manager">Manager</option>
+                            <option value="staff">Staff</option>
+                            <option value="auditor">Auditor</option>
+                        </select>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-premium border-0 overflow-hidden">
+            <div class="card-body p-0">
                 <div class="table-responsive">
-                    <table class="table table-hover">
+                    <table class="table table-excel table-hover mb-0 align-middle">
                         <thead>
                             <tr>
                                 <th>Name</th>
@@ -27,11 +75,11 @@
                                 <th>Role</th>
                                 <th>Status</th>
                                 <th>Last Login</th>
-                                <th>Actions</th>
+                                <th class="text-end px-4">Actions</th>
                             </tr>
                         </thead>
                         <tbody id="userTableBody">
-                            <tr><td colspan="6" class="text-center">Loading users...</td></tr>
+                            <tr><td colspan="6" class="text-center py-5"><div class="spinner-border text-primary" role="status"></div></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -41,48 +89,55 @@
 
     <!-- User Modal -->
     <div class="modal fade" id="userModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="modalTitle">Create User</h5>
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-bottom-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold" id="modalTitle">Create User</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
+                <div class="modal-body px-4">
                     <form id="userForm">
                         <input type="hidden" id="userId">
                         <div class="mb-3">
-                            <label class="form-label">Full Name</label>
-                            <input type="text" id="fullName" class="form-control" required>
+                            <label class="form-label small fw-semibold text-muted">Full Name</label>
+                            <input type="text" id="fullName" class="form-control form-control-lg" placeholder="e.g. John Doe" required>
                         </div>
                         <div class="mb-3">
-                            <label class="form-label">Email</label>
-                            <input type="email" id="email" class="form-control" required>
+                            <label class="form-label small fw-semibold text-muted">Email Address</label>
+                            <input type="email" id="email" class="form-control form-control-lg" placeholder="john@example.com" required>
                         </div>
                         <div class="mb-3" id="passwordField">
-                            <label class="form-label">Password</label>
-                            <input type="password" id="password" class="form-control">
+                            <label class="form-label small fw-semibold text-muted">Temporary Password</label>
+                            <div class="input-group">
+                                <input type="password" id="password" class="form-control form-control-lg">
+                                <button class="btn btn-outline-secondary" type="button" onclick="togglePassword()">
+                                    <i class="fas fa-eye" id="togglePswIcon"></i>
+                                </button>
+                            </div>
                         </div>
-                        <div class="mb-3">
-                            <label class="form-label">Role</label>
-                            <select id="role" class="form-select">
-                                <option value="staff">Staff</option>
-<option value="manager">Manager</option>
-<option value="auditor">Auditor</option>
-<option value="director">Director</option>
-<option value="admin">Admin</option>
-                            </select>
-                        </div>
-                        <div class="mb-3">
-                            <div class="form-check">
-                                <input class="form-check-input" type="checkbox" id="isActive" checked>
-                                <label class="form-check-label">Active</label>
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label small fw-semibold text-muted">System Role</label>
+                                <select id="role" class="form-select form-select-lg">
+                                    <option value="staff">Staff</option>
+                                    <option value="manager">Manager</option>
+                                    <option value="auditor">Auditor</option>
+                                    <option value="director">Director</option>
+                                    <option value="admin">Admin</option>
+                                </select>
+                            </div>
+                            <div class="col-md-6 d-flex align-items-end">
+                                <div class="form-check form-switch mb-2">
+                                    <input class="form-check-input" type="checkbox" id="isActive" checked>
+                                    <label class="form-check-label fw-semibold" for="isActive">Account Active</label>
+                                </div>
                             </div>
                         </div>
                     </form>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-primary" id="saveUserBtn">Save User</button>
+                <div class="modal-footer border-top-0 pb-4 px-4">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-brand px-4" id="saveUserBtn">Create Account</button>
                 </div>
             </div>
         </div>
@@ -94,45 +149,102 @@
     <script src="../js/ui.js"></script>
     <script>
         // Permission Check
-        const user = auth.getUser();
-        if (!user || !['admin', 'director'].includes(user.role)) {
+        const currentUser = auth.getUser();
+        if (!currentUser || !['admin', 'director'].includes(currentUser.role)) {
             window.location.href = '/index.html';
         }
 
+        let allUsers = [];
+
         async function loadUsers() {
             try {
-                const users = await api.get('/users');
-                const tbody = document.getElementById('userTableBody');
-                tbody.innerHTML = '';
-                
-                users.forEach(u => {
-                    const tr = document.createElement('tr');
-                    tr.innerHTML = `
-                        <td>${u.full_name}</td>
-                        <td>${u.email}</td>
-                        <td><span class="badge ${
-    u.role === 'admin' ? 'bg-danger' : 
-    u.role === 'director' ? 'bg-warning text-dark' : 
-    u.role === 'manager' ? 'bg-primary' : 
-    u.role === 'auditor' ? 'bg-secondary' : 
-    'bg-info'}">${u.role.toUpperCase()}</span></td>
-                        <td><span class="badge ${u.is_active ? 'bg-success' : 'bg-secondary'}">${u.is_active ? 'Active' : 'Inactive'}</span></td>
-                        <td>${u.last_login ? new Date(u.last_login).toLocaleString() : 'Never'}</td>
-                        <td>
-                            <button class="btn btn-sm btn-outline-primary" onclick='editUser(${JSON.stringify(u)})'>Edit</button>
-                        </td>
-                    `;
-                    tbody.appendChild(tr);
-                });
+                allUsers = await api.get('/users');
+                renderUsers(allUsers);
             } catch (error) {
                 console.error(error);
+                document.getElementById('userTableBody').innerHTML = '<tr><td colspan="6" class="text-center text-danger py-4">Error loading users</td></tr>';
             }
+        }
+
+        function renderUsers(users) {
+            const tbody = document.getElementById('userTableBody');
+            tbody.innerHTML = '';
+            
+            if (users.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="6" class="text-center py-5 text-muted">No users found</td></tr>';
+                return;
+            }
+
+            users.forEach(u => {
+                const initials = u.full_name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
+                const tr = document.createElement('tr');
+                tr.className = 'user-row';
+                
+                tr.innerHTML = `
+                    <td class="px-3">
+                        <div class="d-flex align-items-center">
+                            <div class="avatar-initials">${initials}</div>
+                            <div>
+                                <div class="fw-bold text-dark">${u.full_name}</div>
+                                <div class="text-muted small">${u.id === currentUser.id ? '(You)' : ''}</div>
+                            </div>
+                        </div>
+                    </td>
+                    <td><span class="text-muted small">${u.email}</span></td>
+                    <td>
+                        <span class="badge ${getRoleBadgeClass(u.role)} rounded-pill px-3 py-2 small">
+                            ${u.role.toUpperCase()}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge ${u.is_active ? 'bg-success bg-opacity-10 text-success' : 'bg-secondary bg-opacity-10 text-secondary'} rounded-pill px-3 py-2 small">
+                            ${u.is_active ? 'Active' : 'Inactive'}
+                        </span>
+                    </td>
+                    <td>
+                        <div class="small text-muted">
+                            ${u.last_login ? new Date(u.last_login).toLocaleDateString() : 'Never'}
+                            ${u.last_login ? `<br><span class="x-small">${new Date(u.last_login).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>` : ''}
+                        </div>
+                    </td>
+                    <td class="text-end px-4">
+                        <button class="btn btn-sm btn-outline-primary border-0 rounded-circle" onclick='editUser(${JSON.stringify(u)})' title="Edit User">
+                            <i class="fas fa-edit"></i>
+                        </button>
+                    </td>
+                `;
+                tbody.appendChild(tr);
+            });
+        }
+
+        function getRoleBadgeClass(role) {
+            switch(role) {
+                case 'admin': return 'bg-danger bg-opacity-10 text-danger';
+                case 'director': return 'bg-warning bg-opacity-10 text-dark';
+                case 'manager': return 'bg-primary bg-opacity-10 text-primary';
+                case 'auditor': return 'bg-secondary bg-opacity-10 text-secondary';
+                default: return 'bg-info bg-opacity-10 text-info';
+            }
+        }
+
+        function filterUsers() {
+            const query = document.getElementById('userSearch').value.toLowerCase();
+            const role = document.getElementById('roleFilter').value;
+            
+            const filtered = allUsers.filter(u => {
+                const matchesSearch = u.full_name.toLowerCase().includes(query) || u.email.toLowerCase().includes(query);
+                const matchesRole = role === 'all' || u.role === role;
+                return matchesSearch && matchesRole;
+            });
+            
+            renderUsers(filtered);
         }
 
         function resetForm() {
             document.getElementById('userForm').reset();
             document.getElementById('userId').value = '';
-            document.getElementById('modalTitle').textContent = 'Create User';
+            document.getElementById('modalTitle').textContent = 'Create New User';
+            document.getElementById('saveUserBtn').textContent = 'Create Account';
             document.getElementById('passwordField').classList.remove('d-none');
             document.getElementById('password').required = true;
         }
@@ -144,7 +256,8 @@
             document.getElementById('role').value = user.role;
             document.getElementById('isActive').checked = !!user.is_active;
             
-            document.getElementById('modalTitle').textContent = 'Edit User';
+            document.getElementById('modalTitle').textContent = 'Edit User Settings';
+            document.getElementById('saveUserBtn').textContent = 'Save Changes';
             document.getElementById('passwordField').classList.add('d-none');
             document.getElementById('password').required = false;
             
@@ -152,7 +265,7 @@
             modal.show();
         }
 
-        document.getElementById('saveUserBtn').addEventListener('click', async () => {
+        async function saveUser() {
             const id = document.getElementById('userId').value;
             const data = {
                 full_name: document.getElementById('fullName').value,
@@ -161,19 +274,51 @@
                 is_active: document.getElementById('isActive').checked
             };
 
+            const btn = document.getElementById('saveUserBtn');
+            const originalText = btn.textContent;
+            btn.disabled = true;
+            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Saving...';
+
             try {
                 if (id) {
                     await api.put(`/users/${id}`, data);
                 } else {
                     data.password = document.getElementById('password').value;
+                    if (!data.password) throw new Error('Password is required for new users');
                     await api.post('/users', data);
                 }
-                bootstrap.Modal.getInstance(document.getElementById('userModal')).hide();
-                loadUsers();
+                
+                const modalEl = document.getElementById('userModal');
+                const modal = bootstrap.Modal.getInstance(modalEl);
+                if (modal) modal.hide();
+                
+                await loadUsers();
+                if (typeof ui !== 'undefined' && ui.toast) {
+                    ui.toast(id ? 'User updated successfully' : 'User created successfully', 'success');
+                }
             } catch (error) {
-                alert(error.message);
+                ui.toast(error.message || 'An error occurred', 'error');
+            } finally {
+                btn.disabled = false;
+                btn.textContent = originalText;
             }
-        });
+        }
+
+        document.getElementById('saveUserBtn').addEventListener('click', saveUser);
+
+        function togglePassword() {
+            const psw = document.getElementById('password');
+            const icon = document.getElementById('togglePswIcon');
+            if (psw.type === 'password') {
+                psw.type = 'text';
+                icon.classList.remove('fa-eye');
+                icon.classList.add('fa-eye-slash');
+            } else {
+                psw.type = 'password';
+                icon.classList.remove('fa-eye-slash');
+                icon.classList.add('fa-eye');
+            }
+        }
 
         loadUsers();
     </script>

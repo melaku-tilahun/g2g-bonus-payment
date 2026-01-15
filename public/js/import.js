@@ -2,7 +2,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Permission Check
   const user = auth.getUser();
   if (!user || user.role === "auditor") {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 

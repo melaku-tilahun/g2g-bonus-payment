@@ -26,7 +26,7 @@ const auth = {
   logout() {
     localStorage.removeItem("token");
     localStorage.removeItem("user");
-    window.location.href = "/pages/login.html";
+    window.location.href = "/pages/login";
   },
 
   getUser() {
@@ -41,9 +41,9 @@ const auth = {
   checkAuth() {
     if (
       !this.isAuthenticated() &&
-      !window.location.pathname.includes("/login.html")
+      !window.location.pathname.includes("/login")
     ) {
-      window.location.href = "/pages/login.html";
+      window.location.href = "/pages/login";
     }
   },
 };

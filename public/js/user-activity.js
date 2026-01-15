@@ -8,7 +8,7 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Permission Check
   const user = auth.getUser();
   if (!user || !["admin", "director"].includes(user.role)) {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 
@@ -76,7 +76,7 @@ async function loadActivityReport() {
   } catch (error) {
     console.error("Load activity report error:", error);
     document.getElementById("activityLogsTableBody").innerHTML =
-      '<tr><td colspan="5" class="text-center text-danger">Failed to load activity logs</td></tr>';
+      '<tr><td colspan="5" class="text-center text-danger py-5">Failed to load activity logs</td></tr>';
   }
 }
 
@@ -104,35 +104,52 @@ function displayUserSummary(summary) {
 
   if (!summary || summary.length === 0) {
     container.innerHTML =
-      '<p class="text-muted text-center">No activity data available</p>';
+      '<p class="text-muted text-center py-4">No activity data available for this period.</p>';
     return;
   }
 
-  let html = '<div class="table-responsive"><table class="table table-hover">';
+  let html = '<table class="table table-excel table-hover mb-0 align-middle">';
   html += `<thead><tr>
-        <th>User</th>
-        <th>Total Actions</th>
+        <th class="ps-4">Team Member</th>
+        <th>Audit Count</th>
         <th>Verifications</th>
         <th>Imports</th>
         <th>Exports</th>
-        <th>Reconciliations</th>
+        <th class="pe-4">Reconciliations</th>
     </tr></thead><tbody>`;
 
   summary.forEach((user) => {
+    const initials = user.full_name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase()
+      .substring(0, 2);
     html += `<tr>
-            <td>
-                <strong>${user.full_name}</strong><br>
-                <small class="text-muted">${user.email}</small>
+            <td class="ps-4">
+                <div class="d-flex align-items-center">
+                    <div class="avatar-user">${initials}</div>
+                    <div>
+                        <div class="fw-bold text-dark">${user.full_name}</div>
+                        <div class="x-small text-muted">${user.email}</div>
+                    </div>
+                </div>
             </td>
-            <td class="fw-bold">${user.total_actions || 0}</td>
-            <td>${user.verifications || 0}</td>
-            <td>${user.imports || 0}</td>
-            <td>${user.exports || 0}</td>
-            <td>${user.reconciliations || 0}</td>
+            <td><span class="badge bg-light text-primary border-0 fw-bold px-3">${
+              user.total_actions || 0
+            }</span></td>
+            <td><span class="text-dark small">${
+              user.verifications || 0
+            }</span></td>
+            <td><span class="text-dark small">${user.imports || 0}</span></td>
+            <td><span class="text-dark small">${user.exports || 0}</span></td>
+            <td class="pe-4"><span class="text-dark small">${
+              user.reconciliations || 0
+            }</span></td>
         </tr>`;
   });
 
-  html += "</tbody></table></div>";
+  html += "</tbody></table>";
   container.innerHTML = html;
 }
 
@@ -141,7 +158,7 @@ function displayActivityLogs(logs) {
 
   if (!logs || logs.length === 0) {
     tbody.innerHTML =
-      '<tr><td colspan="5" class="text-center py-5 text-muted">No activity logs found</td></tr>';
+      '<tr><td colspan="5" class="text-center py-5 text-muted">No activity logs found for the selected criteria.</td></tr>';
     return;
   }
 
@@ -149,7 +166,25 @@ function displayActivityLogs(logs) {
 
   logs.forEach((log) => {
     const row = document.createElement("tr");
-    const timestamp = new Date(log.created_at).toLocaleString();
+    const date = new Date(log.created_at);
+    const timestampHtml = `
+        <div class="small">
+            <div class="text-dark fw-semibold">${date.toLocaleDateString()}</div>
+            <div class="text-muted x-small">${date.toLocaleTimeString([], {
+              hour: "2-digit",
+              minute: "2-digit",
+            })}</div>
+        </div>
+    `;
+
+    const initials = log.user_name
+      ? log.user_name
+          .split(" ")
+          .map((n) => n[0])
+          .join("")
+          .toUpperCase()
+          .substring(0, 2)
+      : "??";
 
     let detailsPreview = "-";
     let fullDetails = null;
@@ -160,45 +195,59 @@ function displayActivityLogs(logs) {
           typeof log.details === "string"
             ? JSON.parse(log.details)
             : log.details;
-        fullDetails = parsed; // Store object for modal
+        fullDetails = parsed;
         const str = JSON.stringify(parsed);
-        detailsPreview = str.substring(0, 50) + (str.length > 50 ? "..." : "");
+        detailsPreview = str.length > 40 ? str.substring(0, 40) + "..." : str;
       } catch (e) {
         detailsPreview = String(log.details);
       }
     }
 
+    const actionClass = getActionBadgeClass(log.action);
+
     row.innerHTML = `
-            <td class="small">${timestamp}</td>
+            <td class="ps-4">${timestampHtml}</td>
             <td>
-                <strong>${log.user_name || "Unknown"}</strong><br>
-                <small class="text-muted">${log.user_email || ""}</small>
-            </td>
-            <td><span class="badge bg-primary">${log.action}</span></td>
-            <td>
-                <small>
-                    ${log.entity_type || "-"}<br>
-                    ${
-                      log.entity_id
-                        ? `<span class="text-muted">${log.entity_id.substring(
-                            0,
-                            12
-                          )}...</span>`
-                        : ""
-                    }
-                </small>
-            </td>
                 <div class="d-flex align-items-center">
-                    <small class="text-muted me-2">${detailsPreview}</small>
+                    <div class="avatar-user small" style="width:28px; height:28px; font-size:11px;">${initials}</div>
+                    <div class="small">
+                        <div class="fw-bold text-dark">${
+                          log.user_name || "System"
+                        }</div>
+                        <div class="x-small text-muted">${
+                          log.user_email || ""
+                        }</div>
+                    </div>
+                </div>
+            </td>
+            <td><span class="badge ${actionClass} rounded-pill px-3 py-1 log-badge">${
+      log.action
+    }</span></td>
+            <td>
+                <div class="small">
+                    <div class="text-dark fw-semibold">${
+                      log.entity_type || "-"
+                    }</div>
+                    <div class="x-small text-muted font-monospace">${
+                      log.entity_id
+                        ? log.entity_id.substring(0, 8) + "..."
+                        : "-"
+                    }</div>
+                </div>
+            </td>
+            <td class="text-end pe-4">
+                <div class="d-flex align-items-center justify-content-end">
+                    <span class="x-small text-muted font-monospace me-2 text-truncate" style="max-width: 150px;">${detailsPreview}</span>
                     ${
                       fullDetails
-                        ? `<button class="btn btn-sm btn-link p-0" onclick='showLogDetails(${JSON.stringify(
+                        ? `<button class="btn btn-sm btn-outline-brand border-0 rounded-circle" onclick='showLogDetails(${JSON.stringify(
                             fullDetails
                           ).replace(/'/g, "&apos;")}, "${
                             log.entity_type || ""
                           }", "${log.entity_id || ""}", "${
                             log.user_name || "Unknown"
-                          }", "${timestamp}")'>View</button>`
+                          }", "${date.toLocaleString()}")' title="View Deep Audit">
+                            <i class="fas fa-search-plus"></i></button>`
                         : ""
                     }
                 </div>
@@ -209,6 +258,21 @@ function displayActivityLogs(logs) {
   });
 }
 
+function getActionBadgeClass(action) {
+  const a = action.toLowerCase();
+  if (a.includes("create") || a.includes("add") || a.includes("import"))
+    return "bg-success bg-opacity-10 text-success";
+  if (a.includes("update") || a.includes("edit"))
+    return "bg-primary bg-opacity-10 text-primary";
+  if (a.includes("delete") || a.includes("remove") || a.includes("block"))
+    return "bg-danger bg-opacity-10 text-danger";
+  if (a.includes("export") || a.includes("download"))
+    return "bg-info bg-opacity-10 text-info";
+  if (a.includes("confirm") || a.includes("verify"))
+    return "bg-brand bg-opacity-10 text-brand";
+  return "bg-secondary bg-opacity-10 text-secondary";
+}
+
 window.showLogDetails = function (
   details,
   entityType,
@@ -216,38 +280,47 @@ window.showLogDetails = function (
   userName,
   timestamp
 ) {
-  const content = document.getElementById("logDetailsContent");
+  const metaContainer = document.getElementById("logDetailsMetadata");
+  const contentContainer = document.getElementById("logDetailsContent");
 
-  let html = "";
-
-  html += `<div class="alert alert-info mb-3">
-        <div class="row">
-            <div class="col-md-6"><strong>User:</strong> ${
-              userName || "N/A"
-            }</div>
-            <div class="col-md-6"><strong>Time:</strong> ${
-              timestamp || "N/A"
-            }</div>
-            ${
-              entityType || entityId
-                ? `<div class="col-md-6 mt-1"><strong>Entity:</strong> ${
-                    entityType || "N/A"
-                  }</div>
-            <div class="col-md-6 mt-1"><strong>ID:</strong> ${
-              entityId || "N/A"
-            }</div>`
-                : ""
-            }
+  metaContainer.innerHTML = `
+    <div class="row g-3">
+        <div class="col-md-6">
+            <div class="p-3 bg-light rounded-3">
+                <div class="x-small text-muted fw-bold text-uppercase mb-1">Executor</div>
+                <div class="fw-bold text-dark">${userName || "System"}</div>
+            </div>
         </div>
-    </div>`;
+        <div class="col-md-6">
+            <div class="p-3 bg-light rounded-3">
+                <div class="x-small text-muted fw-bold text-uppercase mb-1">Exact Timestamp</div>
+                <div class="fw-bold text-dark">${timestamp}</div>
+            </div>
+        </div>
+        ${
+          entityType
+            ? `
+        <div class="col-md-6">
+            <div class="p-3 bg-light rounded-3 border-start border-4 border-primary">
+                <div class="x-small text-muted fw-bold text-uppercase mb-1">Target Entity</div>
+                <div class="fw-bold text-primary">${entityType}</div>
+            </div>
+        </div>
+        <div class="col-md-6">
+            <div class="p-3 bg-light rounded-3">
+                <div class="x-small text-muted fw-bold text-uppercase mb-1">Entity Reference</div>
+                <div class="font-monospace small text-dark">${
+                  entityId || "N/A"
+                }</div>
+            </div>
+        </div>
+        `
+            : ""
+        }
+    </div>
+  `;
 
-  html += `<pre class="bg-light p-3 border rounded"><code>${JSON.stringify(
-    details,
-    null,
-    2
-  )}</code></pre>`;
-
-  content.innerHTML = html;
+  contentContainer.innerText = JSON.stringify(details, null, 2);
 
   new bootstrap.Modal(document.getElementById("logDetailsModal")).show();
 };
@@ -256,35 +329,44 @@ function displaySecurityEvents(events, summary) {
   const container = document.getElementById("securityEventsContainer");
 
   if (!events || events.length === 0) {
-    container.innerHTML =
-      '<p class="text-muted text-center">No security events found</p>';
+    container.innerHTML = `
+      <div class="card card-premium border-0 p-5 text-center">
+        <div class="mb-3 text-success"><i class="fas fa-shield-alt fa-3x opacity-25"></i></div>
+        <h6 class="fw-bold text-dark">No Incidents Detected</h6>
+        <p class="text-muted small mb-0">Your system security registry is currently clear for this period.</p>
+      </div>
+    `;
     return;
   }
 
-  let html = '<div class="mb-4">';
-  html += '<h6 class="fw-bold mb-3">Event Summary</h6>';
-  html += '<div class="row g-3">';
-
+  let html = '<div class="row g-3 mb-4">';
   summary.forEach((s) => {
     html += `<div class="col-md-4">
-            <div class="card border">
-                <div class="card-body">
-                    <div class="text-muted small">${s.action}</div>
-                    <div class="h4 mb-0">${s.count}</div>
+            <div class="card card-premium border-0">
+                <div class="card-body p-3">
+                    <div class="text-muted x-small fw-bold text-uppercase">${s.action}</div>
+                    <div class="h4 mb-0 fw-bold text-danger">${s.count}</div>
                 </div>
             </div>
         </div>`;
   });
+  html += "</div>";
 
-  html += "</div></div>";
-
-  html += '<h6 class="fw-bold mb-3">Recent Events</h6>';
-  html += '<div class="table-responsive"><table class="table table-hover">';
-  html +=
-    "<thead><tr><th>Timestamp</th><th>User</th><th>Action</th><th>Details</th></tr></thead><tbody>";
+  html += `<div class="card card-premium border-0 overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom-0"><h6 class="fw-bold mb-0">Critical Event Log</h6></div>
+            <div class="table-responsive">
+                <table class="table table-excel table-hover mb-0 align-middle">
+                    <thead><tr><th class="ps-4">Timestamp</th><th>User</th><th>Incident Type</th><th class="pe-4">Context</th></tr></thead>
+                    <tbody>`;
 
   events.forEach((event) => {
-    const timestamp = new Date(event.created_at).toLocaleString();
+    const date = new Date(event.created_at);
+    const timestamp = `
+        <div class="small">
+            <div class="text-dark fw-semibold">${date.toLocaleDateString()}</div>
+            <div class="text-muted x-small">${date.toLocaleTimeString()}</div>
+        </div>
+    `;
 
     let detailsPreview = "-";
     let fullDetails = null;
@@ -297,28 +379,31 @@ function displaySecurityEvents(events, summary) {
             : event.details;
         fullDetails = parsed;
         const str = JSON.stringify(parsed);
-        detailsPreview = str.substring(0, 50) + (str.length > 50 ? "..." : "");
+        detailsPreview = str.length > 50 ? str.substring(0, 50) + "..." : str;
       } catch (e) {
         detailsPreview = String(event.details);
       }
     }
 
     html += `<tr>
-            <td class="small">${timestamp}</td>
-            <td>${event.user_name || "Unknown"}</td>
-            <td><span class="badge bg-danger">${event.action}</span></td>
-            <td>
+            <td class="ps-4">${timestamp}</td>
+            <td class="small fw-bold text-dark">${
+              event.user_name || "Unknown"
+            }</td>
+            <td><span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1 log-badge">${
+              event.action
+            }</span></td>
+            <td class="pe-4">
                 <div class="d-flex align-items-center">
-                    <small class="text-muted me-2">${detailsPreview}</small>
+                    <small class="text-muted font-monospace me-2 text-truncate" style="max-width: 200px;">${detailsPreview}</small>
                     ${
                       fullDetails
-                        ? `<button class="btn btn-sm btn-link p-0" onclick='showLogDetails(${JSON.stringify(
+                        ? `<button class="btn btn-sm btn-outline-danger border-0 rounded-circle" onclick='showLogDetails(${JSON.stringify(
                             fullDetails
-                          ).replace(/'/g, "&apos;")}, "${
-                            event.entity_type || ""
-                          }", "${event.entity_id || ""}", "${
+                          ).replace(/'/g, "&apos;")}, null, null, "${
                             event.user_name || "Unknown"
-                          }", "${timestamp}")'>View</button>`
+                          }", "${date.toLocaleString()}")' title="Investigate">
+                            <i class="fas fa-exclamation-circle"></i></button>`
                         : ""
                     }
                 </div>
@@ -326,7 +411,7 @@ function displaySecurityEvents(events, summary) {
         </tr>`;
   });
 
-  html += "</tbody></table></div>";
+  html += "</tbody></table></div></div>";
   container.innerHTML = html;
 }
 
@@ -334,9 +419,12 @@ function updatePagination(page, total, itemsPerPage) {
   const start = (page - 1) * itemsPerPage + 1;
   const end = Math.min(page * itemsPerPage, total);
 
-  document.getElementById(
-    "activityPaginationInfo"
-  ).textContent = `Showing ${start}-${end} of ${total}`;
+  const info = document.getElementById("activityPaginationInfo");
+  if (total > 0) {
+    info.textContent = `Showing range audit ${start}-${end} of ${total} total records`;
+  } else {
+    info.textContent = "No records found";
+  }
 
   document
     .getElementById("prevActivityPage")

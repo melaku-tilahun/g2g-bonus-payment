@@ -43,12 +43,13 @@ CREATE TABLE `drivers` (
   `tin_verified_at` timestamp NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   UNIQUE KEY `driver_id` (`driver_id`),
+  UNIQUE KEY `driver_id_2` (`driver_id`),
   KEY `idx_driver_id` (`driver_id`),
   KEY `idx_verified` (`verified`),
   KEY `idx_name` (`full_name`),
   KEY `idx_tin` (`tin`),
   KEY `idx_is_blocked` (`is_blocked`)
-) ENGINE=InnoDB AUTO_INCREMENT=9226 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=9227 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 
 ### TABLE: import_logs ###
 CREATE TABLE `import_logs` (
@@ -86,9 +87,8 @@ CREATE TABLE `audit_logs` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   PRIMARY KEY (`id`),
   KEY `user_id` (`user_id`),
-  CONSTRAINT `1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`),
   CONSTRAINT `audit_logs_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=404 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=410 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 
 ### TABLE: payments ###
 CREATE TABLE `payments` (
@@ -113,7 +113,7 @@ CREATE TABLE `payments` (
   CONSTRAINT `payments_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
   CONSTRAINT `payments_ibfk_2` FOREIGN KEY (`processed_by`) REFERENCES `users` (`id`),
   CONSTRAINT `payments_ibfk_3` FOREIGN KEY (`batch_internal_id`) REFERENCES `payment_batches` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=4555 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=4565 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 
 ### TABLE: payment_batches ###
 CREATE TABLE `payment_batches` (
@@ -130,7 +130,7 @@ CREATE TABLE `payment_batches` (
   UNIQUE KEY `unique_batch_id` (`batch_id`),
   KEY `exported_by` (`exported_by`),
   CONSTRAINT `payment_batches_ibfk_1` FOREIGN KEY (`exported_by`) REFERENCES `users` (`id`)
-) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+) ENGINE=InnoDB AUTO_INCREMENT=48 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 
 ### TABLE: bonuses ###
 CREATE TABLE `bonuses` (
@@ -162,5 +162,118 @@ CREATE TABLE `bonuses` (
   CONSTRAINT `bonuses_ibfk_2` FOREIGN KEY (`import_log_id`) REFERENCES `import_logs` (`id`),
   CONSTRAINT `fk_payment` FOREIGN KEY (`payment_id`) REFERENCES `payments` (`id`)
 ) ENGINE=InnoDB AUTO_INCREMENT=95509 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: driver_debts ###
+CREATE TABLE `driver_debts` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `driver_id` varchar(64) NOT NULL,
+  `amount` decimal(15,2) NOT NULL,
+  `remaining_amount` decimal(15,2) NOT NULL,
+  `reason` varchar(255) NOT NULL,
+  `notes` text DEFAULT NULL,
+  `status` enum('active','paid') DEFAULT 'active',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `created_by` (`created_by`),
+  KEY `idx_driver_status` (`driver_id`,`status`),
+  CONSTRAINT `driver_debts_ibfk_1` FOREIGN KEY (`driver_id`) REFERENCES `drivers` (`driver_id`),
+  CONSTRAINT `driver_debts_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=99 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: bonus_deductions ###
+CREATE TABLE `bonus_deductions` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `bonus_id` int(11) NOT NULL,
+  `debt_id` int(11) NOT NULL,
+  `amount_deducted` decimal(10,2) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_bonus_id` (`bonus_id`),
+  KEY `idx_debt_id` (`debt_id`),
+  CONSTRAINT `bonus_deductions_ibfk_1` FOREIGN KEY (`bonus_id`) REFERENCES `bonuses` (`id`) ON DELETE CASCADE,
+  CONSTRAINT `bonus_deductions_ibfk_2` FOREIGN KEY (`debt_id`) REFERENCES `driver_debts` (`id`)
+) ENGINE=InnoDB AUTO_INCREMENT=131 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: notifications ###
+CREATE TABLE `notifications` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `type` enum('payment','verification','reconciliation','system','debt','batch') NOT NULL,
+  `title` varchar(255) NOT NULL,
+  `message` text DEFAULT NULL,
+  `data` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`data`)),
+  `is_read` tinyint(1) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_user_read` (`user_id`,`is_read`),
+  KEY `idx_created_at` (`created_at`),
+  CONSTRAINT `notifications_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: report_schedules ###
+CREATE TABLE `report_schedules` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `name` varchar(255) NOT NULL,
+  `report_type` enum('financial','compliance','user_activity','driver_performance','debt') NOT NULL,
+  `frequency` enum('daily','weekly','monthly') NOT NULL,
+  `recipients` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT 'Array of email addresses' CHECK (json_valid(`recipients`)),
+  `parameters` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Report-specific parameters (date ranges, filters, etc)' CHECK (json_valid(`parameters`)),
+  `last_run` timestamp NULL DEFAULT NULL,
+  `next_run` timestamp NULL DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `created_by` (`created_by`),
+  KEY `idx_active_next_run` (`is_active`,`next_run`),
+  CONSTRAINT `report_schedules_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`id`) ON DELETE SET NULL
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: system_metrics ###
+CREATE TABLE `system_metrics` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `metric_type` varchar(50) NOT NULL COMMENT 'api_response, db_query, error_rate, storage',
+  `metric_name` varchar(100) NOT NULL,
+  `value` decimal(15,2) DEFAULT NULL,
+  `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL COMMENT 'Additional metric details' CHECK (json_valid(`metadata`)),
+  `recorded_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_type_time` (`metric_type`,`recorded_at`),
+  KEY `idx_name_time` (`metric_name`,`recorded_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: user_activity_summary ###
+CREATE TABLE `user_activity_summary` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `date` date NOT NULL,
+  `total_actions` int(11) DEFAULT 0,
+  `verifications_count` int(11) DEFAULT 0,
+  `imports_count` int(11) DEFAULT 0,
+  `exports_count` int(11) DEFAULT 0,
+  `reconciliations_count` int(11) DEFAULT 0,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `unique_user_date` (`user_id`,`date`),
+  KEY `idx_date` (`date`),
+  KEY `idx_user_date` (`user_id`,`date`),
+  CONSTRAINT `user_activity_summary_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
+
+### TABLE: saved_searches ###
+CREATE TABLE `saved_searches` (
+  `id` int(11) NOT NULL AUTO_INCREMENT,
+  `user_id` int(11) DEFAULT NULL,
+  `name` varchar(255) NOT NULL,
+  `search_type` enum('driver','payment','audit','import') NOT NULL,
+  `filters` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin NOT NULL COMMENT 'Search criteria and filters' CHECK (json_valid(`filters`)),
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  PRIMARY KEY (`id`),
+  KEY `idx_user_type` (`user_id`,`search_type`),
+  CONSTRAINT `saved_searches_ibfk_1` FOREIGN KEY (`user_id`) REFERENCES `users` (`id`) ON DELETE CASCADE
+) ENGINE=InnoDB AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci
 
 --- END SCHEMA CHECK ---

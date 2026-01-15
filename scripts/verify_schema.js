@@ -17,6 +17,13 @@ async function checkTables() {
     "payments",
     "payment_batches",
     "bonuses",
+    "driver_debts",
+    "bonus_deductions",
+    "notifications",
+    "report_schedules",
+    "system_metrics",
+    "user_activity_summary",
+    "saved_searches",
   ];
   let output = "--- START SCHEMA CHECK ---\n";
 

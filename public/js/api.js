@@ -33,8 +33,8 @@ const api = {
       if (response.status === 401) {
         localStorage.removeItem("token");
         localStorage.removeItem("user");
-        if (window.location.pathname !== "/pages/login.html") {
-          window.location.href = "/pages/login.html";
+        if (!window.location.pathname.includes("/login")) {
+          window.location.href = "/pages/login";
           return;
         }
       }

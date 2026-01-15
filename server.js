@@ -43,7 +43,9 @@ app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(RequestContext.middleware);
-app.use(express.static(path.join(__dirname, "public")));
+app.use(
+  express.static(path.join(__dirname, "public"), { extensions: ["html"] })
+);
 app.use("/imports", express.static(path.join(__dirname, "imports")));
 
 const globalErrorHandler = require("./src/middleware/errorMiddleware");

@@ -90,6 +90,7 @@ const paymentController = {
       minAmount,
       maxAmount,
       method,
+      status, // New: Allow status filtering
       sortBy = "payment_date",
       sortOrder = "DESC",
     } = req.query;
@@ -97,8 +98,16 @@ const paymentController = {
     const offset = (parseInt(page) - 1) * parseInt(limit);
     const limitNum = parseInt(limit);
 
-    let whereClause = " WHERE p.status IN ('paid', 'processing')";
+    let whereClause = "";
     const params = [];
+
+    // Default status handling: If no status provided, show both paid and processing
+    if (status && status !== "All") {
+      whereClause = " WHERE p.status = ?";
+      params.push(status);
+    } else {
+      whereClause = " WHERE p.status IN ('paid', 'processing')";
+    }
 
     // FILTERS
     if (driver_id) {

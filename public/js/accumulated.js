@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", async () => {
   // Check auth
   if (!auth.isAuthenticated()) {
-    window.location.href = "/login.html";
+    window.location.href = "/";
     return;
   }
 
@@ -80,7 +80,7 @@ document.addEventListener("DOMContentLoaded", async () => {
                 ).toLocaleString()} ETB</td>
                 <td><span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Unverified</span></td>
                 <td class="text-end pe-4">
-                    <a href="/pages/driver-detail.html?id=${
+                    <a href="/pages/driver-detail?id=${
                       d.driver_id
                     }" class="btn btn-outline-primary btn-sm px-3 shadow-none">
                         View & Verify

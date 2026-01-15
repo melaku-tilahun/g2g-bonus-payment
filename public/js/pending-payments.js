@@ -162,7 +162,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     ).toLocaleString()} <span class="small text-muted fw-normal">ETB</span>
                 </td>
                 <td class="text-center px-4">
-                    <a href="/pages/driver-detail.html?id=${
+                    <a href="/pages/driver-detail?id=${
                       item.driver_id
                     }" class="btn btn-sm btn-outline-primary rounded-pill px-3">
                         View Details

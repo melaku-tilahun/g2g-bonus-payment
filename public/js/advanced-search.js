@@ -7,7 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
     !user ||
     !["admin", "director", "manager", "auditor"].includes(user.role)
   ) {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 
@@ -149,7 +149,7 @@ function getRow(type, row) {
   if (type === "driver") {
     return `
             <td>
-                <div class="fw-bold"><a href="/pages/driver-detail.html?id=${
+                <div class="fw-bold"><a href="/pages/driver-detail?id=${
                   row.driver_id
                 }">${row.full_name}</a></div>
                 <div class="small text-muted">${row.driver_id}</div>

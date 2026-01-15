@@ -5,7 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Permission Check
   const user = auth.getUser();
   if (!user || !["admin", "director", "auditor"].includes(user.role)) {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 

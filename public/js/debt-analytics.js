@@ -6,7 +6,7 @@ document.addEventListener("DOMContentLoaded", () => {
   // Permission Check
   const user = auth.getUser();
   if (!user || !["admin", "director", "manager"].includes(user.role)) {
-    window.location.href = "/index.html";
+    window.location.href = "/";
     return;
   }
 
@@ -250,7 +250,7 @@ function displayTopDebtors(debtors) {
                     <span class="badge rounded-pill bg-light text-dark border">${repaidPercent}% Repaid</span>
                 </td>
                 <td>
-                    <a href="/pages/driver-detail.html?id=${
+                    <a href="/pages/driver-detail?id=${
                       debtor.driver_id
                     }" class="btn btn-light btn-sm rounded-circle">
                         <i class="fas fa-eye text-primary"></i>

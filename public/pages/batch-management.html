@@ -5,36 +5,47 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Batch Management - Driver Bonus Platform</title>
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/styles.css">
 </head>
-<body style="display: none;">
+<body style="display: none;" class="bg-light">
     <!-- Header injected by ui.js -->
     
     <div class="main-wrapper">
         <div class="d-flex justify-content-between align-items-center mb-4">
             <div>
-                <h1 class="h4 mb-1">Batch Management</h1>
-                <p class="text-muted small">Monitor, track, and confirm payment batches</p>
+                <h1 class="h3 fw-bold mb-1 text-dark">Batch Management</h1>
+                <p class="text-muted small mb-0">Monitor, track, and confirm system-generated payment batches.</p>
             </div>
             <div class="btn-group">
-                <button class="btn btn-outline-brand btn-sm" onclick="loadBatches()">
-                    <i class="fas fa-sync-alt me-2"></i>Refresh
+                <button class="btn btn-brand" onclick="loadBatches()">
+                    <i class="fas fa-sync-alt me-2"></i> Refresh Data
                 </button>
             </div>
         </div>
         
-        <!-- Batches List -->
-        <div class="card-premium p-0 overflow-hidden">
-            <div class="p-4 border-bottom d-flex justify-content-between align-items-center">
-                <h5 class="fw-bold mb-0">Payment Batches</h5>
-                <div class="d-flex gap-2">
-                    <select id="statusFilter" class="form-select form-select-sm" style="width: 150px;" onchange="loadBatches()">
-                        <option value="">All Statuses</option>
-                        <option value="processing">Processing</option>
-                        <option value="completed">Completed</option>
-                    </select>
+        <!-- Batches Filter -->
+        <div class="card card-premium mb-4 border-0">
+            <div class="card-body">
+                <div class="row align-items-center g-3">
+                    <div class="col-md-auto">
+                        <span class="text-muted small fw-bold text-uppercase letter-spacing-05">Filter by Status:</span>
+                    </div>
+                    <div class="col-md-3">
+                        <select id="statusFilter" class="form-select border-0 bg-light fw-semibold" onchange="loadBatches()">
+                            <option value="">All Batches</option>
+                            <option value="processing">Processing</option>
+                            <option value="paid">Paid (Completed)</option>
+                        </select>
+                    </div>
                 </div>
+            </div>
+        </div>
+
+        <!-- Batches Table -->
+        <div class="card card-premium border-0 overflow-hidden">
+            <div class="card-header bg-white py-3 border-bottom-0">
+                <h5 class="fw-bold mb-0">System Batches</h5>
             </div>
             <div id="batchesTableContainer" class="table-responsive">
                 <div class="text-center p-5">
@@ -43,7 +54,7 @@
                     </div>
                 </div>
             </div>
-            <div class="p-3 border-top d-flex justify-content-between align-items-center" id="paginationContainer">
+            <div class="p-3 border-top d-flex justify-content-between align-items-center bg-light bg-opacity-50" id="paginationContainer">
                 <!-- Pagination -->
             </div>
         </div>
@@ -51,52 +62,55 @@
 
     <!-- Batch Detail Modal -->
     <div class="modal fade" id="batchDetailModal" tabindex="-1">
-        <div class="modal-dialog modal-xl modal-dialog-scrollable">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header border-bottom p-4">
-                    <h5 class="modal-title fw-bold">Batch Details: <span id="modalBatchId"></span></h5>
+        <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-bottom-0 p-4">
+                    <div>
+                        <h5 class="modal-title fw-bold mb-1">Batch Details</h5>
+                        <p class="text-muted small mb-0" id="modalBatchIdDisplay"></p>
+                    </div>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4 bg-light">
-                    <div class="row g-4 mb-4">
+                <div class="modal-body p-4 pt-0">
+                    <div class="row g-3 mb-4">
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm p-3">
-                                <small class="text-muted">Status</small>
-                                <div id="modalStatus" class="fw-bold mt-1"></div>
+                            <div class="summary-item-card highlight">
+                                <div class="label">Current Status</div>
+                                <div id="modalStatus" class="value mt-1"></div>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm p-3">
-                                <small class="text-muted">Total Amount</small>
-                                <div id="modalAmount" class="fw-bold mt-1 text-primary"></div>
+                            <div class="summary-item-card">
+                                <div class="label">Total Amount</div>
+                                <div id="modalAmount" class="value mt-1 text-primary"></div>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm p-3">
-                                <small class="text-muted">Drivers</small>
-                                <div id="modalCount" class="fw-bold mt-1"></div>
+                            <div class="summary-item-card">
+                                <div class="label">Driver Count</div>
+                                <div id="modalCount" class="value mt-1 text-dark"></div>
                             </div>
                         </div>
                         <div class="col-md-3">
-                            <div class="card border-0 shadow-sm p-3">
-                                <small class="text-muted">Exported At</small>
-                                <div id="modalDate" class="fw-bold mt-1"></div>
+                            <div class="summary-item-card">
+                                <div class="label">Export Period</div>
+                                <div id="modalDate" class="value mt-1 small"></div>
                             </div>
                         </div>
                     </div>
 
-                    <div class="card border-0 shadow-sm">
-                        <div class="card-header bg-white py-3">
-                            <h6 class="mb-0 fw-bold">Payments in this Batch</h6>
+                    <div class="card border-0 bg-white rounded-3 overflow-hidden shadow-sm">
+                        <div class="card-header bg-white py-3 border-bottom">
+                            <h6 class="mb-0 fw-bold">Detailed Payments List</h6>
                         </div>
                         <div class="table-responsive">
-                            <table class="table table-hover mb-0" id="modalPaymentsTable">
+                            <table class="table table-excel table-hover mb-0 align-middle" id="modalPaymentsTable">
                                 <thead>
                                     <tr>
-                                        <th>Driver</th>
-                                        <th>Amount</th>
+                                        <th class="ps-4">Driver Details</th>
+                                        <th>Payout Amount</th>
                                         <th>Status</th>
-                                        <th>Processed By</th>
+                                        <th class="pe-4">Processed By</th>
                                     </tr>
                                 </thead>
                                 <tbody></tbody>
@@ -104,10 +118,10 @@
                         </div>
                     </div>
                 </div>
-                <div class="modal-footer border-top p-4">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
-                    <button type="button" class="btn btn-success" id="confirmBatchBtn" onclick="confirmBatch()">
-                        Confirm All as Paid
+                <div class="modal-footer border-top-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-success px-4" id="confirmBatchBtn" onclick="confirmBatch()">
+                        <i class="fas fa-check-double me-2"></i> Mark Entire Batch as Paid
                     </button>
                 </div>
             </div>
@@ -117,30 +131,27 @@
     <!-- Password Confirmation Modal -->
     <div class="modal fade" id="passwordConfirmModal" tabindex="-1" aria-hidden="true" style="z-index: 1060;">
         <div class="modal-dialog modal-dialog-centered">
-            <div class="modal-content border-0 shadow-lg">
-                <div class="modal-header bg-danger text-white border-bottom-0">
-                    <h5 class="modal-title fw-bold">
-                        <i class="fas fa-exclamation-triangle me-2"></i>Confirmation Required
+            <div class="modal-content border-0 shadow-lg ripple-on-show">
+                <div class="modal-header border-bottom-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold text-danger">
+                        <i class="fas fa-shield-alt me-2"></i>Security Verification
                     </h5>
-                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body p-4 bg-light">
-                    <p class="mb-3 lead text-dark">
-                        You are about to mark this entire batch as <strong>PAID</strong>.
+                <div class="modal-body p-4 pt-2">
+                    <p class="mb-3 text-dark">
+                        Confirming this batch will mark <strong>all included payments</strong> as paid. This cannot be undone.
                     </p>
-                    <div class="alert alert-warning border-warning shadow-sm mb-4">
-                        <i class="fas fa-info-circle me-1"></i> 
-                        This action cannot be undone. All related payment records will be updated immediately.
+                    <div class="bg-light p-3 rounded-3 mb-4 border-start border-4 border-warning">
+                        <small class="text-muted fw-bold d-block mb-1">PASSWORD REQUIRED</small>
+                        <input type="password" class="form-control form-control-lg border-0 shadow-sm" id="confirmPasswordInput" placeholder="Verify your identity">
+                        <div id="passwordError" class="text-danger small mt-2 d-none fw-bold">Incorrect password</div>
                     </div>
-                    
-                    <label class="form-label fw-bold text-muted small text-uppercase">Enter your password to confirm</label>
-                    <input type="password" class="form-control form-control-lg shadow-sm" id="confirmPasswordInput" placeholder="Your password">
-                    <div id="passwordError" class="text-danger small mt-2 d-none">Incorrect password</div>
                 </div>
-                <div class="modal-footer border-top-0 p-4 bg-light">
-                    <button type="button" class="btn btn-light text-muted" data-bs-dismiss="modal">Cancel</button>
-                    <button type="button" class="btn btn-danger px-4 shadow-sm" onclick="executeBatchConfirmation()">
-                        <i class="fas fa-check-circle me-2"></i>Confirm Payment
+                <div class="modal-footer border-top-0 p-4 pt-0">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Cancel Action</button>
+                    <button type="button" class="btn btn-danger px-4" onclick="executeBatchConfirmation()">
+                        Confirm Payment
                     </button>
                 </div>
             </div>

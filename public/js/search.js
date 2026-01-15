@@ -150,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const col = document.createElement("div");
       col.className = "col-md-6 col-lg-4";
       col.innerHTML = `
-                <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail.html?id=${
+                <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail?id=${
                   d.driver_id
                 }'" style="cursor: pointer;">
                     <div class="d-flex justify-content-between align-items-start mb-3">
@@ -204,7 +204,7 @@ document.addEventListener("DOMContentLoaded", () => {
         statusBadge = `<span class="badge bg-warning bg-opacity-10 text-warning rounded-pill px-3">Pending</span>`;
 
       col.innerHTML = `
-            <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail.html?id=${
+            <div class="card-premium h-100 p-4 d-flex flex-column" onclick="window.location.href='/pages/driver-detail?id=${
               p.driver_ref_id
             }'" style="cursor: pointer;">
                 <div class="d-flex justify-content-between align-items-center mb-3">

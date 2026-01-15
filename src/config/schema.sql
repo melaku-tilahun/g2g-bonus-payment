@@ -13,6 +13,8 @@ CREATE TABLE IF NOT EXISTS users (
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   created_by INT NULL,
+  otp_code VARCHAR(10) NULL,
+  otp_expires_at TIMESTAMP NULL,
   INDEX idx_email (email),
   INDEX idx_role (role),
   FOREIGN KEY (created_by) REFERENCES users(id)
@@ -114,6 +116,7 @@ CREATE TABLE IF NOT EXISTS bonuses (
   driver_id VARCHAR(64) NOT NULL,
   week_date DATE NOT NULL,
   net_payout DECIMAL(10, 2) NOT NULL,
+  fleet_net_payout DECIMAL(10, 2) DEFAULT NULL COMMENT 'Original Net Payout value from fleet Excel file',
   work_terms VARCHAR(255) NULL,
   status VARCHAR(50) NULL,
   payment_status VARCHAR(50) DEFAULT 'Pending',

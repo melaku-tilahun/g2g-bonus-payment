@@ -77,7 +77,7 @@ document.addEventListener("DOMContentLoaded", () => {
       const tr = document.createElement("tr");
       tr.style.cursor = "pointer";
       tr.onclick = () =>
-        (window.location.href = `/pages/driver-detail.html?id=${d.driver_id}`);
+        (window.location.href = `/pages/driver-detail?id=${d.driver_id}`);
 
       tr.innerHTML = `
                 <td class="px-4 py-3 text-muted small align-middle">${rowNumber}</td>
@@ -129,7 +129,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     }
                 </td>
                 <td class="px-4 py-3 text-end">
-                    <a href="/pages/driver-detail.html?id=${
+                    <a href="/pages/driver-detail?id=${
                       d.driver_id
                     }" class="btn btn-sm btn-light border text-muted">
                         View

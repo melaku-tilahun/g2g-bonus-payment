@@ -3,82 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>User Activity - Driver Bonus Platform</title>
+    <title>Activity & Audit - Driver Bonus Platform</title>
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="/css/styles.css">
-    <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="../css/styles.css">
+    <style>
+        .avatar-user {
+            width: 36px;
+            height: 36px;
+            background-color: var(--brand-blue);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border-radius: 10px;
+            font-weight: 700;
+            font-size: 13px;
+            margin-right: 12px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .log-badge {
+            font-weight: 600;
+            letter-spacing: 0.3px;
+            text-transform: uppercase;
+            font-size: 10px;
+        }
+        .json-viewer {
+            background: #1e1e1e;
+            color: #d4d4d4;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Fira Code', 'Cascadia Code', monospace;
+            font-size: 13px;
+            line-height: 1.5;
+            overflow-x: auto;
+            max-height: 500px;
+        }
+        .nav-tabs-modern {
+            border-bottom: 0px;
+            gap: 8px;
+        }
+        .nav-tabs-modern .nav-link {
+            border: 0;
+            border-radius: 12px;
+            padding: 10px 20px;
+            color: var(--text-muted);
+            font-weight: 600;
+            background: rgba(0,0,0,0.03);
+            transition: all 0.2s ease;
+        }
+        .nav-tabs-modern .nav-link.active {
+            background: var(--brand-blue);
+            color: white;
+            box-shadow: 0 4px 12px rgba(67, 97, 238, 0.2);
+        }
+        .nav-tabs-modern .nav-link:hover:not(.active) {
+            background: rgba(0,0,0,0.06);
+        }
+        .w-fit { width: fit-content; }
+    </style>
 </head>
-<body style="display: none;">
+<body style="display: none;" class="bg-light">
     <!-- Header injected by ui.js -->
     
     <div class="main-wrapper">
         <div class="d-flex justify-content-between align-items-center mb-4">
-            <h1 class="h4 mb-0">User Activity & Audit Logs</h1>
+            <div>
+                <h1 class="h3 fw-bold mb-1">User Activity & Audit</h1>
+                <p class="text-muted small">Monitor system actions, security events, and user interactions.</p>
+            </div>
+            <div class="btn-group">
+                <button class="btn btn-light" onclick="loadActivityReport()">
+                    <i class="fas fa-sync-alt me-2"></i> Refresh
+                </button>
+            </div>
         </div>
         
-        <!-- Filters -->
-        <div class="card-premium mb-4 p-4">
-            <div class="row g-3">
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted">User</label>
-                    <select id="filterUser" class="form-select">
-                        <option value="">All Users</option>
-                    </select>
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted">Start Date</label>
-                    <input type="date" id="startDate" class="form-control">
-                </div>
-                <div class="col-md-3">
-                    <label class="form-label small fw-bold text-muted">End Date</label>
-                    <input type="date" id="endDate" class="form-control">
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
-                    <button class="btn btn-brand w-100" onclick="loadActivityReport()">
-                        <i class="fas fa-filter me-2"></i>Apply Filters
-                    </button>
+        <!-- Filters Card -->
+        <div class="card card-premium mb-4 border-0">
+            <div class="card-body">
+                <div class="row g-3">
+                    <div class="col-md-3">
+                        <label class="form-label x-small fw-bold text-muted text-uppercase">Responsible User</label>
+                        <select id="filterUser" class="form-select border-0 bg-light fw-semibold">
+                            <option value="">All Active Users</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label x-small fw-bold text-muted text-uppercase">Start Period</label>
+                        <input type="date" id="startDate" class="form-control border-0 bg-light fw-semibold">
+                    </div>
+                    <div class="col-md-3">
+                        <label class="form-label x-small fw-bold text-muted text-uppercase">End Period</label>
+                        <input type="date" id="endDate" class="form-control border-0 bg-light fw-semibold">
+                    </div>
+                    <div class="col-md-3 d-flex align-items-end">
+                        <button class="btn btn-brand w-100" onclick="loadActivityReport()">
+                            <i class="fas fa-filter me-2"></i> Apply Audit Filter
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
         
-        <!-- User Summary Cards -->
-        <div class="row g-4 mb-4">
-            <div class="col-12">
-                <div class="card-premium p-4">
-                    <h5 class="fw-bold mb-4">User Activity Summary</h5>
-                    <div id="userSummaryTable"></div>
+        <!-- User Activity Summary Highlights -->
+        <div class="card card-premium mb-4 border-0">
+            <div class="card-header bg-white py-3 border-bottom-0">
+                <h5 class="fw-bold mb-0">Engagement Summary</h5>
+            </div>
+            <div class="card-body pt-0">
+                <div id="userSummaryTable" class="table-responsive">
+                    <!-- Summary content injected via JS -->
                 </div>
             </div>
         </div>
         
         <!-- Tab Navigation -->
-        <ul class="nav nav-tabs mb-4" role="tablist">
-            <li class="nav-item" role="presentation">
-                <button class="nav-link active" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button">
-                    <i class="fas fa-list me-2"></i>Activity Logs
-                </button>
-            </li>
-            <li class="nav-item" role="presentation">
-                <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button">
-                    <i class="fas fa-shield-alt me-2"></i>Security Events
-                </button>
-            </li>
-        </ul>
+        <div class="d-flex justify-content-between align-items-center mb-3">
+            <ul class="nav nav-tabs nav-tabs-modern" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="activity-tab" data-bs-toggle="tab" data-bs-target="#activity" type="button">
+                        <i class="fas fa-fingerprint me-2"></i> Activity Stream
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="security-tab" data-bs-toggle="tab" data-bs-target="#security" type="button">
+                        <i class="fas fa-shield-virus me-2"></i> Security Incidents
+                    </button>
+                </li>
+            </ul>
+        </div>
         
         <!-- Tab Content -->
         <div class="tab-content">
             <!-- Activity Logs Tab -->
             <div class="tab-pane fade show active" id="activity" role="tabpanel">
-                <div class="card-premium p-0 overflow-hidden">
+                <div class="card card-premium p-0 border-0 overflow-hidden">
                     <div class="table-responsive">
-                        <table class="table table-hover mb-0">
+                        <table class="table table-excel table-hover mb-0 align-middle">
                             <thead>
                                 <tr>
-                                    <th>Timestamp</th>
-                                    <th>User</th>
-                                    <th>Action</th>
-                                    <th>Entity</th>
-                                    <th>Details</th>
+                                    <th class="ps-4">Operation Time</th>
+                                    <th>User Account</th>
+                                    <th>Action Type</th>
+                                    <th>Object Affected</th>
+                                    <th class="text-end pe-4">Data Context</th>
                                 </tr>
                             </thead>
                             <tbody id="activityLogsTableBody">
@@ -86,15 +155,15 @@
                             </tbody>
                         </table>
                     </div>
-                    <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top bg-light">
-                        <span class="text-muted small" id="activityPaginationInfo">Showing 0-0 of 0</span>
+                    <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top bg-light bg-opacity-50">
+                        <span class="text-muted small" id="activityPaginationInfo">Loading pagination...</span>
                         <nav>
                             <ul class="pagination pagination-sm mb-0">
                                 <li class="page-item" id="prevActivityPage">
-                                    <button class="page-link" onclick="changePage(-1)">Previous</button>
+                                    <button class="page-link border-0 rounded-start" onclick="changePage(-1)"><i class="fas fa-chevron-left"></i></button>
                                 </li>
                                 <li class="page-item" id="nextActivityPage">
-                                    <button class="page-link" onclick="changePage(1)">Next</button>
+                                    <button class="page-link border-0 rounded-end" onclick="changePage(1)"><i class="fas fa-chevron-right"></i></button>
                                 </li>
                             </ul>
                         </nav>
@@ -104,8 +173,8 @@
             
             <!-- Security Events Tab -->
             <div class="tab-pane fade" id="security" role="tabpanel">
-                <div class="card-premium p-4">
-                    <div id="securityEventsContainer"></div>
+                <div id="securityEventsContainer">
+                    <!-- Security events injected via JS -->
                 </div>
             </div>
         </div>
@@ -113,17 +182,21 @@
 
     <!-- Log Details Modal -->
     <div class="modal fade" id="logDetailsModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">Activity Details</h5>
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg">
+                <div class="modal-header border-bottom-0 pt-4 px-4">
+                    <h5 class="modal-title fw-bold">Deep Audit: Action Insights</h5>
                     <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
                 </div>
-                <div class="modal-body">
-                    <div id="logDetailsContent"></div>
+                <div class="modal-body p-4 pt-0">
+                    <div id="logDetailsMetadata" class="mb-4"></div>
+                    <div class="json-viewer-container">
+                        <p class="text-muted small mb-2 fw-bold text-uppercase">Payload Content (JSON)</p>
+                        <div id="logDetailsContent" class="json-viewer"></div>
+                    </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <div class="modal-footer border-top-0 px-4 pb-4">
+                    <button type="button" class="btn btn-light px-4" data-bs-dismiss="modal">Dismiss</button>
                 </div>
             </div>
         </div>
@@ -133,7 +206,6 @@
     <script src="/js/api.js"></script>
     <script src="/js/auth.js"></script>
     <script>
-        // Check auth before showing content
         if (auth.isAuthenticated()) {
             document.body.style.display = 'block';
         }
