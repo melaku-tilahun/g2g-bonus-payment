@@ -1,4 +1,4 @@
-# Driver Bonus Tracking Platform (V3.0)
+# Driver Bonus Tracking Platform (V4.0)
 
 # 1. Overview
 
@@ -33,11 +33,16 @@ Unverified drivers accumulate unpaid bonuses for 2-4 weeks. Once verified, staff
 </aside>
 
 **Core Functionality:**
-- **Automated Import**: Intelligent Excel parsing with column detection and phone format cleaning.
+- **Automated Import**: Intelligent Excel parsing with column detection, phone format cleaning, and automatic debt deduction.
 - **TIN Verification**: Real-time lookup of driver business details via external TIN services.
-- **Smart Payouts**: Automatic calculation of Gross amounts and 3% Withholding Tax.
-- **Two-Stage Reconciliation**: Batch export for Telebirr Bulk Pay, followed by automated "Paid" status updates via report Import.
-- **Audit Logging**: Every action (verify, export, reconcile) is logged with a user timestamp.
+- **Smart Payouts**: Automatic calculation of Gross amounts, 3% Withholding Tax, and 30% additional tax for unverified drivers.
+- **Debt Management**: Track driver debts (loans, insurance) with automatic deduction from bonuses.
+- **Batch Reconciliation**: Export batches for Telebirr Bulk Pay, followed by automated "Paid" status updates via report import.
+- **Analytics Dashboard**: Financial overview, revenue trends, tax analytics, and driver performance metrics.
+- **Scheduled Reports**: Automated report generation (daily/weekly/monthly) with email delivery.
+- **System Health Monitoring**: Real-time CPU, memory, storage, and database metrics.
+- **Compliance Reporting**: Withholding tax reports, TIN verification logs, and driver statements.
+- **Audit Logging**: Every action (verify, export, reconcile) is logged with user timestamp and IP address.
 
 ---
 
@@ -76,39 +81,217 @@ graph TD
 
 # 3. Functional Requirements
 
-## 3.1 User Roles and Permissions
+## 3.1 System Use Cases
 
-### Admin Role
-- Full system access.
-- User Management: Create, edit, deactivate staff accounts.
-- System Logs: View all audit logs and import histories.
-- Data Correction: Modify or delete payment and verification records.
+### System Overview Diagram
 
-### Staff Role
-- Excel Imports: Import and validate weekly bonus files.
-- Driver Verification: Lookup TIN details and mark drivers as verified.
-- Payment Lifecycle: Export pending payments and process Telebirr reconciliation.
-- Read Access: View dashboard stats and search driver history.
+```mermaid
+graph TD
+    User((Staff))
+    Admin((Admin))
+    Director((Director))
+    Manager((Manager))
+    Auditor((Auditor))
+
+    subgraph "Driver Management"
+        Verify[Verify Driver]
+        TINLookup[TIN Lookup]
+        Block[Block/Unblock Driver]
+        ViewDetails[View Driver Details]
+    end
+
+    subgraph "Financial Operations"
+        Import[Import Weekly Bonus]
+        Export[Export Batch Payment]
+        Reconcile[Reconcile Payment]
+        PartialPay[Authorize 70% Payout]
+        ManageDebt[Manage Debts]
+    end
+
+    subgraph "Reporting & Compliance"
+        ViewRep[View Reports]
+        SchedRep[Schedule Reports]
+        AuditLog[View Audit Logs]
+        AdvSearch[Advanced Search]
+    end
+
+    User --> Verify
+    User --> TINLookup
+    User --> Import
+    User --> Export
+    User --> ViewDetails
+
+    Manager --> Block
+    Manager --> PartialPay
+    Manager --> AdvSearch
+    Manager --> ViewRep
+
+    Director --> AuditLog
+    Director --> PartialPay
+    Director --> Reconcile
+
+    Auditor --> ViewRep
+    Auditor --> AuditLog
+    Auditor --> AdvSearch
+
+    Admin --> ManageDebt
+    Admin --> SchedRep
+    Admin --> AuditLog
+    Admin --> Block
+```
+
+## 3.2 User Roles and Permissions
+
+The system implements Role-Based Access Control (RBAC) with five distinct user roles arranged in a hierarchy.
+
+### Role Hierarchy
+1. **Admin**: Superuser with full system access.
+2. **Director**: High-level strategic access, financial controls, and audit visibility.
+3. **Manager**: Operational oversight, driver management, and reporting.
+4. **Auditor**: Compliance monitoring, reporting, and read-only access to specific records.
+5. **Staff**: Basic operational access (driver verification input).
+
+### Permissions Matrix
+
+#### Driver Management
+| Feature | Admin | Director | Manager | Auditor | Staff |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| View Driver List | ✅ | ✅ | ✅ | ✅ | ✅ |
+| View Driver Details | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Verify Driver (Standard) | ✅ | ✅ | ✅ | ❌ | ✅ |
+| Admin Override (No TIN) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Block/Unblock Driver | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Generate Statements | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Add Debt | ✅ | ❌ | ❌ | ❌ | ❌ |
+
+#### Financial & Payments
+| Feature | Admin | Director | Manager | Auditor | Staff |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| View Pending Payments | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Export Payment List | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Reconcile Payments | ✅ | ✅ | ✅ | ❌ | ❌ |
+| 70% Partial Payout | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Batch Management (View) | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Mark Batch Paid | ✅ | ✅ | ❌ | ❌ | ❌ |
+
+#### Reporting & Compliance
+| Feature | Admin | Director | Manager | Auditor | Staff |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| Advanced Search | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Compliance Reports | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Tax Reports | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Analytics Dashboard | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Debt Analytics | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+#### System Administration
+| Feature | Admin | Director | Manager | Auditor | Staff |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| User Management | ✅ | ✅ | ❌ | ❌ | ❌ |
+| Audit Trail / Logs | ✅ | ✅ | ❌ | ❌ | ❌ |
+| System Health | ✅ | ❌ | ❌ | ❌ | ❌ |
+| File Imports | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+### Role-Specific Details
+
+**Director Access:**
+- Full access to Audit Trail (User Activity, Security Events, Heatmaps)
+- Can use "Admin Override" to verify drivers without TIN validation
+- Can authorize "Partial Payouts" (70%) for unverified drivers
+- Can view batches AND mark them as "Paid"
+
+**Manager Access:**
+- Full access to "Advanced Search" including user filtering
+- Can use "Admin Override" to verify drivers without TIN
+- Can view batches but **cannot** mark them as "Paid" (read-only)
+- Can block and unblock drivers
+
+**Auditor Access:**
+- Restored access to "Regulatory & Compliance" page for tax reporting
+- Can generate PDF statements for any driver from the Driver Detail page
+- Can use "Advanced Search" to find drivers
+- Strictly blocked from "Imports", "Exporting Payments", and "Reconciling"
 
 ## 3.2 Core Features
 
 ### Feature 1: Driver Verification (TIN & Business Data)
 - **TIN Lookup**: Real-time business name and manager name discovery via TIN.
+- **Admin Override**: Directors and Managers can verify drivers without TIN validation when necessary.
+- **Driver Blocking**: Block/unblock drivers to prevent payment processing.
 - **Verification History**: Identity of the staff member who performed the verification.
-- **Photo Storage**: Driver photos saved to disk storage (`/Imports/driver_photos`) for performance.
+- **Photo Storage**: Driver photos saved to disk storage (`/imports/driver_photos`) for performance.
 
 ### Feature 2: Smart Excel Import
 - **Chronological Validation**: Blocks imports for verified drivers.
 - **Phone Cleansing**: Automatically strips non-digits and ensures 9-digit MSISDN format.
 - **Mismatch Warnings**: Highlighting when the Excel phone number differs from the database phone.
+- **Automatic Debt Deduction**: Debts are automatically deducted from bonuses during import.
+- **Fleet Integration**: Supports fleet-specific Excel columns (work_terms, status, balance, payout, bank_fee).
 
-### Feature 3: Payment Reconciliation
-- **Batch Export**: Generates Excel files compatible with Telebirr Bulk Pay.
+### Feature 3: Payment Batch Processing
+- **Batch Export**: Generates Excel files compatible with Telebirr Bulk Pay with unique Batch ID.
+- **Batch Isolation**: Each export creates an isolated batch for tracking and re-download.
 - **Status Tracking**: Payments move from `pending` -> `processing` (exported) -> `paid` (reconciled).
-- **Report Reconciliation**: Import Telebirr success reports to bulk-update database statuses.
+- **Batch Re-download**: Re-download any previous batch Excel file for payment processing.
+- **Manual Completion**: Directors can manually mark batches as "Paid" when reconciliation file unavailable.
 
-### Feature 4: Audit Trail
-- Every financial change (verification date, payment status, exports) is recorded with the responsible user's ID.
+### Feature 4: Debt Management
+- **Create Debts**: Record driver debts (loans, insurance, advances) with reason and notes.
+- **Automatic Deduction**: Debts are automatically deducted from bonuses during import (FIFO order).
+- **Deduction History**: Complete transaction history of all deductions per debt.
+- **Debt Status Tracking**: Track active vs. paid debts with remaining balances.
+- **One Active Debt Rule**: System enforces one active debt per driver at a time.
+
+### Feature 5: Analytics Dashboard
+- **Financial Overview**: Total revenue, tax collected, active drivers with period comparisons.
+- **Revenue Trends**: Daily, weekly, or monthly revenue visualization.
+- **Tax Analytics**: Tax breakdown by category and monthly tax trends.
+- **Payout Velocity**: Average days from bonus import to payment.
+- **Driver Performance**: Top performers and most consistent drivers.
+- **Driver Segmentation**: Categorize drivers by average earnings.
+- **Earnings Distribution**: Histogram of driver earnings.
+
+### Feature 6: Scheduled Reports
+- **Automated Generation**: Schedule reports to run daily, weekly, or monthly.
+- **Email Delivery**: Reports automatically emailed to configured recipients.
+- **Report Types**: Withholding tax, debt status, and compliance summary reports.
+- **Schedule Management**: Create, update, activate/deactivate, and delete schedules.
+
+### Feature 7: Advanced Search
+- **Multi-Field Search**: Search across drivers, payments, and audit logs.
+- **Filter Options**: Status, date range, amount range, and more.
+- **Saved Searches**: Save frequently used search criteria for quick access.
+- **Export Results**: Export search results to Excel.
+
+### Feature 8: System Health Monitoring
+- **System Metrics**: Real-time CPU, memory, and storage usage.
+- **Database Statistics**: Driver count, payment count, audit log count.
+- **Performance Metrics**: Database latency and API health status.
+- **Error Tracking**: Error rates by date for system reliability monitoring.
+
+### Feature 9: Compliance Reporting
+- **Withholding Tax Reports**: Detailed tax reports by driver with export to Excel.
+- **TIN Verification Logs**: Audit trail of all TIN verification events.
+- **Driver Statements**: Generate PDF statements for individual drivers.
+- **Compliance Summary**: KPIs for verification rates and pending verifications.
+
+### Feature 10: User Activity Tracking
+- **Activity Reports**: View all system actions with user, date, and action filters.
+- **User Summary**: Breakdown of actions by user (verifications, imports, exports, etc.).
+- **Activity Heatmap**: Visualize activity patterns by day and hour.
+- **Security Events**: Monitor login attempts, password changes, and user deactivations.
+
+### Feature 11: Notification System
+- **System Notifications**: In-app notifications for important events.
+- **Notification Types**: Payment, verification, reconciliation, system, debt, and batch notifications.
+- **Read Status**: Track read/unread notifications per user.
+
+### Feature 12: Audit Trail
+- Every financial change (verification, payment, export, reconcile) is recorded with:
+  - User ID and name
+  - Action type and description
+  - Entity type and ID
+  - Detailed JSON data
+  - IP address and timestamp
 
 ---
 
@@ -124,12 +307,50 @@ The system automatically derives Gross Payout and Tax from the "Net Payout" prov
    - If **Gross ≤ 3,000 ETB**: `0` (Tax exempt).
 3. **Rounding**: All values are rounded to 2 decimal places.
 
-## 4.2 Import Logic & Chronology
+## 4.2 Unverified Driver Payout (70% Rule)
+
+When an unverified driver requests a payout before completing verification:
+
+1. **Standard 3% Tax**: Applied to the gross payout amount.
+2. **Additional 27% Tax**: Unverified drivers pay an additional 27% withholding tax (30% total).
+3. **Net Payout Formula**:
+   ```
+   Final Payout = Gross Amount × 0.70
+   ```
+4. **Example Calculation**:
+   - Gross Payout: 10,000 ETB
+   - Standard Tax (3%): 300 ETB
+   - Additional Tax (27%): 2,700 ETB
+   - **Final Payout to Driver: 7,000 ETB (70%)**
+
+> **Note**: This rule requires Admin or Director authorization via the "Release 70% Payout" feature.
+
+## 4.3 Debt Deduction Logic
+
+Debts are automatically deducted from driver bonuses during import:
+
+1. **FIFO Processing**: Oldest debts are paid first.
+2. **Automatic During Import**: When bonuses are imported, active debts are swept.
+3. **Deduction Calculation**:
+   ```
+   Available Amount = Calculated Net Payout (after any prior deductions)
+   Deduction = MIN(Available Amount, Remaining Debt)
+   Final Payout = Available Amount - Deduction
+   ```
+4. **Transaction Logging**: Every deduction is recorded in `bonus_deductions` table.
+5. **Debt Status Update**: When remaining balance reaches 0, debt status changes to "paid".
+6. **One Active Debt**: System enforces one active debt per driver at a time.
+
+## 4.4 Import Logic & Chronology
 
 ### The "Verified" Block
 Once a driver is marked **Verified**, they are in "Direct Payment Mode". 
 - **Rule**: The system will **reject** any new Excel bonus rows for verified drivers.
 - **Why**: Prevents double-counting once the driver has moved to direct weekly payments.
+
+### Force Pay Override
+- **Rule**: Bonuses with `force_pay = TRUE` can be processed even for unverified drivers.
+- **Use Case**: Early payouts for drivers who have completed partial verification.
 
 ### Phone Number Validation
 - All imports **require** a phone number.
@@ -137,71 +358,193 @@ Once a driver is marked **Verified**, they are in "Direct Payment Mode".
   - System shows a **Warning**.
   - User can **Cancel** or **Proceed Anyway** (which updates the database with the new phone).
 
-## 4.3 Reconciliation Flow
+## 4.5 Batch Reconciliation Flow
 
-1. **Export**: Staff clicks "Export Pending". System marks payments as `processing` and assigns a `Batch ID`.
+1. **Export**: Staff clicks "Export Pending". System:
+   - Creates a new `payment_batch` record with unique Batch ID
+   - Creates `payment` records for each driver
+   - Links bonuses to payments via `payment_id`
+   - Marks payments as `processing`
+   - Generates Excel file for Telebirr Bulk Pay
+
 2. **Payment Date**: The `payment_date` defaults to the export date initially.
-3. **Reconcile**: Import the bank's "Success Report". System matches by MSISDN, sets status to `paid`, and updates `payment_date` to the current reconciliation timestamp.
+
+3. **Reconcile Options**:
+   - **Option A - Import Report**: Import the bank's "Success Report". System matches by MSISDN, sets status to `paid`, and updates `payment_date`.
+   - **Option B - Manual Completion**: Directors can mark entire batch as "Paid" when reconciliation file is unavailable.
+
+4. **Batch Re-download**: Any batch can be re-downloaded for payment re-processing.
+
+## 4.6 System Workflows (Sequence Diagrams)
+
+### 4.6.1 Excel Import & Debt Deduction
+
+```mermaid
+sequenceDiagram
+    participant Staff
+    participant ImportController
+    participant Validator
+    participant DebtService
+    participant Database
+
+    Staff->>ImportController: Upload Excel File
+    ImportController->>Validator: Validate Columns & Phones
+    Validator-->>ImportController: Validation Result (Valid/Invalid)
+    
+    loop For Each Row
+        ImportController->>Database: Check Driver Status
+        Database-->>ImportController: (Verified/Unverified)
+        
+        alt Driver Verified
+            ImportController->>ImportController: Skip Row (Reject)
+        else Driver Unverified
+            ImportController->>DebtService: Check Active Debts
+            DebtService-->>ImportController: Debt Amount / Remaining
+            
+            ImportController->>ImportController: Calculate Gross & Tax
+            ImportController->>ImportController: Apply Debt Deduction
+            ImportController->>Database: Insert Bonus
+            ImportController->>Database: Insert BonusDeduction
+        end
+    end
+    
+    ImportController-->>Staff: Return Import Summary (Success/Skipped)
+```
+
+### 4.6.2 Driver Verification Process
+
+```mermaid
+sequenceDiagram
+    participant Staff
+    participant DriverController
+    participant TINService
+    participant Database
+    participant AuditService
+
+    Staff->>DriverController: Request TIN Lookup (tin_number)
+    DriverController->>TINService: Fetch Business Details
+    TINService-->>DriverController: Business Name, Manager Name
+    DriverController-->>Staff: Show Details for Confirmation
+
+    Staff->>DriverController: Confirm Verification (Password + Photo)
+    DriverController->>Database: Validate User Password
+    Database-->>DriverController: Valid
+    
+    DriverController->>Database: Update Driver (Verified=True)
+    DriverController->>AuditService: Log Verification Event
+    AuditService->>Database: Insert Audit Log
+    
+    DriverController-->>Staff: Verification Success
+```
+
+### 4.6.3 Telebirr Payment Cycle
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant PaymentController
+    participant BatchService
+    participant Database
+    participant Telebirr
+
+    Admin->>PaymentController: Request Payment Export
+    PaymentController->>BatchService: Create New Batch
+    BatchService->>Database: Create Batch Record
+    BatchService->>Database: Update Payments (Status=Processing)
+    PaymentController-->>Admin: Download Excel File
+
+    Admin->>Telebirr: Upload Batch File
+    Telebirr->>Telebirr: Process Payments
+    Telebirr-->>Admin: Download Success Report
+
+    Admin->>PaymentController: Upload Success Report (Reconcile)
+    PaymentController->>Database: Match MSISDNs
+    PaymentController->>Database: Update Payments (Status=Paid)
+    PaymentController->>Database: Update Batch (Status=Paid)
+    PaymentController-->>Admin: Reconciliation Complete
+```
+
+### 4.6.4 70% Partial Payout Request
+
+```mermaid
+sequenceDiagram
+    participant Director
+    participant PayoutController
+    participant DebtService
+    participant Database
+
+    Director->>PayoutController: Request 70% Payout (DriverID)
+    PayoutController->>Database: Get Accumulated Bonuses
+    PayoutController->>DebtService: Deduct Active Debts
+    
+    PayoutController->>PayoutController: Calculate Gross (Remaining)
+    PayoutController->>PayoutController: Apply 3% Standard Tax
+    PayoutController->>PayoutController: Apply 27% Penalty Tax
+    PayoutController->>PayoutController: Net = Gross * 0.70
+
+    PayoutController->>Database: specific Payment Record
+    PayoutController->>Database: Clear Bonuses (Mark Paid)
+    PayoutController->>Database: Log Audit Event
+    
+    PayoutController-->>Director: Success Message
+```
+
+### 4.6.5 Debt Creation Flow
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant DebtController
+    participant Database
+    participant NotificationService
+
+    Admin->>DebtController: Create Debt (Driver, Amount, Reason)
+    DebtController->>Database: Check Active Debts
+    
+    alt Has Active Debt
+        Database-->>DebtController: True
+        DebtController-->>Admin: Error: Active Debt Exists
+    else No Active Debt
+        DebtController->>Database: Insert Debt Record
+        Database-->>DebtController: ID: 123
+        DebtController->>NotificationService: Notify System
+        DebtController-->>Admin: Debt Created Successfully
+    end
+```
 
 ---
 
 # 5. Technical Specification
 
-## 5.1 Database Schema
+## 5.1 Database Schema (v4.0)
 
-### ERD (Entity Relationship Diagram)
+The system uses 14 tables organized into core entities, tracking tables, and support tables.
 
-```jsx
-┌─────────────────┐       ┌─────────────────┐
-│    drivers      │       │     bonuses     │
-├─────────────────┤       ├─────────────────┤
-│ id (PK)         │───┐   │ id (PK)         │
-│ driver_id       │   └──<│ driver_id (FK)  │
-│ name            │       │ week_date       │
-│ phone           │       │ bonus_amount    │
-│ email           │       │ imported_at     │
-│ verified        │       │ import_log_id   │
-│ verified_date   │       └─────────────────┘
-│ created_at      │              │
-│ updated_at      │              │
-└─────────────────┘              │
-        │                        │
-        │       ┌────────────────┘
-        │       │
-        │       ↓
-        │  ┌─────────────────┐
-        │  │  import_logs    │
-        │  ├─────────────────┤
-        │  │ id (PK)         │
-        │  │ file_name       │
-        │  │ week_date       │
-        │  │ records_count   │
-        │  │ imported_by     │
-        │  │ imported_at     │
-        │  └─────────────────┘
-        │
-        └──>
-    ┌─────────────────┐
-    │    payments     │
-    ├─────────────────┤
-    │ id (PK)         │
-    │ driver_id (FK)  │
-    │ total_amount    │
-    │ payment_date    │
-    │ payment_method  │
-    │ bonus_period    │
-    │ processed_by    │
-    │ notes           │
-    │ created_at      │
-    └─────────────────┘
+### 5.1.1 users table
+Stores user accounts with role-based access control.
+
+```sql
+CREATE TABLE users (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  full_name VARCHAR(255) NOT NULL,
+  email VARCHAR(255) UNIQUE NOT NULL,
+  password_hash VARCHAR(255) NOT NULL,
+  role ENUM('admin', 'staff', 'director', 'manager', 'auditor') NOT NULL DEFAULT 'staff',
+  is_active BOOLEAN DEFAULT TRUE,
+  last_login TIMESTAMP NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  created_by INT NULL,
+  otp_code VARCHAR(10) NULL,
+  otp_expires_at TIMESTAMP NULL,
+  INDEX idx_email (email),
+  INDEX idx_role (role),
+  FOREIGN KEY (created_by) REFERENCES users(id)
+);
 ```
 
-# 5. Technical Specification
-
-## 5.1 Database Schema (v3.0)
-
-### 5.1.1 drivers table
-Stores driver profile, tax identity, and verification status.
+### 5.1.2 drivers table
+Stores driver profile, tax identity, verification status, and blocking status.
 
 ```sql
 CREATE TABLE drivers (
@@ -209,22 +552,56 @@ CREATE TABLE drivers (
   driver_id VARCHAR(64) UNIQUE NOT NULL,
   full_name VARCHAR(255) NOT NULL,
   phone_number VARCHAR(20),
-  tin_number VARCHAR(20) NULL,
-  business_name VARCHAR(255) NULL,
-  manager_name VARCHAR(255) NULL,
-  manager_photo VARCHAR(255) NULL, -- Path to file (/Imports/driver_photos/...)
+  email VARCHAR(255),
   verified BOOLEAN DEFAULT FALSE,
-  verified_date DATETIME NULL,
+  is_blocked BOOLEAN DEFAULT FALSE,
+  verified_date DATE NULL,
   verified_by INT NULL,
+  tin VARCHAR(50) NULL,
+  business_name VARCHAR(255) NULL,
+  licence_number VARCHAR(100) NULL,
+  manager_name VARCHAR(255) NULL,
+  manager_photo TEXT NULL,
+  tin_verified_at TIMESTAMP NULL,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (verified_by) REFERENCES users(id),
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   INDEX idx_driver_id (driver_id),
-  INDEX idx_tin (tin_number)
+  INDEX idx_verified (verified),
+  INDEX idx_is_blocked (is_blocked),
+  INDEX idx_name (full_name),
+  INDEX idx_tin (tin),
+  FOREIGN KEY (verified_by) REFERENCES users(id)
 );
 ```
 
-### 5.1.2 bonuses table
-Stores weekly performance entries.
+### 5.1.3 import_logs table
+Records each Excel file import with statistics.
+
+```sql
+CREATE TABLE import_logs (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  file_name VARCHAR(255) NOT NULL,
+  file_path VARCHAR(255) NULL,
+  week_date DATE NOT NULL,
+  total_records INT NOT NULL,
+  success_count INT NOT NULL,
+  skipped_count INT DEFAULT 0,
+  error_count INT DEFAULT 0,
+  new_drivers_count INT DEFAULT 0,
+  existing_drivers_count INT DEFAULT 0,
+  rejected_verified_count INT DEFAULT 0,
+  skipped_details JSON,
+  imported_by INT,
+  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  status ENUM('success', 'partial', 'failed', 'processing') DEFAULT 'success',
+  error_message TEXT,
+  FOREIGN KEY (imported_by) REFERENCES users(id),
+  INDEX idx_week_date (week_date)
+);
+```
+
+### 5.1.4 bonuses table
+Stores weekly performance entries with fleet integration and debt deduction support.
 
 ```sql
 CREATE TABLE bonuses (
@@ -232,61 +609,258 @@ CREATE TABLE bonuses (
   driver_id VARCHAR(64) NOT NULL,
   week_date DATE NOT NULL,
   net_payout DECIMAL(10, 2) NOT NULL,
-  gross_payout DECIMAL(10, 2) NOT NULL,
-  withholding_tax DECIMAL(10, 2) NOT NULL,
+  fleet_net_payout DECIMAL(10, 2) DEFAULT NULL COMMENT 'Original Net Payout from fleet Excel',
+  work_terms VARCHAR(255) NULL,
+  status VARCHAR(50) NULL,
+  payment_status VARCHAR(50) DEFAULT 'Pending',
+  balance DECIMAL(10, 2) NULL,
+  payout DECIMAL(10, 2) NULL,
+  bank_fee DECIMAL(10, 2) NULL,
+  gross_payout DECIMAL(10, 2) NULL,
+  withholding_tax DECIMAL(10, 2) NULL,
+  final_payout DECIMAL(10, 2) NULL,
+  force_pay BOOLEAN DEFAULT FALSE,
+  imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   import_log_id INT,
+  payment_id INT,
   FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
   FOREIGN KEY (import_log_id) REFERENCES import_logs(id),
+  FOREIGN KEY (payment_id) REFERENCES payments(id),
+  INDEX idx_driver_week (driver_id, week_date),
+  INDEX idx_week_date (week_date),
+  INDEX idx_payment_id (payment_id),
   UNIQUE KEY unique_driver_week (driver_id, week_date)
 );
 ```
 
-### 5.1.3 payments table
-Handles bulk export and reconciliation history.
+### 5.1.5 payments table
+Handles individual payment records linked to batches.
 
 ```sql
 CREATE TABLE payments (
   id INT AUTO_INCREMENT PRIMARY KEY,
-  driver_id VARCHAR(64) NOT NULL,
+  driver_id VARCHAR(50) NOT NULL,
   total_amount DECIMAL(10, 2) NOT NULL,
-  payment_date DATETIME NOT NULL, -- Set at export, updated at reconciliation
-  status ENUM('pending', 'processing', 'paid', 'failed') DEFAULT 'pending',
-  batch_id VARCHAR(50) NULL, -- Links to Telebirr Bulk Pay export
+  status ENUM('processing', 'paid') DEFAULT 'processing',
+  payment_date DATETIME NOT NULL,
+  payment_method VARCHAR(50),
+  bonus_period_start DATE,
+  bonus_period_end DATE,
   processed_by INT,
   notes TEXT,
+  batch_id VARCHAR(64),
+  batch_internal_id INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
-  FOREIGN KEY (processed_by) REFERENCES users(id)
+  FOREIGN KEY (processed_by) REFERENCES users(id),
+  INDEX idx_driver_id (driver_id),
+  INDEX idx_payment_date (payment_date),
+  INDEX idx_status (status),
+  INDEX idx_batch_id (batch_id),
+  INDEX idx_batch_internal_id (batch_internal_id)
 );
 ```
 
-### 5.1.4 audit_logs table
-Tracks every state change for financial audit.
+### 5.1.6 payment_batches table
+Manages batch exports for Telebirr Bulk Pay with isolation and re-download capability.
+
+```sql
+CREATE TABLE payment_batches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  batch_id VARCHAR(64) NOT NULL UNIQUE,
+  total_amount DECIMAL(15, 2) DEFAULT 0,
+  driver_count INT DEFAULT 0,
+  status ENUM('processing', 'paid') DEFAULT 'processing',
+  exported_by INT,
+  exported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  completed_at TIMESTAMP NULL,
+  FOREIGN KEY (exported_by) REFERENCES users(id),
+  INDEX idx_batch_id (batch_id),
+  INDEX idx_exported_at (exported_at)
+);
+```
+
+### 5.1.7 driver_debts table
+Tracks driver debts (loans, insurance, advances) with automatic deduction support.
+
+```sql
+CREATE TABLE driver_debts (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  driver_id VARCHAR(64) NOT NULL,
+  amount DECIMAL(15, 2) NOT NULL,
+  remaining_amount DECIMAL(15, 2) NOT NULL,
+  reason VARCHAR(255) NOT NULL,
+  notes TEXT,
+  status ENUM('active', 'paid') DEFAULT 'active',
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (driver_id) REFERENCES drivers(driver_id),
+  FOREIGN KEY (created_by) REFERENCES users(id),
+  INDEX idx_driver_status (driver_id, status)
+);
+```
+
+### 5.1.8 bonus_deductions table
+Transaction log for debt deductions from bonuses.
+
+```sql
+CREATE TABLE bonus_deductions (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  bonus_id INT NOT NULL,
+  debt_id INT NOT NULL,
+  amount_deducted DECIMAL(10, 2) NOT NULL,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (bonus_id) REFERENCES bonuses(id) ON DELETE CASCADE,
+  FOREIGN KEY (debt_id) REFERENCES driver_debts(id),
+  INDEX idx_bonus_id (bonus_id),
+  INDEX idx_debt_id (debt_id)
+);
+```
+
+### 5.1.9 notifications table
+In-app notifications with type categorization.
+
+```sql
+CREATE TABLE notifications (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  type ENUM('payment', 'verification', 'reconciliation', 'system', 'debt', 'batch') NOT NULL,
+  title VARCHAR(255) NOT NULL,
+  message TEXT,
+  data JSON,
+  is_read BOOLEAN DEFAULT FALSE,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_read (user_id, is_read),
+  INDEX idx_created_at (created_at)
+);
+```
+
+### 5.1.10 report_schedules table
+Configures automated scheduled reports with email delivery.
+
+```sql
+CREATE TABLE report_schedules (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  name VARCHAR(255) NOT NULL,
+  report_type ENUM('financial', 'compliance', 'user_activity', 'driver_performance', 'debt') NOT NULL,
+  frequency ENUM('daily', 'weekly', 'monthly') NOT NULL,
+  recipients JSON NOT NULL COMMENT 'Array of email addresses',
+  parameters JSON COMMENT 'Report-specific parameters',
+  last_run TIMESTAMP NULL,
+  next_run TIMESTAMP NULL,
+  is_active BOOLEAN DEFAULT TRUE,
+  created_by INT,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL,
+  INDEX idx_active_next_run (is_active, next_run)
+);
+```
+
+### 5.1.11 system_metrics table
+Stores performance monitoring data.
+
+```sql
+CREATE TABLE system_metrics (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  metric_type VARCHAR(50) NOT NULL COMMENT 'api_response, db_query, error_rate, storage',
+  metric_name VARCHAR(100) NOT NULL,
+  value DECIMAL(15,2),
+  metadata JSON COMMENT 'Additional metric details',
+  recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  INDEX idx_type_time (metric_type, recorded_at),
+  INDEX idx_name_time (metric_name, recorded_at)
+);
+```
+
+### 5.1.12 user_activity_summary table
+Aggregated user activity for performance optimization.
+
+```sql
+CREATE TABLE user_activity_summary (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  date DATE NOT NULL,
+  total_actions INT DEFAULT 0,
+  verifications_count INT DEFAULT 0,
+  imports_count INT DEFAULT 0,
+  exports_count INT DEFAULT 0,
+  reconciliations_count INT DEFAULT 0,
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  UNIQUE KEY unique_user_date (user_id, date),
+  INDEX idx_date (date),
+  INDEX idx_user_date (user_id, date)
+);
+```
+
+### 5.1.13 saved_searches table
+User-saved search criteria for quick access.
+
+```sql
+CREATE TABLE saved_searches (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  user_id INT,
+  name VARCHAR(255) NOT NULL,
+  search_type ENUM('driver', 'payment', 'audit', 'import') NOT NULL,
+  filters JSON NOT NULL COMMENT 'Search criteria and filters',
+  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_type (user_id, search_type)
+);
+```
+
+### 5.1.14 audit_logs table
+Comprehensive audit trail for all system actions.
 
 ```sql
 CREATE TABLE audit_logs (
   id INT AUTO_INCREMENT PRIMARY KEY,
   user_id INT,
-  action VARCHAR(255), -- e.g., 'VERIFY_DRIVER', 'EXPORT_PAYMENTS', 'RECONCILE'
-  entity_type VARCHAR(50), -- 'driver', 'payment'
+  action VARCHAR(255) NOT NULL,
+  entity_type VARCHAR(50),
   entity_id VARCHAR(64),
-  old_value TEXT,
-  new_value TEXT,
+  details JSON,
+  ip_address VARCHAR(45),
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (user_id) REFERENCES users(id)
+  FOREIGN KEY (user_id) REFERENCES users(id),
+  INDEX idx_user_id (user_id),
+  INDEX idx_created_at (created_at)
 );
 ```
 
-### 5.1.5 users table
-```sql
-CREATE TABLE users (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  full_name VARCHAR(255) NOT NULL,
-  email VARCHAR(255) UNIQUE NOT NULL,
-  password_hash VARCHAR(255) NOT NULL,
-  role ENUM('admin', 'staff') NOT NULL DEFAULT 'staff',
-  is_active BOOLEAN DEFAULT TRUE,
-  created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+### 5.1.15 Entity State Diagrams
+
+#### Payment Lifecycle
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Bonus Imported
+    Pending --> Processing: Batch Export
+    Processing --> Paid: Reconciliation Success
+    Processing --> Failed: Reconciliation Error
+    Paid --> [*]
+    Failed --> Processing: Retry Export
+```
+
+#### Driver Verification Lifecycle
+```mermaid
+stateDiagram-v2
+    [*] --> Unverified: Registered
+    Unverified --> Verified: Verification Complete
+    Verified --> Blocked: Admin Block
+    Blocked --> Verified: Admin Unblock
+    Verified --> [*]
+```
+
+#### Debt Lifecycle
+```mermaid
+stateDiagram-v2
+    [*] --> Active: Debt Created
+    Active --> Active: Partial Deduction
+    Active --> Paid: Full Repayment
+    Paid --> [*]
 ```
 
 ## 5.2 API Reference
@@ -477,9 +1051,439 @@ Content-Type: application/json
 
 ### 5.2.4 Import & Excel Management
 
-- **POST /api/Imports/validate**: Dry-run validation of a monthly bonus file.
-- **POST /api/Imports/excel**: Final import of bonus rows.
-- **GET /api/Imports/history**: Audit log of all file Imports.
+- **POST /api/imports/validate**: Dry-run validation of a bonus file.
+- **POST /api/imports/excel**: Final import of bonus rows.
+- **GET /api/imports/history**: Audit log of all file imports.
+
+### 5.2.5 Debt Management Endpoints
+
+**POST /api/debts**
+
+**Description:** Create a new debt for a driver
+
+**Access:** Admin only
+
+**Request:**
+```json
+POST /api/debts
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Content-Type: application/json
+
+{
+  "driverId": "85fb80236ffa474db93fdccd0cdab66b",
+  "amount": 5000.00,
+  "reason": "Vehicle Insurance",
+  "notes": "Annual premium payment"
+}
+```
+
+**Success Response (201):**
+```json
+{
+  "success": true,
+  "message": "Debt created successfully.",
+  "debtId": 42,
+  "remaining": 3500.00,
+  "deducted_retroactively": 1500.00
+}
+```
+
+**GET /api/debts/search**
+
+**Description:** Search debts with filters
+
+**Access:** Admin, Director, Manager
+
+**Query Parameters:**
+- `q` - Search term (driver name/ID)
+- `status` - Filter by status (active/paid)
+- `page` - Page number
+- `limit` - Results per page
+
+**GET /api/debts/driver/:driverId**
+
+**Description:** Get all debts for a specific driver
+
+**Access:** Admin, Director, Manager
+
+**GET /api/debts/overview**
+
+**Description:** Get debt statistics overview
+
+**Access:** Admin, Director, Manager
+
+**Response:**
+```json
+{
+  "success": true,
+  "stats": {
+    "total_debt_issued": 150000.00,
+    "total_outstanding": 45000.00,
+    "actively_in_debt_count": 12,
+    "breakdown_by_reason": [...],
+    "top_debtors": [...]
+  }
+}
+```
+
+**GET /api/debts/aging**
+
+**Description:** Get debt aging report
+
+**Access:** Admin, Director, Manager
+
+**Response:**
+```json
+{
+  "success": true,
+  "aging": {
+    "period_0_30": 15000.00,
+    "period_30_60": 8000.00,
+    "period_60_90": 12000.00,
+    "period_90_plus": 10000.00
+  }
+}
+```
+
+### 5.2.6 Batch Management Endpoints
+
+**GET /api/batches**
+
+**Description:** List all payment batches
+
+**Access:** Admin, Director, Manager
+
+**Query Parameters:**
+- `status` - Filter by status (processing/paid)
+- `page` - Page number
+- `limit` - Results per page
+
+**Response:**
+```json
+{
+  "success": true,
+  "batches": [
+    {
+      "id": 1,
+      "batch_id": "BAT-2025-01-15-abc123",
+      "total_amount": 125000.00,
+      "driver_count": 45,
+      "status": "processing",
+      "exported_by": "John Doe",
+      "exported_at": "2025-01-15T10:30:00Z"
+    }
+  ],
+  "pagination": {...}
+}
+```
+
+**GET /api/batches/:batchId**
+
+**Description:** Get batch details with payments
+
+**Access:** Admin, Director, Manager
+
+**GET /api/batches/:batchId/download**
+
+**Description:** Re-download batch Excel file
+
+**Access:** Admin, Director, Manager
+
+**PUT /api/batches/:batchId/paid**
+
+**Description:** Mark entire batch as paid
+
+**Access:** Admin, Director only
+
+**Request:**
+```json
+{
+  "notes": "Manually marked as paid - Telebirr confirmation received via phone"
+}
+```
+
+### 5.2.7 Analytics Endpoints
+
+**GET /api/analytics/financial-overview**
+
+**Description:** Get financial KPIs with period comparison
+
+**Access:** Admin, Director, Manager
+
+**Query Parameters:**
+- `start_date` - Period start
+- `end_date` - Period end
+
+**Response:**
+```json
+{
+  "success": true,
+  "overview": {
+    "total_revenue": "1250000.00",
+    "total_tax": "37500.00",
+    "active_drivers": 450,
+    "avg_payout_time_days": 3.5,
+    "growth": {
+      "revenue": "+12.5%",
+      "drivers": "+8.2%",
+      "bonuses": "+15.3%"
+    }
+  }
+}
+```
+
+**GET /api/analytics/revenue-trends**
+
+**Description:** Get revenue trends over time
+
+**Query Parameters:**
+- `period` - daily/weekly/monthly
+- `months` - Number of months to retrieve
+
+**GET /api/analytics/tax-analytics**
+
+**Description:** Get tax breakdown and monthly trends
+
+**GET /api/analytics/payout-velocity**
+
+**Description:** Get average payout timing metrics
+
+**GET /api/analytics/driver-performance**
+
+**Description:** Get top performers and most consistent drivers
+
+**GET /api/analytics/driver-segmentation**
+
+**Description:** Get driver categorization by earnings
+
+**GET /api/analytics/earnings-distribution**
+
+**Description:** Get histogram of driver earnings
+
+### 5.2.8 Audit & User Activity Endpoints
+
+**GET /api/audit/activity-report**
+
+**Description:** Get activity logs with filters
+
+**Access:** Admin, Director
+
+**Query Parameters:**
+- `user_id` - Filter by user
+- `start_date` - Period start
+- `end_date` - Period end
+- `action` - Filter by action type
+- `page` - Page number
+- `limit` - Results per page
+
+**Response:**
+```json
+{
+  "success": true,
+  "logs": [
+    {
+      "id": 123,
+      "user_id": 1,
+      "user_name": "John Doe",
+      "user_email": "john@example.com",
+      "action": "Verify Driver",
+      "entity_type": "driver",
+      "entity_id": "85fb80236ffa474db93fdccd0cdab66b",
+      "details": {...},
+      "ip_address": "192.168.1.1",
+      "created_at": "2025-01-15T10:30:00Z"
+    }
+  ],
+  "total": 500,
+  "page": 1,
+  "limit": 50
+}
+```
+
+**GET /api/audit/user-summary**
+
+**Description:** Get activity breakdown by user
+
+**Access:** Admin, Director
+
+**GET /api/audit/activity-heatmap**
+
+**Description:** Get activity patterns by day and hour
+
+**Access:** Admin, Director
+
+**GET /api/audit/security-events**
+
+**Description:** Monitor login attempts and security-related events
+
+**Access:** Admin, Director
+
+### 5.2.9 Reports Endpoints
+
+**GET /api/reports/withholding-tax**
+
+**Description:** Generate withholding tax report
+
+**Access:** Admin, Director, Manager, Auditor
+
+**Query Parameters:**
+- `start_date` - Report period start
+- `end_date` - Report period end
+- `format` - json/excel
+
+**GET /api/reports/compliance-summary**
+
+**Description:** Get compliance KPIs
+
+**Access:** Admin, Director, Manager, Auditor
+
+**GET /api/reports/tin-verification-log**
+
+**Description:** Get TIN verification audit trail
+
+**Access:** Admin, Director, Manager, Auditor
+
+**GET /api/reports/driver-statement/:driverId**
+
+**Description:** Generate PDF statement for a driver
+
+**Access:** Admin, Director, Manager, Auditor, Staff
+
+**GET /api/reports/schedules**
+
+**Description:** List scheduled reports
+
+**Access:** Admin, Director
+
+**POST /api/reports/schedules**
+
+**Description:** Create a new scheduled report
+
+**Access:** Admin, Director
+
+**Request:**
+```json
+{
+  "name": "Weekly Tax Report",
+  "report_type": "financial",
+  "frequency": "weekly",
+  "recipients": ["finance@example.com", "manager@example.com"],
+  "parameters": {}
+}
+```
+
+**PUT /api/reports/schedules/:id**
+
+**Description:** Update scheduled report
+
+**Access:** Admin, Director
+
+**DELETE /api/reports/schedules/:id**
+
+**Description:** Delete scheduled report
+
+**Access:** Admin, Director
+
+### 5.2.10 System Health Endpoints
+
+**GET /api/system-health/dashboard**
+
+**Description:** Get system health metrics
+
+**Access:** Admin only
+
+**Response:**
+```json
+{
+  "success": true,
+  "metrics": {
+    "system": {
+      "uptime": 86400,
+      "memory": {
+        "free": 4294967296,
+        "total": 8589934592,
+        "usage_percent": "50.0"
+      },
+      "cpu_load": [1.5, 1.2, 1.0],
+      "cpu_usage_percent": "25.5",
+      "cpu_count": 4,
+      "platform": "linux",
+      "arch": "x64"
+    },
+    "database": {
+      "driver_count": 1500,
+      "payment_count": 5000,
+      "audit_count": 25000,
+      "unread_notifications": 12
+    },
+    "storage": {
+      "imports_size_mb": "256.50",
+      "photos_size_mb": "1024.75"
+    }
+  }
+}
+```
+
+**GET /api/system-health/performance**
+
+**Description:** Get performance metrics (DB latency)
+
+**Access:** Admin only
+
+**GET /api/system-health/storage**
+
+**Description:** Get storage usage details
+
+**Access:** Admin only
+
+**GET /api/system-health/errors**
+
+**Description:** Get error rates by date
+
+**Access:** Admin only
+
+### 5.2.11 Advanced Search Endpoints
+
+**POST /api/search/advanced**
+
+**Description:** Multi-filter search across entities
+
+**Access:** Admin, Director, Manager, Auditor
+
+**Request:**
+```json
+{
+  "entity": "driver",
+  "filters": {
+    "verified": true,
+    "date_range": {
+      "start": "2025-01-01",
+      "end": "2025-01-31"
+    },
+    "min_amount": 5000
+  },
+  "page": 1,
+  "limit": 25
+}
+```
+
+**GET /api/search/saved**
+
+**Description:** Get user's saved searches
+
+**Access:** All authenticated users
+
+**POST /api/search/saved**
+
+**Description:** Save a search
+
+**Access:** All authenticated users
+
+**DELETE /api/search/saved/:id**
+
+**Description:** Delete a saved search
+
+**Access:** All authenticated users
 
 **UI Display Example:**
 
@@ -927,40 +1931,74 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ### File Structure
 
-```jsx
+```
 /public
   /css
-    - styles.css
-    - dashboard.css
-    - login.css
+    - styles.css (main application styles)
   /js
-    - app.js (main application logic)
-    - auth.js (authentication handling, token management)
-    - Import.js (file Import handling)
-    - search.js (driver search & lookup)
-    - users.js (user management - admin only)
     - api.js (API communication layer with auth headers)
+    - auth.js (authentication handling, token management)
+    - ui.js (shared UI components, navigation, theming)
+    - import.js (file import handling)
+    - search.js (driver search & lookup)
+    - driver-detail.js (driver profile and bonus management)
+    - pending-payments.js (pending payment processing)
+    - accumulated.js (accumulated payments view)
+    - advanced-search.js (multi-filter search)
+    - analytics-dashboard.js (financial analytics)
+    - batch-management.js (batch export management)
+    - compliance-reports.js (regulatory reports)
+    - debt-analytics.js (debt management)
+    - scheduled-reports.js (report scheduling)
+    - system-health.js (system monitoring)
+    - user-activity.js (audit trail visualization)
+    - unverified-drivers.js (unverified driver list)
+    - verified-drivers.js (verified driver list)
+    - export-util.js (Excel export utilities)
   /pages
     - login.html (login page - public)
     - index.html (dashboard - requires auth)
-    - Import.html (import page - requires auth)
+    - import.html (import page - requires auth)
     - driver-detail.html (driver view - requires auth)
+    - driver-management.html (driver management - requires auth)
     - payments.html (payment history - requires auth)
+    - pending-payments.html (pending payments - requires auth)
+    - accumulated.html (accumulated payments - requires auth)
+    - unverified-drivers.html (unverified list - requires auth)
+    - verified-drivers.html (verified list - requires auth)
+    - advanced-search.html (advanced search - requires auth)
+    - analytics-dashboard.html (analytics - requires auth)
+    - batch-management.html (batches - requires auth)
+    - compliance-reports.html (compliance - requires auth)
+    - debt-analytics.html (debt management - admin only)
+    - scheduled-reports.html (report scheduling - requires auth)
+    - system-health.html (system monitoring - admin only)
+    - user-activity.html (audit trail - admin/director only)
     - users.html (user management - admin only)
-    - profile.html (user profile - requires auth)
+    - help.html (help & documentation)
+  /vendor
+    - xlsx.min.js (Excel parsing/generation)
+    - chart.min.js (data visualization)
 ```
 
 ### Key Components
 
 - **Login Page:** User authentication with email and password
 - **Dashboard:** Overview of pending drivers, weekly statistics (role-based access)
-- **Import Module:** Excel file Import with validation and preview
+- **Import Module:** Excel file import with validation, preview, and debt deduction
 - **Search Module:** Real-time driver search with autocomplete
-- **Driver Detail View:** Complete bonus history with cumulative total
-- **Payment Module:** Mark as paid and record payment details (admin only)
+- **Advanced Search:** Multi-filter search with save functionality
+- **Driver Detail View:** Complete bonus history, debt management, and verification
+- **Payment Module:** Batch export and reconciliation workflow
+- **Batch Management:** View, re-download, and manage payment batches
+- **Debt Analytics:** Debt overview, aging reports, and repayment trends
+- **Analytics Dashboard:** Financial KPIs, revenue trends, tax analytics
+- **Compliance Reports:** Withholding tax, TIN verifications, driver statements
+- **Scheduled Reports:** Configure automated report generation
+- **System Health:** CPU, memory, storage, and error monitoring
+- **User Activity:** Audit trail, activity heatmaps, security events
 - **User Management:** Create, edit, and manage users (admin only)
-- **User Profile:** View and edit own profile, change password
-- **Navigation:** Role-based menu (different options for admin vs staff)
+- **Navigation:** Role-based menu with 5-tier access control
 
 ## 5.4 Performance & Scalability Analysis
 
@@ -1078,9 +2116,70 @@ Total System RAM Usage: ~1 GB - 2.7 GB
 ### 6.2 Telebirr Reconciliation Workflow
 1. Go to **Payments > Pending**.
 2. Click **Export for Telebirr**. (Result: A `.xlsx` file is downloaded, and statuses move to `processing`).
-3. After the bank confirms, go to **Payments > Reconcile**.
-4. Import the bank's **Success Report**.
-5. System matches MSISDNs and updates statuses to `paid` with the current timestamp.
+3. After the bank confirms, request the **Success Report**.
+   - **Requirement:** The report MUST contain a column named **Comment** OR **Transaction Details**.
+   - **Requirement:** This column must preserve the metadata string (e.g., `DriverID, BonusID...`) from the original export.
+   - **Note:** Matching by Phone Number alone is **NOT** supported for security reasons.
+4. Go to **Payments > Reconcile**.
+5. Import the bank's **Success Report**.
+6. System strictly matches by Metadata and updates statuses to `paid`.
+
+### 6.3 Batch Management Workflow
+1. Go to **Payments > Batch Management**.
+2. View all exported batches with status (processing/paid).
+3. To re-download a batch file, click **Download** on the batch row.
+4. To manually mark as paid (Director/Admin only):
+   - Click **Mark as Paid** on the batch row
+   - Add a note explaining the manual completion reason
+   - Confirm the action
+
+### 6.4 Debt Management Workflow
+1. Go to **Driver Detail** page for the target driver.
+2. Click **Add Debt** (Admin only).
+3. Enter:
+   - Amount
+   - Reason (Loan, Insurance, Advance, Other)
+   - Notes (optional)
+4. Click **Create Debt**.
+5. System automatically deducts from future bonus imports.
+6. View debt status and deduction history in **Debt Analytics**.
+
+### 6.5 70% Partial Payout Workflow (Unverified Drivers)
+When an unverified driver needs early payout:
+
+1. Go to **Driver Detail** page.
+2. Review the accumulated bonuses.
+3. Click **Release 70% Payout** (Admin/Director only).
+4. System calculates:
+   - Gross Payout (after any debts)
+   - Standard 3% Withholding Tax
+   - Additional 27% Withholding Tax
+   - Final Payout = 70% of Gross
+5. Confirm with your account password.
+6. Payment is exported with next batch.
+
+### 6.6 Scheduled Reports Workflow
+1. Go to **Reports > Scheduled Reports**.
+2. Click **Create Schedule**.
+3. Configure:
+   - Report Name
+   - Report Type (Financial, Compliance, User Activity, Debt)
+   - Frequency (Daily, Weekly, Monthly)
+   - Recipients (email addresses)
+4. Click **Save**.
+5. Reports are automatically generated and emailed on schedule.
+
+### 6.7 Advanced Search Workflow
+1. Go to **Advanced Search**.
+2. Select entity type (Driver, Payment, Audit Log).
+3. Configure filters:
+   - Date range
+   - Status (Verified/Unverified, Paid/Processing)
+   - Amount range
+   - User (for audit logs)
+4. Click **Search**.
+5. Optionally, click **Save Search** for quick access later.
+6. Export results to Excel if needed.
 
 ---
 
@@ -1089,12 +2188,16 @@ Total System RAM Usage: ~1 GB - 2.7 GB
 ### 7.1 Production Checklist
 - [ ] **SSL/HTTPS**: Ensure all API traffic is encrypted.
 - [ ] **Database Backup**: Set up a daily cron job for `mysqldump`.
-- [ ] **Import Permissions**: Ensure `public/Imports/driver_photos` is writable.
+- [ ] **Import Permissions**: Ensure `public/imports/driver_photos` is writable.
 - [ ] **Environment**: Set `NODE_ENV=production`.
+- [ ] **Scheduled Reports**: Configure SMTP settings in environment variables.
+- [ ] **System Health**: Verify admin access to System Health page.
 
 ### 7.2 Monitoring
-- Monitor Log files at `logs/audit.log` for financial actions.
-- Check disk space periodically for driver photo growth.
+- Monitor System Health page for CPU, memory, and storage metrics.
+- Review Error Rates for trends in system issues.
+- Check User Activity for unusual login patterns.
+- Monitor Log files at `logs/` for application errors.
 
 ---
 
@@ -1102,8 +2205,11 @@ Total System RAM Usage: ~1 GB - 2.7 GB
 - **MSISDN**: The driver's phone number used for Telebirr.
 - **TIN**: Tax Identification Number.
 - **Batch ID**: A unique string generated during Export to track a set of payments.
-    - Admin-only: User management, view all audit logs
-    - Staff + Admin: Verification, payments, imports, search
+- **Debt**: A financial obligation (loan, insurance premium) that is automatically deducted from bonuses.
+- **70% Payout**: Partial payout available to unverified drivers with 30% additional withholding tax.
+- **Force Pay**: Override flag allowing bonus payment for special cases.
+- **Admin Override**: Verification without TIN lookup (Director/Manager access required).
+- **Batch Reconciliation**: Process of matching bank success reports to internal payments.
 
 **Testing:**
 
@@ -2014,33 +3120,14 @@ These features can be added after the MVP is complete and tested.
 <aside>
 🎉
 
-**Document Version:** 2.0
-**Last Updated:** 2025-12-23
+**Document Version:** 4.0
+**Last Updated:** 2026-01-16
 **Maintained By:** Development Team
 
-</aside>
-
-**Driver ID:** Unique hash identifier from Yango system (e.g., `85fb80236ffa474db93fdccd0cdab66b`)
-
-**Net Payout:** The bonus amount earned by a driver for a specific week
-
-**Verification:** The process of document submission and approval before a driver can receive payments
-
-**Accumulation Mode:** State where an unverified driver's bonuses are collected but not yet paid
-
-**Direct Payment Mode:** State where a verified driver receives weekly payments directly (outside this system)
-
-**Import Log:** Audit record of an Excel file Import, including success/error counts
-
-**Bonus Period:** Date range of bonuses included in a payment transaction
-
----
-
-<aside>
-🎉
-
-**Document Version:** 1.0
-**Last Updated:** 2025-12-19
-**Maintained By:** Development Team
+**Change Log:**
+- v4.0 (2026-01-16): Added 5 user roles, 8 new features, 8 new database tables, 40+ API endpoints, 7 workflow guides
+- v3.0 (2025-12-23): TIN verification, Telebirr reconciliation
+- v2.0 (2025-12-19): Payment tracking, audit trail
+- v1.0 (2025-12-01): Initial release
 
 </aside>

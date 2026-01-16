@@ -590,6 +590,8 @@ const paymentController = {
 
   validateReconciliation: catchAsync(async (req, res, next) => {
     const ExcelJS = require("exceljs");
+    const fs = require("fs");
+    const path = require("path");
 
     if (!req.file) {
       throw new AppError("No file imported", 400);
@@ -662,7 +664,9 @@ const paymentController = {
         }
         if (val.includes("amount")) amountCol = colNumber;
         if (val.includes("status")) statusCol = colNumber;
-        if (val.includes("comment")) commentCol = colNumber;
+        // Support both "Comment" and "Transaction Details"
+        if (val.includes("comment") || val.includes("transaction details"))
+          commentCol = colNumber;
       });
 
       if (foundMsisdn) {
@@ -776,23 +780,13 @@ const paymentController = {
         }
       }
 
-      // If comment parsing failed, try to find driver by phone
+      // STRICT MODE: If we can't parse the metadata from the comment, we CANNOT match.
+      // We removed the fallback to phone-only matching.
       if (!driverId || !bonusId) {
-        const [drivers] = await pool.query(
-          "SELECT driver_id FROM drivers WHERE phone_number LIKE ?",
-          [`%${rowData.phone}`]
-        );
-
-        if (drivers.length === 0) {
-          summary.unmatched++;
-          summary.unmatchedPhones.push(rowData.originalPhone);
-          continue;
-        }
-
-        driverId = drivers[0].driver_id;
-        // Without bonus_id, we can't match precisely
         summary.unmatched++;
-        summary.unmatchedPhones.push(rowData.originalPhone);
+        summary.unmatchedPhones.push(
+          `${rowData.originalPhone} (Missing/Invalid Metadata)`
+        );
         continue;
       }
 
@@ -849,10 +843,32 @@ const paymentController = {
       }
     }
 
+    // Fix: Disable caching to prevent 304 Not Modified responses on re-validation
+    res.set("Cache-Control", "no-store");
+
+    // Strict Mode: Fail if ANY check fails (Structure or Amount Mismatch)
     const isOverallSuccess = checklist.every((c) => c.status === "passed");
+
     let responseMessage = null;
     if (!isOverallSuccess && summary.amountMismatches.length > 0) {
-      responseMessage = `Amount mismatch detected for ${summary.amountMismatches.length} records. Please verify the report.`;
+      responseMessage = `Amount mismatch detected for ${summary.amountMismatches.length} records. Please fix the file before proceeding.`;
+    } else if (!isOverallSuccess) {
+      responseMessage =
+        "Validation failed. Please review the checklist errors.";
+    }
+
+    // Fix: Create persistent copy BEFORE response
+    // Use a unique name to prevent collisions and ensure persistence
+    const persistentFileName = "validated_" + req.file.filename;
+    const persistentPath = path.join("imports", persistentFileName);
+
+    try {
+      if (!fs.existsSync(persistentPath)) {
+        fs.copyFileSync(req.file.path, persistentPath);
+      }
+    } catch (err) {
+      console.error("Failed to persist reconciliation file:", err);
+      // Fallback to original, but it might fail later
     }
 
     res.json({
@@ -860,7 +876,7 @@ const paymentController = {
       summary,
       checklist,
       message: responseMessage,
-      tempFileName: req.file.filename,
+      tempFileName: persistentFileName, // Return the persistent name
     });
   }),
 
@@ -914,7 +930,8 @@ const paymentController = {
             phoneCol = colNumber;
           }
           if (val.includes("status")) statusCol = colNumber;
-          if (val.includes("comment")) commentCol = colNumber;
+          if (val.includes("comment") || val.includes("transaction details"))
+            commentCol = colNumber;
         });
         if (foundMsisdn) {
           headerRowIndex = i;
@@ -972,51 +989,10 @@ const paymentController = {
           }
 
           // If comment parsing failed, try to find driver by phone (fallback)
+          // STRICT MODE: If comment parsing failed, we SKIP.
+          // No phone fallback allowed.
           if (!driverId || !bonusId) {
-            const [drivers] = await connection.query(
-              "SELECT driver_id FROM drivers WHERE phone_number LIKE ?",
-              [`%${rowData.phone}`]
-            );
-
-            if (drivers.length > 0) {
-              driverId = drivers[0].driver_id;
-              // Without bonus_id, try to find latest processing payment
-              const [payments] = await connection.query(
-                "SELECT id, batch_internal_id FROM payments WHERE driver_id = ? AND status = 'processing' ORDER BY payment_date DESC LIMIT 1",
-                [driverId]
-              );
-
-              if (payments.length > 0) {
-                const payment = payments[0];
-                await connection.query(
-                  "UPDATE payments SET status = 'paid', payment_date = NOW() WHERE id = ?",
-                  [payment.id]
-                );
-
-                // Update batch status if all payments are paid
-                if (payment.batch_internal_id) {
-                  const [remaining] = await connection.query(
-                    "SELECT COUNT(*) as count FROM payments WHERE batch_internal_id = ? AND status != 'paid'",
-                    [payment.batch_internal_id]
-                  );
-                  if (remaining[0].count === 0) {
-                    await connection.query(
-                      "UPDATE payment_batches SET status = 'paid' WHERE id = ?",
-                      [payment.batch_internal_id]
-                    );
-                  }
-                }
-
-                await AuditService.log(
-                  req.user.id,
-                  "Reconcile Payment",
-                  "payment",
-                  payment.id,
-                  { driver_id: driverId }
-                );
-                results.success++;
-              }
-            }
+            results.failed++; // Count as failed/unmatched
             continue;
           }
 
