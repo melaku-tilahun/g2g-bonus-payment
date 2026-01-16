@@ -7,9 +7,10 @@ const path = require("path");
 const fs = require("fs");
 
 // Ensure uploads directory exists
-const importDir = "imports";
+// Ensure uploads directory exists
+const importDir = path.join(__dirname, "../../imports");
 if (!fs.existsSync(importDir)) {
-  fs.mkdirSync(importDir);
+  fs.mkdirSync(importDir, { recursive: true });
 }
 
 const storage = multer.diskStorage({

@@ -859,8 +859,9 @@ const paymentController = {
 
     // Fix: Create persistent copy BEFORE response
     // Use a unique name to prevent collisions and ensure persistence
+    const importDir = path.join(__dirname, "../../imports"); // Absolute path
     const persistentFileName = "validated_" + req.file.filename;
-    const persistentPath = path.join("imports", persistentFileName);
+    const persistentPath = path.join(importDir, persistentFileName);
 
     try {
       if (!fs.existsSync(persistentPath)) {
@@ -890,7 +891,8 @@ const paymentController = {
       throw new AppError("File name is required", 400);
     }
 
-    const filePath = path.join("imports", fileName);
+    const importDir = path.join(__dirname, "../../imports");
+    const filePath = path.join(importDir, fileName);
     if (!fs.existsSync(filePath)) {
       throw new AppError(
         "Reconciliation file not found. Please import again.",
