@@ -59,11 +59,13 @@ async function loadUserSummary() {
 async function loadActivityReport() {
   try {
     const userId = document.getElementById("filterUser").value;
+    const action = document.getElementById("filterAction").value;
     const startDate = document.getElementById("startDate").value;
     const endDate = document.getElementById("endDate").value;
 
     const params = new URLSearchParams({ page: currentPage, limit });
     if (userId) params.append("user_id", userId);
+    if (action) params.append("action", action);
     if (startDate) params.append("start_date", startDate);
     if (endDate) params.append("end_date", endDate);
 
@@ -221,8 +223,8 @@ function displayActivityLogs(logs) {
                 </div>
             </td>
             <td><span class="badge ${actionClass} rounded-pill px-3 py-1 log-badge">${
-      log.action
-    }</span></td>
+              log.action
+            }</span></td>
             <td>
                 <div class="small">
                     <div class="text-dark fw-semibold">${
@@ -241,7 +243,7 @@ function displayActivityLogs(logs) {
                     ${
                       fullDetails
                         ? `<button class="btn btn-sm btn-outline-brand border-0 rounded-circle" onclick='showLogDetails(${JSON.stringify(
-                            fullDetails
+                            fullDetails,
                           ).replace(/'/g, "&apos;")}, "${
                             log.entity_type || ""
                           }", "${log.entity_id || ""}", "${
@@ -278,7 +280,7 @@ window.showLogDetails = function (
   entityType,
   entityId,
   userName,
-  timestamp
+  timestamp,
 ) {
   const metaContainer = document.getElementById("logDetailsMetadata");
   const contentContainer = document.getElementById("logDetailsContent");
@@ -399,7 +401,7 @@ function displaySecurityEvents(events, summary) {
                     ${
                       fullDetails
                         ? `<button class="btn btn-sm btn-outline-danger border-0 rounded-circle" onclick='showLogDetails(${JSON.stringify(
-                            fullDetails
+                            fullDetails,
                           ).replace(/'/g, "&apos;")}, null, null, "${
                             event.user_name || "Unknown"
                           }", "${date.toLocaleString()}")' title="Investigate">

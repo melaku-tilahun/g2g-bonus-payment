@@ -20,7 +20,7 @@ const driverController = {
 
     if (q) {
       whereConditions.push(
-        "(d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)"
+        "(d.full_name LIKE ? OR d.driver_id LIKE ? OR d.phone_number LIKE ?)",
       );
       queryParams.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
@@ -41,7 +41,7 @@ const driverController = {
     // Get Total Count
     const [countRows] = await pool.query(
       `SELECT COUNT(*) as total FROM drivers d ${whereClause}`,
-      queryParams
+      queryParams,
     );
 
     const total = countRows[0] ? countRows[0].total : 0;
@@ -58,7 +58,7 @@ const driverController = {
          GROUP BY d.id
          ORDER BY d.created_at DESC
          LIMIT ? OFFSET ?`,
-      [...queryParams, limitNum, offset]
+      [...queryParams, limitNum, offset],
     );
 
     res.json({
@@ -79,12 +79,50 @@ const driverController = {
          FROM drivers d 
          LEFT JOIN users u ON d.verified_by = u.id 
          WHERE d.driver_id = ?`,
-      [id]
+      [id],
     );
     if (rows.length === 0) {
       throw new AppError("Driver not found", 404);
     }
-    res.json(rows[0]);
+
+    // Fetch phone history
+    const [phoneHistory] = await pool.query(
+      `SELECT 
+        dp.id,
+        dp.phone_number,
+        dp.status,
+        dp.is_primary,
+        dp.added_at,
+        dp.valid_from,
+        dp.valid_to,
+        dp.rejection_reason,
+        dp.reason,
+        u.full_name as approved_by_name
+       FROM driver_phones dp
+       LEFT JOIN users u ON dp.approved_by = u.id
+       WHERE dp.driver_id = ?
+       ORDER BY dp.added_at DESC`,
+      [id],
+    );
+
+    // Parse notes JSON (handle NULL gracefully)
+    let notes = [];
+    try {
+      if (rows[0].notes) {
+        notes =
+          typeof rows[0].notes === "string"
+            ? JSON.parse(rows[0].notes)
+            : rows[0].notes;
+      }
+    } catch (e) {
+      console.error("Error parsing driver notes:", e);
+    }
+
+    res.json({
+      ...rows[0],
+      phone_history: phoneHistory,
+      notes: notes,
+    });
   }),
 
   verify: catchAsync(async (req, res, next) => {
@@ -105,7 +143,7 @@ const driverController = {
     if (!admin_override && !tin) {
       throw new AppError(
         "TIN is required for verification. Admins can use override if needed.",
-        400
+        400,
       );
     }
 
@@ -182,7 +220,7 @@ const driverController = {
         updateFields.manager_photo,
         updateFields.tin_verified_at,
         id,
-      ]
+      ],
     );
 
     await AuditService.log(req.user.id, "Verify Driver", "driver", id, {
@@ -214,7 +252,7 @@ const driverController = {
 
   getAll: catchAsync(async (req, res, next) => {
     const [rows] = await pool.query(
-      "SELECT * FROM drivers ORDER BY created_at DESC"
+      "SELECT * FROM drivers ORDER BY created_at DESC",
     );
     res.json(rows);
   }),
@@ -237,7 +275,7 @@ const driverController = {
       is_blocked ? "Block Driver" : "Unblock Driver",
       "driver",
       id,
-      { reason }
+      { reason },
     );
 
     res.json({
@@ -252,14 +290,14 @@ const driverController = {
     if (!driver_id || !full_name || !phone_number) {
       throw new AppError(
         "Driver ID, Full Name, and Phone Number are required",
-        400
+        400,
       );
     }
 
     // Check if driver exists
     const [existing] = await pool.query(
       "SELECT id FROM drivers WHERE driver_id = ?",
-      [driver_id]
+      [driver_id],
     );
 
     if (existing.length > 0) {
@@ -268,7 +306,7 @@ const driverController = {
 
     await pool.query(
       "INSERT INTO drivers (driver_id, full_name, phone_number, business_name, tin, verified) VALUES (?, ?, ?, ?, ?, FALSE)",
-      [driver_id, full_name, phone_number, business_name || null, tin || null]
+      [driver_id, full_name, phone_number, business_name || null, tin || null],
     );
 
     await AuditService.log(req.user.id, "Create Driver", "driver", driver_id, {
@@ -291,7 +329,7 @@ const driverController = {
 
     await pool.query(
       "UPDATE drivers SET full_name = ?, phone_number = ?, business_name = ?, tin = ? WHERE driver_id = ?",
-      [full_name, phone_number, business_name || null, tin || null, id]
+      [full_name, phone_number, business_name || null, tin || null, id],
     );
 
     await AuditService.log(req.user.id, "Update Driver", "driver", id, {
@@ -321,7 +359,7 @@ const driverController = {
       // Check user password
       const [users] = await connection.query(
         "SELECT password_hash FROM users WHERE id = ?",
-        [req.user.id]
+        [req.user.id],
       );
       const bcrypt = require("bcrypt");
       const isValid = await bcrypt.compare(password, users[0].password_hash);
@@ -335,13 +373,13 @@ const driverController = {
       // 2. Fetch Pending Bonuses (exclude already force-paid bonuses)
       const [bonuses] = await connection.query(
         "SELECT * FROM bonuses WHERE driver_id = ? AND payment_id IS NULL AND (force_pay IS NULL OR force_pay = FALSE) FOR UPDATE",
-        [id]
+        [id],
       );
 
       if (bonuses.length === 0) {
         throw new AppError(
           "No eligible bonuses to release. Bonuses may have already been processed for partial payout.",
-          400
+          400,
         );
       }
 
@@ -349,7 +387,7 @@ const driverController = {
       // Check for active debts
       const [activeDebts] = await connection.query(
         "SELECT * FROM driver_debts WHERE driver_id = ? AND status = 'active' ORDER BY created_at ASC",
-        [id]
+        [id],
       );
 
       let totalDeductedForDebts = 0;
@@ -361,8 +399,9 @@ const driverController = {
         const gross = parseFloat(bonus.gross_payout || 0);
         const currentTax = parseFloat(bonus.withholding_tax || 0);
 
-        // Target: Total 30% tax on Gross
-        const totalTaxTarget = Math.round(gross * 0.3 * 100) / 100;
+        // Target: Total 30% tax on Gross (Only if > 10,000 ETB, same as standard)
+        const totalTaxTarget =
+          gross > 10000 ? Math.round(gross * 0.3 * 100) / 100 : 0;
         const additionalTaxNeeded = Math.max(0, totalTaxTarget - currentTax);
 
         // Available for debts is 70% of Gross
@@ -376,7 +415,7 @@ const driverController = {
 
             const deduct = Math.min(
               parseFloat(debt.remaining_amount),
-              available
+              available,
             );
             available -= deduct;
             debt.remaining_amount -= deduct;
@@ -385,40 +424,48 @@ const driverController = {
             // Log Deduction
             await connection.query(
               "INSERT INTO bonus_deductions (bonus_id, debt_id, amount_deducted) VALUES (?, ?, ?)",
-              [bonus.id, debt.id, deduct]
+              [bonus.id, debt.id, deduct],
             );
 
             // Update Debt Record
             const status = debt.remaining_amount <= 0 ? "paid" : "active";
             await connection.query(
               "UPDATE driver_debts SET remaining_amount = ?, status = ? WHERE id = ?",
-              [debt.remaining_amount, status, debt.id]
+              [debt.remaining_amount, status, debt.id],
             );
           }
         }
 
-        // B. Log the Additional Withholding Tax (27%)
-        if (additionalTaxNeeded > 0) {
-          // Create a record for the additional tax
-          // We use the driver_debts table to track this deduction for clarity in history
-          const [taxRecordResult] = await connection.query(
-            "INSERT INTO driver_debts (driver_id, amount, remaining_amount, reason, notes, created_by, status) VALUES (?, ?, 0, 'Additional Withholding Tax', 'Increased from 3% to 30% for unverified payout', ?, 'paid')",
-            [id, additionalTaxNeeded, req.user.id]
-          );
-          const taxRecordId = taxRecordResult.insertId;
+        // B. Log the Additional Withholding Tax (27% or 0% if below threshold)
+        // We ALWAYS create a record for audit history, even if amount is 0,
+        // so the user knows the logic was applied.
+        const taxReason =
+          additionalTaxNeeded > 0
+            ? "Additional Withholding Tax"
+            : "Tax Threshold Check (Below Limit)";
+        const taxNotes =
+          additionalTaxNeeded > 0
+            ? "Increased from 3% to 30% for unverified payout"
+            : "Gross amount below 10,000 ETB threshold - No additional tax applied";
 
-          // Log Deduction
-          await connection.query(
-            "INSERT INTO bonus_deductions (bonus_id, debt_id, amount_deducted) VALUES (?, ?, ?)",
-            [bonus.id, taxRecordId, additionalTaxNeeded]
-          );
-        }
+        // Create a record for the additional tax (or check)
+        const [taxRecordResult] = await connection.query(
+          "INSERT INTO driver_debts (driver_id, amount, remaining_amount, reason, notes, created_by, status) VALUES (?, ?, 0, ?, ?, ?, 'paid')",
+          [id, additionalTaxNeeded, taxReason, taxNotes, req.user.id],
+        );
+        const taxRecordId = taxRecordResult.insertId;
+
+        // Log Deduction (even if 0)
+        await connection.query(
+          "INSERT INTO bonus_deductions (bonus_id, debt_id, amount_deducted) VALUES (?, ?, ?)",
+          [bonus.id, taxRecordId, additionalTaxNeeded],
+        );
 
         // C. Update Bonus with final numbers
         // We update withholding_tax to the total 30% for proper reporting
         await connection.query(
           "UPDATE bonuses SET withholding_tax = ?, final_payout = ?, force_pay = TRUE WHERE id = ?",
-          [totalTaxTarget, available, bonus.id]
+          [totalTaxTarget, available, bonus.id],
         );
       }
 
@@ -430,7 +477,7 @@ const driverController = {
         {
           bonuses_count: bonuses.length,
           debt_deducted: totalDeductedForDebts,
-        }
+        },
       );
 
       await connection.commit();
@@ -444,6 +491,194 @@ const driverController = {
     } finally {
       if (connection) connection.release();
     }
+  }),
+
+  verifyDriverPhone: catchAsync(async (req, res, next) => {
+    const { id } = req.params; // driver_id
+    const { phone_record_id, action, reason } = req.body;
+
+    if (!phone_record_id || !action || !reason) {
+      throw new AppError(
+        "phone_record_id, action, and reason are required",
+        400,
+      );
+    }
+
+    if (!["approve", "reject"].includes(action)) {
+      throw new AppError("action must be 'approve' or 'reject'", 400);
+    }
+
+    const connection = await pool.getConnection();
+    try {
+      await connection.beginTransaction();
+
+      // 1. Get the phone record
+      const [phoneRecords] = await connection.query(
+        "SELECT * FROM driver_phones WHERE id = ? AND driver_id = ?",
+        [phone_record_id, id],
+      );
+
+      if (phoneRecords.length === 0) {
+        throw new AppError("Phone record not found for this driver", 404);
+      }
+
+      const phoneRecord = phoneRecords[0];
+
+      if (action === "approve") {
+        // Check uniqueness: Ensure no other driver has this phone as 'active'
+        const [duplicates] = await connection.query(
+          "SELECT driver_id FROM driver_phones WHERE phone_number = ? AND status = 'active' AND driver_id != ?",
+          [phoneRecord.phone_number, id],
+        );
+
+        if (duplicates.length > 0) {
+          throw new AppError(
+            `Phone ${phoneRecord.phone_number} is already active for driver ${duplicates[0].driver_id}`,
+            400,
+          );
+        }
+
+        // 2. Deactivate current active phone
+        await connection.query(
+          "UPDATE driver_phones SET status = 'inactive', valid_to = NOW() WHERE driver_id = ? AND status = 'active'",
+          [id],
+        );
+
+        // 3. Activate the selected phone
+        await connection.query(
+          "UPDATE driver_phones SET status = 'active', is_primary = TRUE, valid_from = NOW(), valid_to = NULL, approved_by = ?, reason = ? WHERE id = ?",
+          [req.user.id, reason, phone_record_id],
+        );
+
+        // 4. Update driver table
+        await connection.query(
+          "UPDATE drivers SET phone_number = ?, is_telebirr_verified = TRUE WHERE driver_id = ?",
+          [phoneRecord.phone_number, id],
+        );
+
+        // 5. Audit log
+        await AuditService.log(req.user.id, "Approve Phone", "driver", id, {
+          phone: phoneRecord.phone_number,
+          reason: reason,
+        });
+
+        await connection.commit();
+        res.json({
+          success: true,
+          message: "Phone number approved and driver verified",
+        });
+      } else if (action === "reject") {
+        // Reject the phone
+        await connection.query(
+          "UPDATE driver_phones SET status = 'rejected', rejection_reason = ?, reason = ?, approved_by = ? WHERE id = ?",
+          [reason, reason, req.user.id, phone_record_id],
+        );
+
+        // Check if driver has any active phone, if not, ensure they remain unverified
+        const [activePhones] = await connection.query(
+          "SELECT id FROM driver_phones WHERE driver_id = ? AND status = 'active'",
+          [id],
+        );
+
+        if (activePhones.length === 0) {
+          await connection.query(
+            "UPDATE drivers SET is_telebirr_verified = FALSE WHERE driver_id = ?",
+            [id],
+          );
+        }
+
+        // Audit log
+        await AuditService.log(req.user.id, "Reject Phone", "driver", id, {
+          phone: phoneRecord.phone_number,
+          reason: reason,
+        });
+
+        await connection.commit();
+        res.json({
+          success: true,
+          message: "Phone number rejected",
+        });
+      }
+    } catch (error) {
+      if (connection) await connection.rollback();
+      throw error;
+    } finally {
+      if (connection) connection.release();
+    }
+  }),
+
+  addNote: catchAsync(async (req, res, next) => {
+    const { id } = req.params; // driver_id
+    const { note } = req.body;
+
+    // Validation
+    if (!note || typeof note !== "string" || note.trim().length === 0) {
+      throw new AppError("Note text is required", 400);
+    }
+
+    if (note.length > 1000) {
+      throw new AppError("Note text must be 1000 characters or less", 400);
+    }
+
+    // Fetch current driver data
+    const [rows] = await pool.query(
+      "SELECT driver_id, notes FROM drivers WHERE driver_id = ?",
+      [id],
+    );
+
+    if (rows.length === 0) {
+      throw new AppError("Driver not found", 404);
+    }
+
+    // Parse existing notes
+    let existingNotes = [];
+    try {
+      if (rows[0].notes) {
+        existingNotes =
+          typeof rows[0].notes === "string"
+            ? JSON.parse(rows[0].notes)
+            : rows[0].notes;
+      }
+    } catch (e) {
+      console.error("Error parsing existing notes:", e);
+      existingNotes = [];
+    }
+
+    // Fetch current user's full name
+    const [userRows] = await pool.query(
+      "SELECT full_name FROM users WHERE id = ?",
+      [req.user.id],
+    );
+    const userFullName =
+      userRows.length > 0 ? userRows[0].full_name : "Unknown";
+
+    // Create new note object
+    const newNote = {
+      text: note.trim(),
+      created_at: new Date().toISOString(),
+      created_by: req.user.id,
+      created_by_name: userFullName,
+    };
+
+    // Append to array
+    existingNotes.push(newNote);
+
+    // Update database
+    await pool.query("UPDATE drivers SET notes = ? WHERE driver_id = ?", [
+      JSON.stringify(existingNotes),
+      id,
+    ]);
+
+    // Audit log
+    await AuditService.log(req.user.id, "Add Driver Note", "driver", id, {
+      note: note.trim().substring(0, 100), // Log first 100 chars
+    });
+
+    res.json({
+      success: true,
+      message: "Note added successfully",
+      notes: existingNotes,
+    });
   }),
 };
 

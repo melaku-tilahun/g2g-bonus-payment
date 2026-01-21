@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
   const dropZone = document.getElementById("dropZone");
   const importBtn = document.getElementById("importBtn");
   const checklistItems = document.querySelectorAll(
-    "#validationChecklist .list-group-item"
+    "#validationChecklist .list-group-item",
   );
 
   // Drag and Drop
@@ -57,7 +57,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     const updateItem = (name, status) => {
       const item = Array.from(checklistItems).find(
-        (i) => i.dataset.item === name
+        (i) => i.dataset.item === name,
       );
       if (!item) return;
       item.classList.remove("opacity-50");
@@ -125,7 +125,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
     try {
       importBtn.disabled = true;
-      ('<span class="spinner-border spinner-border-sm me-2"></span> Processing...');
+      importBtn.disabled = true;
+      importBtn.innerHTML =
+        '<span class="spinner-border spinner-border-sm me-2"></span> Processing...';
 
       const formData = new FormData();
       formData.append("file", file);
@@ -139,7 +141,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
         if (confirmed) {
           // Re-submit with confirmation flag
-          ('<span class="spinner-border spinner-border-sm me-2"></span> Confirming...');
+          importBtn.innerHTML =
+            '<span class="spinner-border spinner-border-sm me-2"></span> Confirming...';
 
           const confirmFormData = new FormData();
           confirmFormData.append("file", file);
@@ -147,7 +150,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
           const confirmedResult = await api.post(
             "/imports/excel",
-            confirmFormData
+            confirmFormData,
           );
           showResults(confirmedResult);
         } else {
@@ -177,7 +180,7 @@ document.addEventListener("DOMContentLoaded", () => {
           <td class="small">${w.driver_id}</td>
           <td class="small"><span class="badge bg-light text-dark border">${w.db_phone}</span></td>
           <td class="small"><span class="badge bg-warning bg-opacity-10 text-warning border border-warning">${w.excel_phone}</span></td>
-        </tr>`
+        </tr>`,
         )
         .join("");
 
@@ -235,7 +238,7 @@ document.addEventListener("DOMContentLoaded", () => {
       document.body.insertAdjacentHTML("beforeend", modalHtml);
 
       const modal = new bootstrap.Modal(
-        document.getElementById("phoneMismatchModal")
+        document.getElementById("phoneMismatchModal"),
       );
 
       document.getElementById("confirmProceedBtn").onclick = () => {
@@ -249,7 +252,7 @@ document.addEventListener("DOMContentLoaded", () => {
           document.getElementById("phoneMismatchModal").remove();
           resolve(false);
         },
-        { once: true }
+        { once: true },
       );
 
       modal.show();
@@ -359,7 +362,7 @@ async function loadHistory() {
       const tr = document.createElement("tr");
       tr.innerHTML = `
                 <td class="ps-4">${new Date(
-                  h.imported_at
+                  h.imported_at,
                 ).toLocaleDateString()}</td>
                 <td class="fw-semibold">
                     ${

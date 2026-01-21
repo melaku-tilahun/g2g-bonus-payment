@@ -1,13 +1,14 @@
 const express = require("express");
 const router = express.Router();
-const paymentController = require("../controllers/paymentController");
+const paymentHistoryController = require("../controllers/payments/paymentHistoryController");
+const pendingPaymentController = require("../controllers/payments/pendingPaymentController");
+const reconciliationController = require("../controllers/payments/reconciliationController");
 const authenticate = require("../middleware/authenticate");
 const authorize = require("../middleware/authorize");
 const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Ensure uploads directory exists
 // Ensure uploads directory exists
 const importDir = path.join(__dirname, "../../imports");
 if (!fs.existsSync(importDir)) {
@@ -38,44 +39,44 @@ router.use(authenticate);
 router.post(
   "/",
   authorize(["admin", "director", "manager", "staff"]),
-  paymentController.recordPayment
+  paymentHistoryController.recordPayment,
 );
 router.post(
   "/reconcile/validate",
   authorize(["admin", "director", "manager", "staff"]),
   upload.single("file"),
-  paymentController.validateReconciliation
+  reconciliationController.validateReconciliation,
 );
 router.post(
   "/reconcile/process",
   authorize(["admin", "director", "manager", "staff"]),
-  paymentController.processReconciliation
+  reconciliationController.processReconciliation,
 );
-router.get("/search", paymentController.search);
-router.get("/history", paymentController.getHistory);
-router.get("/pending", paymentController.getPendingPayments);
-router.get("/accumulated", paymentController.getAccumulatedPayments);
+router.get("/search", paymentHistoryController.search);
+router.get("/history", paymentHistoryController.getHistory);
+router.get("/pending", pendingPaymentController.getPendingPayments);
+router.get("/accumulated", pendingPaymentController.getAccumulatedPayments);
 router.get(
   "/export/pending",
   authorize(["admin", "director", "manager", "staff"]),
-  paymentController.exportPendingPayments
+  pendingPaymentController.exportPendingPayments,
 );
-router.get("/batches", paymentController.getBatches);
+router.get("/batches", pendingPaymentController.getBatches);
 router.get(
   "/batches/:batchId/download",
   authorize(["admin", "director", "manager", "staff"]),
-  paymentController.downloadBatchExcel
+  pendingPaymentController.downloadBatchExcel,
 );
 
 router.put(
   "/:paymentId/confirm",
   authorize(["admin", "director", "manager", "staff"]),
-  paymentController.confirmPayment
+  paymentHistoryController.confirmPayment,
 );
 router.post(
   "/:paymentId/revert",
   authorize(["admin", "director"]),
-  paymentController.revertPayment
+  paymentHistoryController.revertPayment,
 );
 
 module.exports = router;

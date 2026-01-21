@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS drivers (
   email VARCHAR(255),
   verified BOOLEAN DEFAULT FALSE,
   is_blocked BOOLEAN DEFAULT FALSE,
+  is_telebirr_verified BOOLEAN DEFAULT FALSE,
   verified_date DATE NULL,
   verified_by INT NULL,
   -- TIN Verification Fields

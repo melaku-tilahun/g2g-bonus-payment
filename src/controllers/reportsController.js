@@ -25,24 +25,23 @@ const reportsController = {
     }
 
     // Get tax data
+    // Detailed Report: List individual transactions
     const [taxData] = await pool.query(
       `SELECT 
           d.driver_id,
           d.full_name,
           d.tin,
           d.business_name,
-          SUM(b.gross_payout) as total_gross,
-          SUM(b.withholding_tax) as total_tax,
-          SUM(b.net_payout) as total_net,
-          COUNT(b.id) as payment_count,
-          MIN(b.week_date) as first_payment_date,
-          MAX(b.week_date) as last_payment_date
+          b.week_date,
+          b.gross_payout,
+          b.withholding_tax,
+          b.net_payout
          FROM drivers d
          JOIN bonuses b ON d.driver_id = b.driver_id
+         JOIN payments p ON b.payment_id = p.id
          ${dateFilter}
-         GROUP BY d.driver_id, d.full_name, d.tin, d.business_name
-         HAVING total_tax > 0
-         ORDER BY total_tax DESC`,
+         ${dateFilter ? "AND" : "WHERE"} p.status = 'paid'
+         ORDER BY b.week_date DESC, d.full_name ASC`,
       params
     );
 
@@ -60,7 +59,7 @@ const reportsController = {
         end_date,
         total_records: taxData.length,
         total_tax_collected: taxData.reduce(
-          (sum, row) => sum + parseFloat(row.total_tax),
+          (sum, row) => sum + parseFloat(row.withholding_tax),
           0
         ),
         data: taxData,

@@ -27,6 +27,9 @@ document.addEventListener("DOMContentLoaded", async () => {
     driver = await api.get(`/drivers/${driverId}`);
     const bonuses = await api.get(`/bonuses/driver/${driverId}`);
     renderDriver(driver, bonuses, currentUser);
+    if (window.renderPhoneHistory) {
+      window.renderPhoneHistory(driver, currentUser);
+    }
     loadPaymentHistory(driverId);
 
     // Load Debt Info
@@ -39,7 +42,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Show Action Dropdown for all (for statements), but hide Block Option for non-admins
     const adminActionsDropdown = document.getElementById(
-      "adminActionsDropdown"
+      "adminActionsDropdown",
     );
     adminActionsDropdown.classList.remove("d-none");
 
@@ -53,7 +56,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     const canBlock = ["admin", "director", "manager"].includes(
-      currentUser.role
+      currentUser.role,
     );
     if (!canBlock) {
       const blockBtn = document.getElementById("blockDriverBtn");
@@ -89,7 +92,7 @@ document.addEventListener("DOMContentLoaded", async () => {
             `${api.baseURL}/drivers/${driverId}/statement?type=${type}`,
             {
               headers: { Authorization: `Bearer ${token}` },
-            }
+            },
           );
 
           if (!response.ok) throw new Error("Failed to generate statement");
@@ -163,7 +166,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Add Debt Logic
     const debtModal = new bootstrap.Modal(
-      document.getElementById("addDebtModal")
+      document.getElementById("addDebtModal"),
     );
     const reasonSelect = document.getElementById("debtReasonInput");
     const otherContainer = document.getElementById("otherReasonContainer");
@@ -239,29 +242,57 @@ document.addEventListener("DOMContentLoaded", async () => {
     console.error(error);
   }
 
-  // Mark as Verified Modal Logic
+  // Mark as Verified Modal Logic - Unified Handler
   document.getElementById("markVerifiedBtn").onclick = () => {
+    // 1. Get current user and permissions
+    if (!currentUser) {
+      console.error("User not authenticated");
+      return;
+    }
+    const user = currentUser;
+    // Admin Override (Verify without TIN): Admin, Director, Manager
+    const canOverride = ["admin", "director", "manager"].includes(user.role);
+    // Partial Payout: Admin & Director
+    const canPartialPayout = ["admin", "director"].includes(user.role);
+
+    // 2. Update Modal Content
     document.getElementById("modalDriverName").textContent =
       document.getElementById("driverName").textContent;
     document.getElementById("modalTotalBonus").textContent =
       document.getElementById("totalBonus").textContent;
     document.getElementById("verificationDate").valueAsDate = new Date();
 
-    // Reset modal state
+    // 3. Reset Inputs & State
     document.getElementById("tinInput").value = "";
+    document.getElementById("adminOverrideCheck").checked = false;
     document.getElementById("businessDataSection").classList.add("d-none");
+    document.getElementById("tinInputSection").classList.remove("d-none");
     document.getElementById("confirmVerifyBtn").disabled = true;
+
+    // Reset checkboxes
+    document.getElementById("confirmDataCheck").checked = false;
+    document.getElementById("driverLicenseCheck").checked = false;
+    document.getElementById("libreraCheck").checked = false;
+
     fetchedBusinessData = null;
 
-    // Show admin override section if user is admin
-    if (currentUser && currentUser.role === "admin") {
-      document
-        .getElementById("adminOverrideSection")
-        .classList.remove("d-none");
+    // 4. Handle Admin Override Visibility
+    const overrideSection = document.getElementById("adminOverrideSection");
+    if (canOverride) {
+      overrideSection.classList.remove("d-none");
     } else {
-      document.getElementById("adminOverrideSection").classList.add("d-none");
+      overrideSection.classList.add("d-none");
     }
 
+    // 5. Handle Partial Payout Visibility
+    const partialPaymentBtn = document.getElementById("partialPayoutBtn");
+    if (canPartialPayout && !driver.verified) {
+      partialPaymentBtn.classList.remove("d-none");
+    } else {
+      partialPaymentBtn.classList.add("d-none");
+    }
+
+    updateVerifyButtonState();
     modal.show();
   };
 
@@ -407,51 +438,6 @@ document.addEventListener("DOMContentLoaded", async () => {
       updateVerifyButtonState();
     });
 
-  // Reset modal state when opened
-  document.getElementById("markVerifiedBtn").addEventListener("click", () => {
-    // Check user permissions
-    const user = auth.getUser();
-
-    // Partial Payout: Admin & Director
-    const canPartialPayout = ["admin", "director"].includes(user.role);
-
-    // Admin Override (Verify without TIN): Admin, Director, Manager
-    const canOverride = ["admin", "director", "manager"].includes(user.role);
-
-    // Reset business data section
-    document.getElementById("businessDataSection").classList.add("d-none");
-    fetchedBusinessData = null;
-
-    // Reset visibility of input sections
-    document.getElementById("tinInputSection").classList.remove("d-none");
-
-    const overrideSection = document.getElementById("adminOverrideSection");
-    if (canOverride) {
-      overrideSection.classList.remove("d-none");
-    } else {
-      overrideSection.classList.add("d-none");
-    }
-
-    // Show Partial Payout button if Authorized + Driver is Unverified
-    const partialPaymentBtn = document.getElementById("partialPayoutBtn");
-    if (canPartialPayout && !driver.verified) {
-      partialPaymentBtn.classList.remove("d-none");
-    } else {
-      partialPaymentBtn.classList.add("d-none");
-    }
-
-    // Clear inputs
-    document.getElementById("tinInput").value = "";
-    document.getElementById("adminOverrideCheck").checked = false;
-
-    // Reset checkboxes
-    document.getElementById("confirmDataCheck").checked = false;
-    document.getElementById("driverLicenseCheck").checked = false;
-    document.getElementById("libreraCheck").checked = false;
-
-    updateVerifyButtonState();
-  });
-
   // Confirm Verification Button
   document.getElementById("confirmVerifyBtn").onclick = async () => {
     const date = document.getElementById("verificationDate").value;
@@ -499,7 +485,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
   // Partial Payout Button
   const passwordModal = new bootstrap.Modal(
-    document.getElementById("passwordConfirmModal")
+    document.getElementById("passwordConfirmModal"),
   );
 
   document.getElementById("partialPayoutBtn").onclick = () => {
@@ -530,7 +516,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       ui.toast(
         "Partial payout released successfully! Driver can now be paid 70% of their bonuses.",
-        "success"
+        "success",
       );
       passwordModal.hide();
       setTimeout(() => window.location.reload(), 1500);
@@ -552,12 +538,11 @@ async function loadDebts(driverId) {
       .filter((d) => d.status === "active")
       .reduce((sum, d) => sum + parseFloat(d.remaining_amount), 0);
 
-    document.getElementById(
-      "totalActiveDebt"
-    ).textContent = `${totalActive.toLocaleString(undefined, {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    })} ETB`;
+    document.getElementById("totalActiveDebt").textContent =
+      `${totalActive.toLocaleString(undefined, {
+        minimumFractionDigits: 2,
+        maximumFractionDigits: 2,
+      })} ETB`;
 
     // 2. Render Table (Combine debts creation and deductions history?)
     // Let's show a mixed timeline or just the debt list.
@@ -621,7 +606,7 @@ async function loadDebts(driverId) {
     // Separate penalties from regular debts
     const penalties = debts.filter((d) => d.reason === "Verification Penalty");
     const regularDebts = debts.filter(
-      (d) => d.reason !== "Verification Penalty"
+      (d) => d.reason !== "Verification Penalty",
     );
 
     // Calculate total for regular debts only (penalties are already paid)
@@ -645,7 +630,7 @@ async function loadDebts(driverId) {
           // Only include deductions that are NOT for penalties
           return !debts.some(
             (debt) =>
-              debt.id === d.debt_id && debt.reason === "Verification Penalty"
+              debt.id === d.debt_id && debt.reason === "Verification Penalty",
           );
         })
         .map((d) => ({
@@ -653,7 +638,7 @@ async function loadDebts(driverId) {
           date: d.created_at,
           amount: d.amount_deducted,
           ref: `Deducted from Bonus ${new Date(
-            d.week_date
+            d.week_date,
           ).toLocaleDateString()}`,
           status: "applied",
           original: d,
@@ -681,23 +666,21 @@ async function loadDebts(driverId) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
                   <td class="small text-muted">${new Date(
-                    item.date
+                    item.date,
                   ).toLocaleDateString()}</td>
                   <td><span class="badge ${
-                    isDebt
-                      ? "bg-secondary text-secondary"
-                      : "bg-success text-success"
+                    isDebt ? "bg-danger text-danger" : "bg-success text-success"
                   } bg-opacity-10">${
-          isDebt ? " New Debt" : " Deduction"
-        }</span></td>
+                    isDebt ? " New Debt" : " Deduction"
+                  }</span></td>
                   <td class="small">${escapeHtml(item.ref)}</td>
                   <td class="text-end fw-bold ${
-                    isDebt ? "text-dark" : "text-success"
+                    isDebt ? "text-danger" : "text-success"
                   }">${parseFloat(item.amount).toLocaleString()}</td>
                   <td class="text-end text-muted small">${
                     isDebt
                       ? parseFloat(
-                          item.original.remaining_amount
+                          item.original.remaining_amount,
                         ).toLocaleString()
                       : "-"
                   }</td>
@@ -721,12 +704,12 @@ async function loadDebts(driverId) {
         const tr = document.createElement("tr");
         tr.innerHTML = `
                   <td class="small text-muted">${new Date(
-                    item.date
+                    item.date,
                   ).toLocaleDateString()}</td>
                   <td><span class="badge bg-secondary text-secondary bg-opacity-10">⚠️ Penalty</span></td>
                   <td class="small">${escapeHtml(item.ref)}</td>
                   <td class="text-end fw-bold text-dark">${parseFloat(
-                    item.amount
+                    item.amount,
                   ).toLocaleString()} ETB</td>
                   <td class="text-center"><span class="badge bg-light text-dark border">${
                     item.status
@@ -805,10 +788,10 @@ async function loadPaymentHistory(driverId) {
 
       tr.innerHTML = `
                 <td class="px-4 py-3 align-middle">${new Date(
-                  p.payment_date
+                  p.payment_date,
                 ).toLocaleDateString()}</td>
                 <td class="px-4 py-3 align-middle fw-bold text-dark">${parseFloat(
-                  p.total_amount
+                  p.total_amount,
                 ).toLocaleString()} ETB</td>
                 <td class="px-4 py-3 align-middle text-muted text-capitalize">${(
                   p.payment_method || ""
@@ -830,7 +813,7 @@ async function loadPaymentHistory(driverId) {
         // Secure Revert Flow
         revertPaymentId = e.currentTarget.dataset.id; // Store ID globally
         const revertModal = new bootstrap.Modal(
-          document.getElementById("revertPasswordModal")
+          document.getElementById("revertPasswordModal"),
         );
         document.getElementById("revertConfirmPassword").value = "";
         revertModal.show();
@@ -883,7 +866,7 @@ function setupRevertModal() {
 
       ui.toast("Payment reverted successfully", "success");
       bootstrap.Modal.getInstance(
-        document.getElementById("revertPasswordModal")
+        document.getElementById("revertPasswordModal"),
       ).hide();
 
       // Refresh Data
@@ -911,7 +894,7 @@ function renderDriver(driver, bonuses, currentUser) {
   document.getElementById("driverPhone").textContent =
     driver.phone_number || "No phone";
   document.getElementById("createdAt").textContent = new Date(
-    driver.created_at
+    driver.created_at,
   ).toLocaleDateString();
 
   const badge = document.getElementById("driverStatusBadge");
@@ -932,7 +915,7 @@ function renderDriver(driver, bonuses, currentUser) {
       .getElementById("verificationInfoSection")
       .classList.remove("d-none");
     document.getElementById("verifiedDateText").textContent = new Date(
-      driver.verified_date
+      driver.verified_date,
     ).toLocaleDateString();
 
     // Show who verified the driver
@@ -988,31 +971,29 @@ function renderDriver(driver, bonuses, currentUser) {
   }, 0);
   const totalGross = bonuses.reduce(
     (sum, b) => sum + parseFloat(b.gross_payout || b.net_payout / 0.97),
-    0
+    0,
   );
   const totalWithholding = bonuses.reduce(
     (sum, b) => sum + parseFloat(b.withholding_tax || 0),
-    0
+    0,
   );
 
   document.getElementById("totalBonus").textContent = `${total.toLocaleString(
     undefined,
-    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 },
   )} ETB`;
 
   // Update Reference Fields
-  document.getElementById(
-    "totalGross"
-  ).textContent = `${totalGross.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ETB`;
-  document.getElementById(
-    "totalWithholding"
-  ).textContent = `${totalWithholding.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })} ETB`;
+  document.getElementById("totalGross").textContent =
+    `${totalGross.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ETB`;
+  document.getElementById("totalWithholding").textContent =
+    `${totalWithholding.toLocaleString(undefined, {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    })} ETB`;
 
   document.getElementById("weeksCount").textContent = bonuses.length;
 
@@ -1020,16 +1001,15 @@ function renderDriver(driver, bonuses, currentUser) {
     const dates = bonuses
       .map((b) => new Date(b.week_date))
       .sort((a, b) => a - b);
-    document.getElementById(
-      "bonusPeriod"
-    ).textContent = `${dates[0].toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-    })} - ${dates[dates.length - 1].toLocaleDateString("en-US", {
-      month: "short",
-      day: "numeric",
-      year: "numeric",
-    })}`;
+    document.getElementById("bonusPeriod").textContent =
+      `${dates[0].toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+      })} - ${dates[dates.length - 1].toLocaleDateString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+      })}`;
 
     renderBonusList(bonuses);
   } else {
@@ -1075,19 +1055,19 @@ function renderBonusList(bonuses) {
                 ${statusHtml}
             </td>
             <td class="text-muted align-middle">${parseFloat(
-              b.gross_payout || 0
+              b.gross_payout || 0,
             ).toLocaleString()}</td>
             <td class="text-muted align-middle">${parseFloat(
-              b.withholding_tax || 0
+              b.withholding_tax || 0,
             ).toLocaleString()}</td>
             <td class="text-end pe-4 fw-bold text-dark align-middle">
                 ${parseFloat(
-                  b.final_payout !== null ? b.final_payout : b.net_payout
+                  b.final_payout !== null ? b.final_payout : b.net_payout,
                 ).toLocaleString()} ETB
                 ${
                   b.final_payout !== null && b.final_payout < b.net_payout
                     ? `<i class="fas fa-info-circle text-danger ms-1" data-bs-toggle="tooltip" title="Original: ${parseFloat(
-                        b.net_payout
+                        b.net_payout,
                       ).toLocaleString()} (Debt Deducted)"></i>`
                     : ""
                 }
@@ -1103,11 +1083,11 @@ function updateTotalCalculations(bonuses) {
     (sum, b) =>
       sum +
       parseFloat(b.final_payout !== null ? b.final_payout : b.net_payout || 0),
-    0
+    0,
   );
   document.getElementById("totalBonus").textContent = `${total.toLocaleString(
     undefined,
-    { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 },
   )} ETB`;
 
   // Re-render period
@@ -1136,6 +1116,9 @@ async function loadDriverDetails(driverId) {
     const bonuses = await api.get(`/bonuses/driver/${driverId}`);
     const currentUser = await api.get("/auth/me").catch(() => null);
     renderDriver(driver, bonuses, currentUser);
+    if (window.renderPhoneHistory) {
+      window.renderPhoneHistory(driver, currentUser);
+    }
   } catch (error) {
     console.error("Failed to load driver details:", error);
   }

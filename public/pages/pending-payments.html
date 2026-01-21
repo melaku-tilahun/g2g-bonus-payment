@@ -42,8 +42,15 @@
                             <span class="badge bg-success rounded-pill ms-2 d-none" id="processingCountBadge">0</span>
                         </button>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link py-3 fw-bold position-relative" id="verification-tab" data-bs-toggle="tab" data-status="verification_needed" type="button" role="tab">
+                            <i class="fas fa-user-shield me-2"></i> Telebirr Verification Needed
+                            <span class="badge bg-primary rounded-pill ms-2 d-none" id="verificationCountBadge">0</span>
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link py-3 fw-bold position-relative" id="history-tab" data-bs-toggle="tab" data-status="history" type="button" role="tab">
                             <i class="fas fa-history me-2"></i> Export History
+                            
                         </button>
                     </li>
                 </ul>
@@ -128,7 +135,7 @@
                                 <!-- JS injected -->
                             </div>
                         </div>
-                        <p class="small text-muted mb-0">Confirming will mark these payments as <b>Paid</b> and unblock new imports for these drivers.</p>
+                        <p class="small text-muted mb-0">Confirming will mark these payments as <b>Paid</b>.</p>
                     </div>
 
                     <!-- State 3: Success (Hidden) -->

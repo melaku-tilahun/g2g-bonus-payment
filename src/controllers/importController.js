@@ -39,6 +39,7 @@ const importController = {
 
     const filePath = req.file.path;
     const connection = await pool.getConnection();
+    let transactionStarted = false;
 
     try {
       // 1. Parse file FIRST
@@ -53,22 +54,30 @@ const importController = {
       if (!fileDate) {
         throw new AppError(
           "Could determine Week Date from the Excel file. Please ensure the Date column is filled.",
-          400
+          400,
         );
       }
       const week_date = new Date(fileDate).toISOString().split("T")[0];
 
       await connection.beginTransaction();
+      transactionStarted = true;
 
-      // Check duplicate import (File level)
+      // Check duplicate import (File level) & Processing Lock
       const [existingLogs] = await connection.query(
-        "SELECT id FROM import_logs WHERE week_date = ? AND status IN ('success', 'partial') LIMIT 1",
-        [week_date]
+        "SELECT id, status FROM import_logs WHERE week_date = ? AND status IN ('success', 'partial', 'processing') LIMIT 1",
+        [week_date],
       );
       if (existingLogs.length > 0) {
+        const log = existingLogs[0];
+        if (log.status === "processing") {
+          throw new AppError(
+            `Import for date ${week_date} is currently in progress. Please wait a few minutes and try again.`,
+            409, // Conflict
+          );
+        }
         throw new AppError(
           `Bonuses for date ${week_date} have already been imported.`,
-          400
+          400,
         );
       }
 
@@ -83,7 +92,7 @@ const importController = {
           0,
           "processing",
           req.user.id,
-        ]
+        ],
       );
       const importLogId = importLogResult.insertId;
 
@@ -107,7 +116,7 @@ const importController = {
           WHERE d.driver_id IN (?)
           GROUP BY d.driver_id
         `,
-          [driverIds]
+          [driverIds],
         );
 
         states.forEach((s) => driverStateMap.set(s.driver_id, s));
@@ -116,8 +125,24 @@ const importController = {
       const errors = [];
       const warnings = [];
       const newDriversToInsert = [];
+      const newDriverPhonesToInsert = []; // Batch new driver phones
       const bonusesToInsert = [];
       let newDriversCount = 0;
+
+      // 0. Pre-check for Internal Duplicates (Duplicate Driver IDs in the same file)
+      const seenDrivers = new Map(); // id -> rowNumber
+      parsedData.forEach((row) => {
+        if (!row.driver_id) return;
+        if (seenDrivers.has(row.driver_id)) {
+          const originalRow = seenDrivers.get(row.driver_id);
+          errors.push({
+            row: row.rowNumber,
+            message: `Duplicate Driver ID: Matches Driver '${row.driver_id}' at Row ${originalRow}`,
+          });
+        } else {
+          seenDrivers.set(row.driver_id, row.rowNumber);
+        }
+      });
 
       for (const row of parsedData) {
         const rowErrorContext = `Row ${row.rowNumber} (Driver: ${row.driver_id})`;
@@ -130,38 +155,73 @@ const importController = {
 
         const driverState = driverStateMap.get(row.driver_id);
 
+        // Phone normalization helper
+        const normalizePhone = (phone) => {
+          if (!phone) return null;
+          const digits = phone.toString().replace(/\D/g, "");
+          return digits.length >= 9 ? digits.slice(-9) : digits;
+        };
+
+        const excelPhone = normalizePhone(row.phone_number);
+
+        // 1. Duplicate Phone Check (Strict Block)
+        if (excelPhone) {
+          const [existingPhone] = await connection.query(
+            "SELECT dp.driver_id FROM driver_phones dp WHERE dp.phone_number = ? AND dp.status = 'active' AND dp.driver_id != ?",
+            [row.phone_number, row.driver_id],
+          );
+          if (existingPhone.length > 0) {
+            errors.push({
+              row: row.rowNumber,
+              message: `Phone Duplicate: Phone '${row.phone_number}' is already active for driver ${existingPhone[0].driver_id}.`,
+            });
+            continue;
+          }
+        }
+
         if (!driverState) {
-          // New Driver Case
-          // Check for duplicates within the current file to prevent double insert errors
+          // NEW DRIVER: Insert with unverified status
           if (!newDriversToInsert.find((d) => d[0] === row.driver_id)) {
             newDriversToInsert.push([
               row.driver_id,
               row.full_name,
               row.phone_number,
-              0,
+              0, // is_telebirr_verified = FALSE by default
             ]);
             newDriversCount++;
+
+            // Queue phone as pending for new driver
+            newDriverPhonesToInsert.push([
+              row.driver_id,
+              row.phone_number,
+              "pending",
+              importLogId,
+            ]);
           }
         } else {
-          // A. Phone Number Mismatch Check (WARNING, not blocking)
-          const normalizePhone = (phone) => {
-            if (!phone) return null;
-            // Remove all non-digit characters and get last 9 digits
-            const digits = phone.toString().replace(/\D/g, "");
-            return digits.length >= 9 ? digits.slice(-9) : digits;
-          };
-
+          // EXISTING DRIVER: Check for phone mismatch
           const dbPhone = normalizePhone(driverState.phone_number);
-          const excelPhone = normalizePhone(row.phone_number);
 
           if (dbPhone && excelPhone && dbPhone !== excelPhone) {
-            warnings.push({
-              row: row.rowNumber,
-              driver_id: row.driver_id,
-              message: `Phone Mismatch: Driver ${row.driver_id} has phone '${driverState.phone_number}' in database but '${row.phone_number}' in Excel.`,
-              db_phone: driverState.phone_number,
-              excel_phone: row.phone_number,
-            });
+            // Phone mismatch detected: Add as pending
+            const [existingPending] = await connection.query(
+              "SELECT id FROM driver_phones WHERE driver_id = ? AND phone_number = ? AND status IN ('pending', 'active')",
+              [row.driver_id, row.phone_number],
+            );
+
+            if (existingPending.length === 0) {
+              // New pending number, insert it
+              await connection.query(
+                "INSERT INTO driver_phones (driver_id, phone_number, status, added_by_import_id) VALUES (?, ?, 'pending', ?)",
+                [row.driver_id, row.phone_number, importLogId],
+              );
+            }
+
+            // Flag driver as unverified
+            await connection.query(
+              "UPDATE drivers SET is_telebirr_verified = FALSE WHERE driver_id = ?",
+              [row.driver_id],
+            );
           }
 
           // B. Chronological Check
@@ -204,7 +264,7 @@ const importController = {
         // Update Log to Failed
         await connection.query(
           "UPDATE import_logs SET status = 'failed', error_count = ?, success_count = 0 WHERE id = ?",
-          [errors.length, importLogId]
+          [errors.length, importLogId],
         );
 
         // Clean up file handled in finally
@@ -220,47 +280,25 @@ const importController = {
         });
       }
 
-      // 4b. Check for warnings (phone mismatches)
-      if (warnings.length > 0 && !req.body.confirm_warnings) {
-        await connection.rollback();
-        // Update Log to Failed
-        await connection.query(
-          "UPDATE import_logs SET status = 'failed', error_count = 0, success_count = 0 WHERE id = ?",
-          [importLogId]
-        );
-
-        // Clean up file handled in finally
-
-        return res.json({
-          success: false,
-          requires_confirmation: true,
-          message: `Found ${warnings.length} phone number mismatch(es). Review and confirm to proceed.`,
-          warnings: warnings,
-          summary: {
-            total_records: parsedData.length,
-            phone_mismatches: warnings.length,
-          },
-        });
-      }
+      // 4b. Warnings are non-blocking now (phone mismatches are handled automatically)
+      // Remove the old confirmation flow
 
       // 5. Execution (No Errors)
-
-      // 5a. Update phone numbers for confirmed mismatches
-      if (warnings.length > 0 && req.body.confirm_warnings) {
-        for (const warning of warnings) {
-          await connection.query(
-            "UPDATE drivers SET phone_number = ? WHERE driver_id = ?",
-            [warning.excel_phone, warning.driver_id]
-          );
-        }
-      }
 
       // Insert New Drivers
       if (newDriversToInsert.length > 0) {
         await connection.query(
           "INSERT IGNORE INTO drivers (driver_id, full_name, phone_number, verified) VALUES ?",
-          [newDriversToInsert]
+          [newDriversToInsert],
         );
+
+        // Insert New Driver Phones (now that drivers exist)
+        if (newDriverPhonesToInsert.length > 0) {
+          await connection.query(
+            "INSERT INTO driver_phones (driver_id, phone_number, status, added_by_import_id) VALUES ?",
+            [newDriverPhonesToInsert],
+          );
+        }
       }
 
       // Insert Bonuses (with Debt Deduction)
@@ -269,7 +307,7 @@ const importController = {
         const driverIds = [...new Set(bonusesToInsert.map((b) => b[0]))];
         const [activeDebts] = await connection.query(
           "SELECT * FROM driver_debts WHERE driver_id IN (?) AND status = 'active' ORDER BY created_at ASC",
-          [driverIds]
+          [driverIds],
         );
 
         // Group debts
@@ -315,14 +353,14 @@ const importController = {
         // 3. Bulk Insert
         await connection.query(
           "INSERT INTO bonuses (driver_id, week_date, net_payout, work_terms, status, balance, payout, bank_fee, gross_payout, withholding_tax, import_log_id, final_payout, fleet_net_payout) VALUES ?",
-          [bonusesToInsert]
+          [bonusesToInsert],
         );
 
         // 4. Log Transactions & Update Debts
         if (deductionLogs.length > 0) {
           const [insertedBonuses] = await connection.query(
             "SELECT id, driver_id FROM bonuses WHERE import_log_id = ?",
-            [importLogId]
+            [importLogId],
           );
 
           const bonusIdMap = {};
@@ -339,7 +377,7 @@ const importController = {
           if (deductionValues.length > 0) {
             await connection.query(
               "INSERT INTO bonus_deductions (bonus_id, debt_id, amount_deducted) VALUES ?",
-              [deductionValues]
+              [deductionValues],
             );
           }
 
@@ -347,7 +385,7 @@ const importController = {
             const status = newAmount <= 0 ? "paid" : "active";
             await connection.query(
               "UPDATE driver_debts SET remaining_amount = ?, status = ? WHERE id = ?",
-              [newAmount, status, debtId]
+              [newAmount, status, debtId],
             );
           }
         }
@@ -366,7 +404,7 @@ const importController = {
           newDriversCount,
           parsedData.length - newDriversCount,
           importLogId,
-        ]
+        ],
       );
 
       await AuditService.log(
@@ -374,7 +412,7 @@ const importController = {
         "Import Excel",
         "import_log",
         importLogId,
-        { file: req.file.originalname, count: parsedData.length }
+        { file: req.file.originalname, count: parsedData.length },
       );
 
       await connection.commit();
@@ -384,6 +422,9 @@ const importController = {
         message: "Import success!",
         import_log_id: importLogId,
         week_date: week_date,
+        success_count: parsedData.length,
+        skipped_count: 0,
+        error_count: 0,
         summary: {
           total_records: parsedData.length,
           new_drivers_created: newDriversCount,
@@ -391,7 +432,7 @@ const importController = {
         },
       });
     } catch (error) {
-      if (connection) await connection.rollback();
+      if (connection && transactionStarted) await connection.rollback();
       throw error;
     } finally {
       if (connection) connection.release();

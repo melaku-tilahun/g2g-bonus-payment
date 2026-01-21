@@ -26,7 +26,7 @@ const paymentController = {
       // 1. Calculate the actual total from pending bonuses
       const [bonusRows] = await connection.query(
         "SELECT SUM(COALESCE(final_payout, net_payout)) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
-        [driver_id]
+        [driver_id],
       );
 
       const actualTotal = parseFloat(bonusRows[0].actual_total || 0);
@@ -49,13 +49,13 @@ const paymentController = {
           bonus_period_start,
           bonus_period_end,
           req.user.id,
-        ]
+        ],
       );
 
       // 3. Link bonuses to payment (Clear them)
       await connection.query(
         "UPDATE bonuses SET payment_id = ? WHERE driver_id = ? AND payment_id IS NULL",
-        [result.insertId, driver_id]
+        [result.insertId, driver_id],
       );
 
       await AuditService.log(
@@ -63,7 +63,7 @@ const paymentController = {
         "Record Payment",
         "payment",
         result.insertId,
-        { driver_id, total_amount: actualTotal }
+        { driver_id, total_amount: actualTotal },
       );
 
       await connection.commit();
@@ -156,7 +156,7 @@ const paymentController = {
        FROM payments p
        LEFT JOIN drivers d ON p.driver_id = d.driver_id 
        ${whereClause}`,
-      params
+      params,
     );
 
     // Get Paginated Data
@@ -171,8 +171,8 @@ const paymentController = {
           sortColumn === "driver_name"
             ? "d.full_name"
             : sortColumn === "driver_id"
-            ? "p.driver_id"
-            : `p.${sortColumn}`
+              ? "p.driver_id"
+              : `p.${sortColumn}`
         } ${order}
       LIMIT ? OFFSET ?
     `;
@@ -221,7 +221,7 @@ const paymentController = {
        JOIN bonuses b ON d.driver_id = b.driver_id
        LEFT JOIN payments p ON b.payment_id = p.id
        ${whereClause}`,
-      params
+      params,
     );
 
     // Get Paginated Data
@@ -255,7 +255,7 @@ const paymentController = {
          WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
          GROUP BY d.driver_id
          HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
-       ) as valid_drivers`
+       ) as valid_drivers`,
     );
 
     const [processingCount] = await pool.query(
@@ -263,7 +263,7 @@ const paymentController = {
        FROM drivers d 
        JOIN bonuses b ON d.driver_id = b.driver_id 
        JOIN payments p ON b.payment_id = p.id
-       WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'`
+       WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND p.status = 'processing'`,
     );
 
     res.json({
@@ -300,7 +300,7 @@ const paymentController = {
        FROM drivers d
        JOIN bonuses b ON d.driver_id = b.driver_id
        ${whereClause}`,
-      params
+      params,
     );
 
     const query = `
@@ -371,7 +371,7 @@ const paymentController = {
       if (bonuses.length === 0) {
         throw new AppError(
           "No fresh pending bonuses to export. If you need to re-download a previous export, please check the Export History.",
-          400
+          400,
         );
       }
 
@@ -390,7 +390,7 @@ const paymentController = {
 
       // Get sequence for today
       const [countResult] = await connection.query(
-        "SELECT COUNT(*) as count FROM payment_batches WHERE DATE(exported_at) = CURRENT_DATE"
+        "SELECT COUNT(*) as count FROM payment_batches WHERE DATE(exported_at) = CURRENT_DATE",
       );
       const sequence = (countResult[0].count + 1).toString().padStart(5, "0");
 
@@ -399,7 +399,7 @@ const paymentController = {
       // Create the internal batch record first
       const [batchResult] = await connection.query(
         "INSERT INTO payment_batches (batch_id, total_amount, driver_count, status, exported_by) VALUES (?, ?, ?, ?, ?)",
-        [batchDisplayId, 0, uniqueDrivers.length, "processing", req.user.id]
+        [batchDisplayId, 0, uniqueDrivers.length, "processing", req.user.id],
       );
       const batchInternalId = batchResult.insertId;
 
@@ -411,7 +411,7 @@ const paymentController = {
         if (!bonus.phone_number || bonus.phone_number.trim() === "") {
           throw new AppError(
             `Driver ${bonus.driver_id} (Bonus ID: ${bonus.bonus_id}) has no phone number. Cannot export.`,
-            400
+            400,
           );
         }
 
@@ -428,14 +428,14 @@ const paymentController = {
             `Bonus ${bonus.week_date} in ${batchDisplayId}`,
             batchDisplayId,
             batchInternalId,
-          ]
+          ],
         );
         const paymentId = pResult.insertId;
 
         // Link THIS specific bonus to this payment (one-to-one)
         await connection.query(
           "UPDATE bonuses SET payment_id = ? WHERE id = ?",
-          [paymentId, bonus.bonus_id]
+          [paymentId, bonus.bonus_id],
         );
 
         // Ensure amount is treated as number, not string
@@ -445,7 +445,7 @@ const paymentController = {
       // Update the batch summary
       await connection.query(
         "UPDATE payment_batches SET total_amount = ? WHERE id = ?",
-        [totalBatchAmount, batchInternalId]
+        [totalBatchAmount, batchInternalId],
       );
 
       // 3. Fetch data for this SPECIFIC BATCH for Excel generation
@@ -466,7 +466,7 @@ const paymentController = {
         WHERE p.batch_internal_id = ?
         ORDER BY d.driver_id, b.week_date
       `,
-        [batchInternalId]
+        [batchInternalId],
       );
 
       // Validate all phone numbers
@@ -478,7 +478,7 @@ const paymentController = {
         if (phone.length !== 9 || !/^\d{9}$/.test(phone)) {
           throw new AppError(
             `Invalid phone for driver ${row.driver_id} (Bonus ID: ${row.bonus_id}). Phone '${rawPhone}' needs attention.`,
-            400
+            400,
           );
         }
       }
@@ -541,21 +541,21 @@ const paymentController = {
           batchId: batchDisplayId,
           driverCount: exportRows.length,
           totalAmount: totalBatchAmount,
-        }
+        },
       );
 
       await connection.commit();
 
       res.setHeader(
         "Content-Type",
-        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
       );
       res.setHeader(
         "Content-Disposition",
         "attachment; filename=" +
           "G2G_PAYMENTS_" +
           new Date().toISOString().split("T")[0] +
-          ".xlsx"
+          ".xlsx",
       );
 
       await workbook.xlsx.write(res);
@@ -571,7 +571,7 @@ const paymentController = {
     const { paymentId } = req.params;
     const [result] = await pool.query(
       "UPDATE payments SET status = 'paid' WHERE id = ?",
-      [paymentId]
+      [paymentId],
     );
 
     if (result.affectedRows === 0) {
@@ -583,7 +583,7 @@ const paymentController = {
       "Confirm Payment",
       "payment",
       paymentId,
-      { status: "paid" }
+      { status: "paid" },
     );
     res.json({ message: "Payment confirmed as Paid" });
   }),
@@ -605,9 +605,21 @@ const paymentController = {
 
     const checklist = [
       { item: "File is readable", status: "passed", icon: "✅" },
-      { item: "Header: 'Credit Msisdn' found", status: "failed", icon: "❌" },
-      { item: "Header: 'Amount' found", status: "failed", icon: "❌" },
-      { item: "Header: 'Status' found", status: "failed", icon: "❌" },
+      {
+        item: "Header: 'Status' or 'TRANSACTION_STATUS' found",
+        status: "failed",
+        icon: "❌",
+      },
+      {
+        item: "Header: 'WITHDRAWN' or 'Amount' found",
+        status: "failed",
+        icon: "❌",
+      },
+      {
+        item: "Header: 'REMARK' or 'Comment' found",
+        status: "failed",
+        icon: "❌",
+      },
       { item: "Contains payment records", status: "failed", icon: "❌" },
       {
         item: "Amounts match internal records",
@@ -648,45 +660,67 @@ const paymentController = {
 
     // Find Header Row (Search first 20 rows)
     let headerRowIndex = -1;
-    let phoneCol = 3; // Default C
-    let amountCol = 8; // Default H
-    let statusCol = 12; // Default L
-    let commentCol = -1;
+    let amountCol = -1; // WITHDRAWN column
+    let statusCol = -1; // TRANSACTION_STATUS column
+    let commentCol = -1; // REMARK column
+    let reasonCol = -1; // REASON_NAME for filtering
 
     for (let i = 1; i <= 20; i++) {
       const row = worksheet.getRow(i);
-      let foundMsisdn = false;
+      let foundStatus = false;
       row.eachCell((cell, colNumber) => {
         const val = cell.value ? cell.value.toString().toLowerCase() : "";
-        if (val.includes("msisdn")) {
-          foundMsisdn = true;
-          phoneCol = colNumber;
+
+        // Amount in WITHDRAWN column (new format) or "amount" (old format)
+        if (val.includes("withdrawn") || val.includes("amount")) {
+          amountCol = colNumber;
         }
-        if (val.includes("amount")) amountCol = colNumber;
-        if (val.includes("status")) statusCol = colNumber;
-        // Support both "Comment" and "Transaction Details"
-        if (val.includes("comment") || val.includes("transaction details"))
+
+        // Status column (new and old formats)
+        if (val.includes("status") || val.includes("transaction_status")) {
+          statusCol = colNumber;
+          foundStatus = true;
+        }
+
+        // Metadata in REMARK or Comment
+        if (
+          val.includes("remark") ||
+          val.includes("comment") ||
+          val.includes("transaction details")
+        ) {
           commentCol = colNumber;
+        }
+
+        // Filter column (REASON_NAME)
+        if (val.includes("reason")) {
+          reasonCol = colNumber;
+        }
       });
 
-      if (foundMsisdn) {
+      if (foundStatus) {
         headerRowIndex = i;
         checklist[1].status = "passed";
         checklist[1].icon = "✅";
 
-        // Double check amount and status in the SAME row
+        // Double check amount and comment in the SAME row
         const amountHeader = row.getCell(amountCol).value
           ? row.getCell(amountCol).value.toString().toLowerCase()
           : "";
-        const statusHeader = row.getCell(statusCol).value
-          ? row.getCell(statusCol).value.toString().toLowerCase()
+        const commentHeader = row.getCell(commentCol).value
+          ? row.getCell(commentCol).value.toString().toLowerCase()
           : "";
 
-        if (amountHeader.includes("amount")) {
+        if (
+          amountHeader.includes("withdrawn") ||
+          amountHeader.includes("amount")
+        ) {
           checklist[2].status = "passed";
           checklist[2].icon = "✅";
         }
-        if (statusHeader.includes("status")) {
+        if (
+          commentHeader.includes("remark") ||
+          commentHeader.includes("comment")
+        ) {
           checklist[3].status = "passed";
           checklist[3].icon = "✅";
         }
@@ -700,8 +734,11 @@ const paymentController = {
       unmatched: 0,
       alreadyPaid: 0,
       totalAmount: 0,
-      unmatchedPhones: [],
-      amountMismatches: [], // New field
+      unmatchedPhones: [], // Keep for backward compatibility
+      unmatchedDetails: [], // NEW: Detailed unmatched info
+      amountMismatches: [],
+      invalidMetadata: [], // NEW: Metadata parsing errors
+      skippedNonB2C: 0, // NEW: Count of filtered transactions
       metadata:
         bulkPlanId || organizationName
           ? {
@@ -712,48 +749,62 @@ const paymentController = {
     };
 
     if (headerRowIndex === -1) {
+      // Determine which columns are missing
+      const missing = [];
+      if (statusCol === -1) missing.push("Status/TRANSACTION_STATUS");
+      if (amountCol === -1) missing.push("WITHDRAWN/Amount");
+      if (commentCol === -1) missing.push("REMARK/Comment");
+
       return res.json({
         success: false,
-        summary: { ...summary, metadata: null }, // Explicitly nullify metadata on failure
+        summary: { ...summary, metadata: null },
         checklist,
-        message:
-          "Could not find 'Credit Msisdn' column. Please ensure this is a valid Telebirr Bulk Report.",
+        message: `Missing required columns: ${missing.join(", ")}.
+
+Please ensure your file contains these column headers:
+ • Status column: 'TRANSACTION_STATUS' or 'Status'
+ • Amount column: 'WITHDRAWN' or 'Amount'  
+ • Metadata column: 'REMARK' or 'Comment'
+
+This does not appear to be a valid Telebirr reconciliation file.`,
       });
     }
 
-    const cleanPhone = (phone) => {
-      if (!phone) return null;
-      const str = phone.toString().replace(/\D/g, "");
-      return str.length >= 9 ? str.slice(-9) : str;
-    };
-
+    // Process rows and extract metadata
     const rows = [];
     worksheet.eachRow((row, rowNumber) => {
       if (rowNumber > headerRowIndex) {
-        const phone = row.getCell(phoneCol).value;
         const status = row.getCell(statusCol).value
           ? row.getCell(statusCol).value.toString().trim()
           : "";
         const amount = row.getCell(amountCol).value;
         const comment =
           commentCol !== -1 ? row.getCell(commentCol).value : null;
+        const reason = reasonCol !== -1 ? row.getCell(reasonCol).value : null;
 
-        if (phone) {
-          summary.totalRows++;
-          // Accept "Completed", "Success", "Succeeded", etc.
-          const normalizedStatus = status.toLowerCase();
-          if (
-            normalizedStatus === "completed" ||
-            normalizedStatus === "success" ||
-            normalizedStatus === "succeeded"
-          ) {
-            rows.push({
-              phone: cleanPhone(phone),
-              originalPhone: phone,
-              amount: parseFloat(amount || 0),
-              comment: comment ? comment.toString() : null,
-            });
+        // Filter by transaction type (only process "Bulk B2C Payment")
+        if (reasonCol !== -1) {
+          const reasonStr = reason ? reason.toString().trim() : "";
+          if (reasonStr !== "Bulk B2C Payment") {
+            // Skip non-B2C transactions and count them
+            summary.skippedNonB2C++;
+            return;
           }
+        }
+
+        // Process rows with valid status
+        const normalizedStatus = status.toLowerCase();
+        if (
+          normalizedStatus === "completed" ||
+          normalizedStatus === "success" ||
+          normalizedStatus === "succeeded"
+        ) {
+          summary.totalRows++;
+          rows.push({
+            rowNumber,
+            amount: parseFloat(amount || 0),
+            comment: comment ? comment.toString() : null,
+          });
         }
       }
     });
@@ -765,28 +816,57 @@ const paymentController = {
 
     for (const rowData of rows) {
       // Parse comment to extract bonus details
-      // Format: DriverID,BonusID,WeekDate,BatchID
+      // OLD Format: DriverID,BonusID,WeekDate,BatchID (comma-delimited)
+      // NEW Format: DriverID.BonusID.WeekDate.BatchID (period-delimited)
       let driverId = null;
       let bonusId = null;
       let batchId = null;
 
-      if (rowData.comment && rowData.comment.includes(",")) {
-        const parts = rowData.comment.split(",");
+      if (rowData.comment) {
+        // Support both formats: comma and period delimiters
+        let parts = [];
+        if (rowData.comment.includes(",")) {
+          parts = rowData.comment.split(",");
+        } else if (rowData.comment.includes(".")) {
+          parts = rowData.comment.split(".");
+        }
+
         if (parts.length >= 4) {
           driverId = parts[0].trim();
           bonusId = parseInt(parts[1].trim());
           // weekDate = parts[2].trim(); // Not needed for matching
           batchId = parts[3].trim();
+        } else if (parts.length > 0) {
+          // Track metadata parsing errors with details
+          summary.invalidMetadata.push({
+            row: summary.totalRows,
+            amount: rowData.amount,
+            found: rowData.comment,
+            expected:
+              "DriverID.BonusID.WeekDate.BatchID or DriverID,BonusID,WeekDate,BatchID",
+            reason: `Found ${parts.length} parts, expected 4`,
+            suggestion:
+              "Ensure the REMARK column contains metadata in the correct format",
+          });
         }
       }
 
       // STRICT MODE: If we can't parse the metadata from the comment, we CANNOT match.
-      // We removed the fallback to phone-only matching.
       if (!driverId || !bonusId) {
         summary.unmatched++;
         summary.unmatchedPhones.push(
-          `${rowData.originalPhone} (Missing/Invalid Metadata)`
+          `Row ${rowData.rowNumber}, Amount: ${rowData.amount} ETB (Missing/Invalid Metadata)`,
         );
+        summary.unmatchedDetails.push({
+          row: summary.totalRows,
+          amount: rowData.amount,
+          reason: !rowData.comment
+            ? "Missing metadata (REMARK column is empty)"
+            : "Invalid metadata format",
+          metadata: rowData.comment || "(empty)",
+          suggestion:
+            "Ensure this payment was exported from the correct batch file with metadata included",
+        });
         continue;
       }
 
@@ -802,12 +882,25 @@ const paymentController = {
         FROM bonuses b
         LEFT JOIN payments p ON b.payment_id = p.id
         WHERE b.id = ? AND b.driver_id = ?`,
-        [bonusId, driverId]
+        [bonusId, driverId],
       );
 
       if (bonusPayment.length === 0) {
         summary.unmatched++;
-        summary.unmatchedPhones.push(rowData.originalPhone);
+        summary.unmatchedPhones.push(
+          `Amount: ${rowData.amount} ETB, DriverID: ${driverId.substring(0, 10)}..., BonusID: ${bonusId}`,
+        );
+        summary.unmatchedDetails.push({
+          row: summary.totalRows,
+          amount: rowData.amount,
+          reason: "Driver ID or Bonus ID not found in database",
+          metadata: {
+            driverId: driverId.substring(0, 12) + "...",
+            bonusId,
+            batchId,
+          },
+          suggestion: `Verify Driver ID '${driverId.substring(0, 12)}...' exists and Bonus ID ${bonusId} is correct in the system`,
+        });
         continue;
       }
 
@@ -822,18 +915,35 @@ const paymentController = {
       // Verify batch ID matches (if provided)
       if (batchId && bonus.batch_id !== batchId) {
         summary.unmatched++;
-        summary.unmatchedPhones.push(rowData.originalPhone);
+        summary.unmatchedPhones.push(
+          `Amount: ${rowData.amount} ETB, DriverID: ${driverId.substring(0, 10)}..., BonusID: ${bonusId}`,
+        );
+        summary.unmatchedDetails.push({
+          row: summary.totalRows,
+          amount: rowData.amount,
+          reason: "Batch ID mismatch",
+          metadata: {
+            fileBatchId: batchId,
+            dbBatchId: bonus.batch_id,
+            bonusId,
+          },
+          suggestion: `This payment belongs to batch '${bonus.batch_id}', not '${batchId}'. Upload the correct batch file.`,
+        });
         continue;
       }
 
       // Compare amounts (should match exactly for individual bonus)
       const dbAmount = parseFloat(bonus.total_amount);
       if (Math.abs(dbAmount - rowData.amount) > 0.01) {
+        const difference = Math.abs(dbAmount - rowData.amount);
         summary.amountMismatches.push({
-          phone: rowData.originalPhone,
+          row: summary.totalRows,
+          driverId: driverId.substring(0, 12) + "...",
           bonusId: bonusId,
           fileAmount: rowData.amount,
           dbAmount: dbAmount,
+          difference: difference.toFixed(2),
+          suggestion: `Expected ${dbAmount.toFixed(2)} ETB, found ${rowData.amount.toFixed(2)} ETB (difference: ${difference.toFixed(2)} ETB). Verify the amount in Telebirr system.`,
         });
         checklist[5].status = "failed";
         checklist[5].icon = "❌";
@@ -896,7 +1006,7 @@ const paymentController = {
     if (!fs.existsSync(filePath)) {
       throw new AppError(
         "Reconciliation file not found. Please import again.",
-        400
+        400,
       );
     }
 
@@ -910,32 +1020,58 @@ const paymentController = {
       const worksheet = workbook.getWorksheet(1);
 
       const results = { success: 0, failed: 0 };
-
-      const cleanPhone = (phone) => {
-        if (!phone) return null;
-        const str = phone.toString().replace(/\D/g, "");
-        return str.length >= 9 ? str.slice(-9) : str;
+      const stats = {
+        reconciled: 0,
+        failed: 0,
+        alreadyPaid: 0,
+        totalAmount: 0,
       };
 
       let headerRowIndex = -1;
-      let phoneCol = 3;
-      let statusCol = 12;
+      let amountCol = -1;
+      let statusCol = -1;
       let commentCol = -1;
+      let reasonCol = -1;
+      let receiptCol = -1; // NEW: Receipt number column
 
       for (let i = 1; i <= 20; i++) {
         const row = worksheet.getRow(i);
-        let foundMsisdn = false;
+        let foundStatus = false;
         row.eachCell((cell, colNumber) => {
           const val = cell.value ? cell.value.toString().toLowerCase() : "";
-          if (val.includes("msisdn")) {
-            foundMsisdn = true;
-            phoneCol = colNumber;
+
+          // Amount in WITHDRAWN column (new format) or "amount" (old format)
+          if (val.includes("withdrawn") || val.includes("amount")) {
+            amountCol = colNumber;
           }
-          if (val.includes("status")) statusCol = colNumber;
-          if (val.includes("comment") || val.includes("transaction details"))
+
+          // Status column (new and old formats)
+          if (val.includes("status") || val.includes("transaction_status")) {
+            statusCol = colNumber;
+            foundStatus = true;
+          }
+
+          // Metadata in REMARK or Comment
+          if (
+            val.includes("remark") ||
+            val.includes("comment") ||
+            val.includes("transaction details")
+          ) {
             commentCol = colNumber;
+          }
+
+          // Filter column (REASON_NAME)
+          if (val.includes("reason")) {
+            reasonCol = colNumber;
+          }
+
+          // Receipt number column (RECEIPT_NO)
+          if (val.includes("receipt")) {
+            receiptCol = colNumber;
+          }
         });
-        if (foundMsisdn) {
+
+        if (foundStatus) {
           headerRowIndex = i;
           break;
         }
@@ -944,29 +1080,38 @@ const paymentController = {
       if (headerRowIndex === -1) {
         throw new AppError(
           "Could not find headers in reconciliation file.",
-          400
+          400,
         );
       }
 
       const rows = [];
       worksheet.eachRow((row, rowNumber) => {
         if (rowNumber > headerRowIndex) {
-          const phone = row.getCell(phoneCol).value;
           const status = row.getCell(statusCol).value
             ? row.getCell(statusCol).value.toString().trim().toLowerCase()
             : "";
           const comment =
             commentCol !== -1 ? row.getCell(commentCol).value : null;
+          const reason = reasonCol !== -1 ? row.getCell(reasonCol).value : null;
+          const receipt =
+            receiptCol !== -1 ? row.getCell(receiptCol).value : null;
+
+          // Filter by transaction type (only process "Bulk B2C Payment")
+          if (reasonCol !== -1) {
+            const reasonStr = reason ? reason.toString().trim() : "";
+            if (reasonStr !== "Bulk B2C Payment") {
+              return;
+            }
+          }
 
           if (
-            phone &&
-            (status === "completed" ||
-              status === "success" ||
-              status === "succeeded")
+            status === "completed" ||
+            status === "success" ||
+            status === "succeeded"
           ) {
             rows.push({
-              phone: cleanPhone(phone),
               comment: comment ? comment.toString() : null,
+              receipt: receipt ? receipt.toString() : null, // NEW: Store receipt
             });
           }
         }
@@ -981,20 +1126,29 @@ const paymentController = {
           let bonusId = null;
           let batchId = null;
 
-          if (rowData.comment && rowData.comment.includes(",")) {
-            const parts = rowData.comment.split(",");
-            if (parts.length >= 4) {
+          if (rowData.comment) {
+            let parts = [];
+            // Support both formats: comma and period delimiters
+            if (rowData.comment.includes(",")) {
+              parts = rowData.comment.split(",");
+            } else if (rowData.comment.includes(".")) {
+              parts = rowData.comment.split(".");
+            }
+
+            if (parts.length >= 2) {
               driverId = parts[0].trim();
               bonusId = parseInt(parts[1].trim());
-              batchId = parts[3].trim();
+              if (parts.length >= 4) {
+                batchId = parts[3].trim();
+              }
             }
           }
 
-          // If comment parsing failed, try to find driver by phone (fallback)
           // STRICT MODE: If comment parsing failed, we SKIP.
           // No phone fallback allowed.
           if (!driverId || !bonusId) {
-            results.failed++; // Count as failed/unmatched
+            results.failed++;
+            stats.failed++;
             continue;
           }
 
@@ -1008,7 +1162,7 @@ const paymentController = {
             FROM bonuses b
             JOIN payments p ON b.payment_id = p.id
             WHERE b.id = ? AND b.driver_id = ?`,
-            [bonusId, driverId]
+            [bonusId, driverId],
           );
 
           if (bonusPayment.length > 0) {
@@ -1016,21 +1170,42 @@ const paymentController = {
 
             // Only update if status is processing
             if (payment.status === "processing") {
+              // Get payment amount and current notes for stats and appending
+              const [paymentDetails] = await connection.query(
+                "SELECT total_amount, notes FROM payments WHERE id = ?",
+                [payment.payment_id],
+              );
+              const paymentAmount =
+                paymentDetails.length > 0
+                  ? parseFloat(paymentDetails[0].total_amount || 0)
+                  : 0;
+              const currentNotes =
+                paymentDetails.length > 0 ? paymentDetails[0].notes || "" : "";
+
+              // Append receipt number to notes if available
+              let updatedNotes = currentNotes;
+              if (rowData.receipt) {
+                const receiptNote = `Receipt: ${rowData.receipt}`;
+                updatedNotes = currentNotes
+                  ? `${currentNotes}; ${receiptNote}`
+                  : receiptNote;
+              }
+
               await connection.query(
-                "UPDATE payments SET status = 'paid', payment_date = NOW() WHERE id = ?",
-                [payment.payment_id]
+                "UPDATE payments SET status = 'paid', payment_date = NOW(), notes = ? WHERE id = ?",
+                [updatedNotes, payment.payment_id],
               );
 
               // Update batch status if all payments in batch are paid
               if (payment.batch_internal_id) {
                 const [remaining] = await connection.query(
                   "SELECT COUNT(*) as count FROM payments WHERE batch_internal_id = ? AND status != 'paid'",
-                  [payment.batch_internal_id]
+                  [payment.batch_internal_id],
                 );
                 if (remaining[0].count === 0) {
                   await connection.query(
                     "UPDATE payment_batches SET status = 'paid' WHERE id = ?",
-                    [payment.batch_internal_id]
+                    [payment.batch_internal_id],
                   );
                 }
               }
@@ -1044,20 +1219,30 @@ const paymentController = {
                   driver_id: payment.driver_id,
                   bonus_id: bonusId,
                   batch_id: batchId,
-                }
+                },
               );
               results.success++;
+              stats.reconciled++;
+              stats.totalAmount += paymentAmount;
+            } else if (payment.status === "paid") {
+              // Already paid, count as skipped
+              stats.alreadyPaid++;
             }
+          } else {
+            // Payment not found in DB
+            results.failed++;
+            stats.failed++;
           }
         } catch (err) {
           console.error("Error processing row:", err);
           results.failed++;
+          stats.failed++;
         }
       }
 
       await connection.commit();
 
-      // Fix #10: Improve success response
+      // Return comprehensive statistics
       res.json({
         success: results.success > 0,
         message:
@@ -1068,6 +1253,13 @@ const paymentController = {
             : "No payments were reconciled",
         reconciled: results.success,
         failed: results.failed,
+        stats: {
+          reconciled: stats.reconciled,
+          failed: stats.failed,
+          alreadyPaid: stats.alreadyPaid,
+          totalProcessed: stats.reconciled + stats.failed + stats.alreadyPaid,
+          totalAmount: stats.totalAmount,
+        },
       });
     } catch (error) {
       if (connection) await connection.rollback();
@@ -1098,11 +1290,11 @@ const paymentController = {
          LEFT JOIN users u ON b.exported_by = u.id 
          ORDER BY b.exported_at DESC 
          LIMIT ? OFFSET ?`,
-      [limitNum, offset]
+      [limitNum, offset],
     );
 
     const [countRows] = await pool.query(
-      "SELECT COUNT(*) as total FROM payment_batches"
+      "SELECT COUNT(*) as total FROM payment_batches",
     );
 
     res.json({
@@ -1121,7 +1313,7 @@ const paymentController = {
     // Get batch metadata
     const [batchRows] = await pool.query(
       "SELECT * FROM payment_batches WHERE batch_id = ?",
-      [batchId]
+      [batchId],
     );
 
     if (batchRows.length === 0) {
@@ -1142,7 +1334,7 @@ const paymentController = {
         WHERE p.batch_internal_id = ?
         ORDER BY p.total_amount DESC
       `,
-      [batch.id]
+      [batch.id],
     );
 
     const ExcelJS = require("exceljs");
@@ -1195,7 +1387,7 @@ const paymentController = {
     const filename = `G2G_Batch_${batchId.replace(/-/g, "_")}.xlsx`;
     res.setHeader(
       "Content-Type",
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     );
     res.setHeader("Content-Disposition", `attachment; filename=${filename}`);
 
@@ -1217,7 +1409,7 @@ const paymentController = {
       // 1. Verify Password
       const [users] = await connection.query(
         "SELECT password_hash FROM users WHERE id = ?",
-        [req.user.id]
+        [req.user.id],
       );
 
       const bcrypt = require("bcrypt");
@@ -1230,7 +1422,7 @@ const paymentController = {
       // 2. Fetch Payment Details
       const [payments] = await connection.query(
         "SELECT * FROM payments WHERE id = ? AND status IN ('processing', 'paid')", // Allow paid too if needed, but mainly processing
-        [paymentId]
+        [paymentId],
       );
 
       if (payments.length === 0) {
@@ -1243,14 +1435,14 @@ const paymentController = {
       // Check if this payment involved 'force_pay' bonuses
       const [revertBonuses] = await connection.query(
         "SELECT id FROM bonuses WHERE payment_id = ? AND force_pay = TRUE",
-        [paymentId]
+        [paymentId],
       );
 
       if (revertBonuses.length > 0) {
         // A. Reset Bonuses (Clear final_payout and force_pay)
         await connection.query(
           "UPDATE bonuses SET final_payout = NULL, force_pay = FALSE WHERE payment_id = ?",
-          [paymentId]
+          [paymentId],
         );
 
         // B. Find and Void associated Additional Withholding Tax Debts
@@ -1264,7 +1456,7 @@ const paymentController = {
            FROM driver_debts d
            JOIN bonus_deductions bd ON d.id = bd.debt_id
            WHERE bd.bonus_id IN (${placeholder}) AND d.reason = 'Additional Withholding Tax'`,
-          [...bonusIds]
+          [...bonusIds],
         );
 
         if (penaltyDebts.length > 0) {
@@ -1274,13 +1466,13 @@ const paymentController = {
           // Delete Deduction Links
           await connection.query(
             `DELETE FROM bonus_deductions WHERE debt_id IN (${debtPlaceholder})`,
-            [...debtIds]
+            [...debtIds],
           );
 
           // Delete/Void Debt Records
           await connection.query(
             `DELETE FROM driver_debts WHERE id IN (${debtPlaceholder})`,
-            [...debtIds]
+            [...debtIds],
           );
         }
       }
@@ -1289,7 +1481,7 @@ const paymentController = {
       // Standard unlink for all bonuses (even if just modified above)
       await connection.query(
         "UPDATE bonuses SET payment_id = NULL WHERE payment_id = ?",
-        [paymentId]
+        [paymentId],
       );
 
       // 3. Delete Payment Record
@@ -1299,7 +1491,7 @@ const paymentController = {
       if (payment.batch_internal_id) {
         await connection.query(
           "UPDATE payment_batches SET total_amount = total_amount - ?, driver_count = driver_count - 1 WHERE id = ?",
-          [payment.total_amount, payment.batch_internal_id]
+          [payment.total_amount, payment.batch_internal_id],
         );
       }
 
@@ -1313,7 +1505,7 @@ const paymentController = {
           driver_id: payment.driver_id,
           amount: payment.total_amount,
           batch_id: payment.batch_id,
-        }
+        },
       );
 
       await connection.commit();
@@ -1384,7 +1576,7 @@ const paymentController = {
     // Wrap for total count and pagination
     const [countRows] = await pool.query(
       `SELECT COUNT(*) as total FROM (${finalSubQuery}) as t`,
-      finalParams
+      finalParams,
     );
     const total = countRows[0] ? countRows[0].total : 0;
 
@@ -1392,7 +1584,7 @@ const paymentController = {
       `SELECT * FROM (${finalSubQuery}) as t 
          ORDER BY payment_date DESC 
          LIMIT ? OFFSET ?`,
-      [...finalParams, limitNum, offset]
+      [...finalParams, limitNum, offset],
     );
 
     res.json({

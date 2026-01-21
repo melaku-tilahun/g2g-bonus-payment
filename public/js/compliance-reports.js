@@ -21,7 +21,7 @@ async function loadComplianceDashboard() {
 
       // Update KPIs
       document.getElementById("totalTaxWithheld").textContent = `${parseFloat(
-        s.total_tax_collected
+        s.total_tax_collected,
       ).toLocaleString()} ETB`;
       document.getElementById("verifiedDrivers").textContent =
         s.verification_stats.verified_drivers.toLocaleString();
@@ -110,7 +110,7 @@ function displayActivityTable(logs) {
   logs.forEach((log) => {
     html += `<tr>
             <td><small>${new Date(
-              log.created_at
+              log.created_at,
             ).toLocaleDateString()}</small></td>
             <td><code class="small">${log.entity_id || "N/A"}</code></td>
             <td>${log.action}</td>
@@ -148,7 +148,7 @@ async function downloadTinExcel() {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-      }
+      },
     );
 
     if (!response.ok) throw new Error("Export failed");
@@ -167,6 +167,64 @@ async function downloadTinExcel() {
   } catch (error) {
     console.error("Download error:", error);
     ui.toast("Failed to download Excel", "error");
+  }
+}
+
+// Quick Tax Report Generation
+async function generateQuickTaxReport(period) {
+  const now = new Date();
+  let startDate, endDate;
+
+  if (period === "this_month") {
+    startDate = new Date(now.getFullYear(), now.getMonth(), 1);
+    endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  } else if (period === "last_month") {
+    startDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    endDate = new Date(now.getFullYear(), now.getMonth(), 0);
+  } else if (period === "ytd") {
+    startDate = new Date(now.getFullYear(), 0, 1);
+    endDate = now;
+  } else if (period === "custom") {
+    const startInput = document.getElementById("customStartDate").value;
+    const endInput = document.getElementById("customEndDate").value;
+    if (!startInput || !endInput) {
+      ui.toast("Please select both start and end dates", "error");
+      return;
+    }
+    startDate = new Date(startInput);
+    endDate = new Date(endInput);
+  }
+
+  // Format dates as YYYY-MM-DD
+  const format = (d) => d.toISOString().split("T")[0];
+  const startStr = format(startDate);
+  const endStr = format(endDate);
+
+  await fetchAndDisplayTaxReport(startStr, endStr);
+}
+
+// Shared function to fetch and display tax report
+async function fetchAndDisplayTaxReport(startDate, endDate) {
+  try {
+    ui.showLoading(true); // Assuming ui.showLoading exists or we can add it
+
+    // View online by default for quick reports
+    const data = await api.get(
+      `/reports/withholding-tax?start_date=${startDate}&end_date=${endDate}`,
+    );
+
+    if (data.success) {
+      displayTaxReport(data);
+      const resultsModal = new bootstrap.Modal(
+        document.getElementById("taxResultsModal"),
+      );
+      resultsModal.show();
+    }
+  } catch (error) {
+    console.error("Generate tax report error:", error);
+    ui.toast("Failed to generate report", "error");
+  } finally {
+    ui.showLoading(false);
   }
 }
 
@@ -191,7 +249,7 @@ async function generateTaxReport() {
           headers: {
             Authorization: `Bearer ${localStorage.getItem("token")}`,
           },
-        }
+        },
       );
 
       if (!response.ok) {
@@ -210,18 +268,18 @@ async function generateTaxReport() {
 
       ui.toast("Report generated successfully", "success");
       bootstrap.Modal.getInstance(
-        document.getElementById("taxReportModal")
+        document.getElementById("taxReportModal"),
       ).hide();
     } else {
       // View online
       const data = await api.get(
-        `/reports/withholding-tax?start_date=${startDate}&end_date=${endDate}`
+        `/reports/withholding-tax?start_date=${startDate}&end_date=${endDate}`,
       );
 
       if (data.success) {
         displayTaxReport(data);
         bootstrap.Modal.getInstance(
-          document.getElementById("taxReportModal")
+          document.getElementById("taxReportModal"),
         ).hide();
         new bootstrap.Modal(document.getElementById("taxResultsModal")).show();
       }
@@ -232,49 +290,230 @@ async function generateTaxReport() {
   }
 }
 
+// Helper to update button labels
+function updateQuickReportLabels() {
+  const now = new Date();
+
+  // This Month
+  const thisMonthName = now.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+  const thisMonthLabel = document.getElementById("thisMonthLabel");
+  if (thisMonthLabel) thisMonthLabel.textContent = thisMonthName;
+
+  // Last Month
+  const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+  const lastMonthName = lastMonth.toLocaleString("default", {
+    month: "long",
+    year: "numeric",
+  });
+  const lastMonthLabel = document.getElementById("lastMonthLabel");
+  if (lastMonthLabel) lastMonthLabel.textContent = lastMonthName;
+
+  // YTD
+  const ytdLabel = document.getElementById("ytdLabel");
+  if (ytdLabel)
+    ytdLabel.textContent = `Jan 1 - ${now.toLocaleString("default", { month: "short", day: "numeric", year: "numeric" })}`;
+}
+
+// Initialize labels on load
+document.addEventListener("DOMContentLoaded", updateQuickReportLabels);
+
 function displayTaxReport(reportData) {
   const container = document.getElementById("taxReportResults");
+  const modalHeader = document.querySelector("#taxResultsModal .modal-title");
+
+  // Update header context
+  if (modalHeader) {
+    modalHeader.innerHTML = `<i class="fas fa-file-invoice-dollar me-2"></i>Tax Report: ${reportData.start_date} to ${reportData.end_date}`;
+  }
 
   if (!reportData.data || reportData.data.length === 0) {
-    container.innerHTML =
-      '<p class="text-muted text-center">No data found for the selected period</p>';
+    container.innerHTML = `
+      <div class="text-center py-5">
+        <div class="mb-3 text-muted"><i class="fas fa-file-invoice fa-3x opacity-25"></i></div>
+        <h5 class="fw-bold">No records found</h5>
+        <p class="text-muted small">There are no withheld tax records for the selected period.</p>
+      </div>`;
     return;
   }
 
-  let html = '<div class="mb-4">';
-  html += `<h6>Report Summary</h6>`;
-  html += `<p><strong>Period:</strong> ${reportData.start_date} to ${reportData.end_date}</p>`;
-  html += `<p><strong>Total Records:</strong> ${reportData.total_records}</p>`;
-  html += `<p><strong>Total Tax Collected:</strong> ${reportData.total_tax_collected.toLocaleString()} ETB</p>`;
-  html += "</div>";
+  // Calculate totals for verification
+  const totalGross = reportData.data.reduce(
+    (sum, row) => sum + parseFloat(row.gross_payout || 0),
+    0,
+  );
+  const totalNet = reportData.data.reduce(
+    (sum, row) => sum + parseFloat(row.net_payout || 0),
+    0,
+  );
 
-  html += '<div class="table-responsive">';
-  html += '<table class="table table-hover table-sm">';
-  html += "<thead><tr>";
-  html +=
-    "<th>Driver ID</th><th>Name</th><th>TIN</th><th>Gross (ETB)</th><th>Tax (ETB)</th><th>Net (ETB)</th><th>Payments</th>";
-  html += "</tr></thead><tbody>";
+  let html = `
+    <!-- Action Toolbar -->
+    <div class="d-flex justify-content-between align-items-center mb-4 p-3 bg-light rounded-3">
+        <div class="d-flex gap-2">
+            <div class="bg-white px-3 py-2 rounded border">
+                <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 10px;">Total Tax Withheld</small>
+                <div class="fw-bold text-danger">${reportData.total_tax_collected.toLocaleString()} ETB</div>
+            </div>
+            <div class="bg-white px-3 py-2 rounded border">
+                <small class="text-muted d-block text-uppercase fw-bold" style="font-size: 10px;">Record Count</small>
+                <div class="fw-bold text-dark">${reportData.total_records}</div>
+            </div>
+        </div>
+        <div class="btn-group">
+            <button class="btn btn-outline-success btn-sm" onclick="downloadTaxReportExcel('${reportData.start_date}', '${reportData.end_date}')">
+                <i class="fas fa-file-excel me-2"></i>Download Excel
+            </button>
+            <button class="btn btn-outline-dark btn-sm" onclick="toggleJsonView()">
+                <i class="fas fa-code me-2"></i>JSON View
+            </button>
+        </div>
+    </div>
 
-  reportData.data.forEach((row) => {
+    <!-- Tab Content -->
+    <div id="taxTableView">
+        <div class="table-responsive">
+            <table class="table table-excel table-hover table-sm align-middle mb-0">
+                <thead class="bg-light">
+                    <tr>
+                        <th class="ps-3 py-2">#</th>
+                        <th class="py-2">Date</th>
+                        <th class="py-2">Driver</th>
+                        <th class="py-2">TIN Number</th>
+                        <th class="text-end py-2">Gross Payout</th>
+                        <th class="text-end py-2">Tax Rate</th>
+                        <th class="text-end py-2">Withholding Tax</th>
+                        <th class="text-end pe-3 py-2">Net Payout</th>
+                    </tr>
+                </thead>
+                <tbody>`;
+
+  reportData.data.forEach((row, index) => {
+    const taxRate =
+      parseFloat(row.gross_payout) > 0
+        ? (
+            (parseFloat(row.withholding_tax) / parseFloat(row.gross_payout)) *
+            100
+          ).toFixed(1) + "%"
+        : "0%";
+
     html += `<tr>
-            <td><code class="small">${row.driver_id}</code></td>
-            <td>${row.full_name}</td>
-            <td>${row.tin || "N/A"}</td>
-            <td class="text-end">${parseFloat(
-              row.total_gross
-            ).toLocaleString()}</td>
-            <td class="text-end fw-bold text-danger">${parseFloat(
-              row.total_tax
-            ).toLocaleString()}</td>
-            <td class="text-end">${parseFloat(
-              row.total_net
-            ).toLocaleString()}</td>
-            <td class="text-center">${row.payment_count}</td>
+            <td class="ps-3 text-muted small">${index + 1}</td>
+            <td class="small">${new Date(row.week_date).toLocaleDateString()}</td>
+            <td>
+                <div class="fw-bold text-dark small">${row.full_name}</div>
+                <div class="x-small text-muted font-monospace">${row.driver_id}</div>
+            </td>
+            <td><code class="text-primary small">${row.tin || "MISSING-TIN"}</code></td>
+            <td class="text-end font-monospace small">${parseFloat(row.gross_payout).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td class="text-end small text-muted">${taxRate}</td>
+            <td class="text-end fw-bold text-danger font-monospace small">${parseFloat(row.withholding_tax).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td class="text-end pe-3 font-monospace small text-dark">${parseFloat(row.net_payout).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
         </tr>`;
   });
 
-  html += "</tbody></table></div>";
+  html += `</tbody>
+            <tfoot class="bg-light fw-bold border-top-2">
+                <tr>
+                    <td colspan="4" class="ps-3 py-2 text-end text-uppercase x-small text-muted">Total Summary</td>
+                    <td class="text-end py-2">${totalGross.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td></td>
+                    <td class="text-end py-2 text-danger">${reportData.total_tax_collected.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td class="text-end pe-3 py-2">${totalNet.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+  </div>
+  
+  <!-- JSON View (Hidden by default) -->
+  <div id="taxJsonView" style="display: none;">
+    <div class="bg-dark text-light p-3 rounded-3 font-monospace small" style="max-height: 500px; overflow-y: auto;">
+        <div class="d-flex justify-content-end mb-2">
+            <button class="btn btn-sm btn-outline-light" onclick="navigator.clipboard.writeText(this.nextElementSibling.innerText)">
+                <i class="fas fa-copy me-1"></i> Copy
+            </button>
+            <div style="display:none">${JSON.stringify(reportData, null, 2)}</div>
+        </div>
+        <pre class="m-0 text-success">${syntaxHighlight(reportData)}</pre>
+    </div>
+  </div>`;
+
   container.innerHTML = html;
+}
+
+// Helper: Toggle between Table and JSON view
+window.toggleJsonView = function () {
+  const table = document.getElementById("taxTableView");
+  const json = document.getElementById("taxJsonView");
+  if (table.style.display === "none") {
+    table.style.display = "block";
+    json.style.display = "none";
+  } else {
+    table.style.display = "none";
+    json.style.display = "block";
+  }
+};
+
+// Helper: Download Excel directly
+window.downloadTaxReportExcel = async function (startDate, endDate) {
+  try {
+    ui.toast("Downloading Excel report...", "info");
+    const response = await fetch(
+      `/api/reports/withholding-tax?start_date=${startDate}&end_date=${endDate}&format=excel`,
+      {
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      },
+    );
+
+    if (!response.ok) throw new Error("Download failed");
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `Tax_Report_${startDate}_${endDate}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+
+    ui.toast("Download complete", "success");
+  } catch (error) {
+    console.error("Excel download error:", error);
+    ui.toast("Failed to download Excel", "error");
+  }
+};
+
+// Helper: Syntax Highlight JSON
+function syntaxHighlight(json) {
+  if (typeof json != "string") {
+    json = JSON.stringify(json, undefined, 2);
+  }
+  json = json
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return json.replace(
+    /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g,
+    function (match) {
+      var cls = "text-warning"; // string
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = "text-info"; // key
+        }
+      } else if (/true|false/.test(match)) {
+        cls = "text-primary"; // boolean
+      } else if (/null/.test(match)) {
+        cls = "text-muted"; // null
+      } else {
+        cls = "text-danger"; // number
+      }
+      return '<span class="' + cls + '">' + match + "</span>";
+    },
+  );
 }
 
 async function loadTinLog() {
@@ -287,7 +526,7 @@ async function loadTinLog() {
     if (endDate) params.append("end_date", endDate);
 
     const data = await api.get(
-      `/reports/tin-verification-log?${params.toString()}`
+      `/reports/tin-verification-log?${params.toString()}`,
     );
 
     if (data.success) {
@@ -357,13 +596,13 @@ async function generateDriverStatement() {
 
     const response = await fetch(
       `/api/reports/driver-statement/${encodeURIComponent(
-        driverId
+        driverId,
       )}?${params.toString()}`,
       {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
-      }
+      },
     );
 
     if (!response.ok) {
@@ -385,7 +624,7 @@ async function generateDriverStatement() {
 
     ui.toast("Statement generated successfully", "success");
     bootstrap.Modal.getInstance(
-      document.getElementById("driverStatementModal")
+      document.getElementById("driverStatementModal"),
     ).hide();
 
     // Clear form

@@ -90,16 +90,31 @@
                         </select>
                     </div>
                     <div class="col-md-3">
+                        <label class="form-label x-small fw-bold text-muted text-uppercase">Action Type</label>
+                        <select id="filterAction" class="form-select border-0 bg-light fw-semibold">
+                            <option value="">All Actions</option>
+                            <option value="Approve Phone">Approve Phone</option>
+                            <option value="Reject Phone">Reject Phone</option>
+                            <option value="Verify Driver">Verify Driver</option>
+                            <option value="Add Driver Note">Add Driver Note</option>
+                            <option value="Import Bonuses">Import Bonuses</option>
+                            <option value="Export Pending Payments">Export Pending Payments</option>
+                            <option value="Reconcile Payments">Reconcile Payments</option>
+                            <option value="Block Driver">Block Driver</option>
+                            <option value="Unblock Driver">Unblock Driver</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
                         <label class="form-label x-small fw-bold text-muted text-uppercase">Start Period</label>
                         <input type="date" id="startDate" class="form-control border-0 bg-light fw-semibold">
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <label class="form-label x-small fw-bold text-muted text-uppercase">End Period</label>
                         <input type="date" id="endDate" class="form-control border-0 bg-light fw-semibold">
                     </div>
-                    <div class="col-md-3 d-flex align-items-end">
+                    <div class="col-md-2 d-flex align-items-end">
                         <button class="btn btn-brand w-100" onclick="loadActivityReport()">
-                            <i class="fas fa-filter me-2"></i> Apply Audit Filter
+                            <i class="fas fa-filter me-2"></i> Apply Filter
                         </button>
                     </div>
                 </div>

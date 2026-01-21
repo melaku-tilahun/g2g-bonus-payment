@@ -27,10 +27,6 @@ const debtController = {
         throw new AppError("Driver not found.", 404);
       }
 
-      if (!driverResult[0].verified) {
-        throw new AppError("Cannot create debt for an unverified driver.", 400);
-      }
-
       // 0.5. Check for processing payments (MUST be cleared or reverted first)
       const [processingPayments] = await connection.query(
         "SELECT id FROM payments WHERE driver_id = ? AND status = 'processing' LIMIT 1",

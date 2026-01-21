@@ -7,6 +7,21 @@
     <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet">
     <link rel="stylesheet" href="../css/styles.css">
     <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css">
+    <style>
+        .transition-transform {
+            transition: transform 0.3s ease;
+        }
+        [aria-expanded="true"] .transition-transform {
+            transform: rotate(90deg);
+        }
+        /* Remove default button styling for clickable headers */
+        .card-header[role="button"] {
+            cursor: pointer;
+        }
+        .card-header[role="button"]:hover {
+            background-color: #f8f9fa !important;
+        }
+    </style>
 </head>
 <body class="bg-light">
     <!-- Header injected by ui.js -->
@@ -31,6 +46,9 @@
                     <div class="d-flex align-items-center flex-wrap gap-3 mb-1">
                         <h1 class="h2 mb-0" id="driverName">Loading...</h1>
                         <span id="driverStatusBadge" class="badge-status badge-unverified">Loading...</span>
+                        <button class="btn btn-sm btn-outline-info rounded-pill px-3" id="notesBtn">
+                            <i class="fas fa-sticky-note me-1"></i> Notes
+                        </button>
                     </div>
                     <div class="text-muted d-flex align-items-center flex-wrap gap-4">
                         <span><i class="fas fa-id-card me-2"></i> ID: <span id="driverId" class="font-monospace">---</span></span>
@@ -140,7 +158,7 @@
             <div class="card-header bg-success bg-opacity-10 border-0 p-3">
                 <div class="d-flex align-items-center justify-content-between">
                     <h4 class="h5 fw-bold mb-0 text-success"><i class="fas fa-shield-alt me-2"></i> Verification Details</h4>
-                    <span class="badge bg-success rounded-pill px-3">Verified Driver</span>
+                    <span class="badge bg-success rounded-pill px-3">Document Verified </span>
                 </div>
             </div>
             <div class="p-4">
@@ -182,63 +200,104 @@
         </div>
     </div>
         
+    <!-- Phone History Section (Telebirr Verification) -->
+    <div class="card-premium mt-4 border-warning border-start" id="phoneHistorySection" style="display: none;">
+        <div class="card-header bg-white border-0 p-4 d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#phoneHistoryCollapse" aria-expanded="false" aria-controls="phoneHistoryCollapse">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-chevron-right me-3 text-muted transition-transform"></i>
+                <div>
+                    <h5 class="mb-0 fw-bold text-warning"><i class="fas fa-mobile-alt me-2"></i> Phone Number History</h5>
+                    <p class="mb-0 small text-muted mt-1">Track all phone numbers associated with this driver account</p>
+                </div>
+            </div>
+            <div id="telebirrStatusBadge"></div>
+        </div>
+        <div class="collapse" id="phoneHistoryCollapse">
+            <div class="card-body p-0 border-top">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0">
+                        <thead class="bg-light">
+                            <tr>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Phone Number</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Status</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Added Date</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Valid Period</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase">Updated By</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase" style="width: 25%;">Reason</th>
+                                <th class="px-4 py-3 text-muted small text-uppercase text-center">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="phoneHistoryTableBody">
+                            <tr><td colspan="6" class="text-center py-4 text-muted">Loading phone history...</td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+        
     <!-- Debt & Liabilities Section -->
-        <div class="card-premium mt-4 border-secondary border-start border-4">
-            <div class="card-header bg-white border-0 p-4 d-flex justify-content-between align-items-center">
-                <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-hand-holding-usd me-2"></i> Debts & Liabilities</h5>
-                <button class="btn btn-outline-secondary btn-sm shadow-sm" id="addDebtBtn" style="display: none;">
+        <div class="card-premium mt-4 border-secondary border-start">
+            <div class="card-header bg-white border-0 p-4 d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#debtCollapse" aria-expanded="false" aria-controls="debtCollapse">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-chevron-right me-3 text-muted transition-transform"></i>
+                    <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-hand-holding-usd me-2"></i> Debts & Liabilities</h5>
+                </div>
+                <button class="btn btn-outline-secondary btn-sm shadow-sm" id="addDebtBtn" style="display: none;" onclick="event.stopPropagation()">
                     <i class="fas fa-plus me-2"></i> Add Debt
                 </button>
             </div>
-            <div class="card-body p-4">
-                <!-- Data View (Hidden if empty) -->
-                <div class="row g-4" id="debtDataRow">
-                    <!-- Active Debt Summary -->
-                    <div class="col-md-4">
-                        <div class="p-4 rounded-3 bg-secondary bg-opacity-10 h-100">
-                             <div class="small text-secondary text-opacity-75 text-uppercase fw-bold mb-1">Total Active Debt</div>
-                             <div class="h2 fw-bold text-dark mb-0" id="totalActiveDebt">0.00 ETB</div>
-                             <div class="small text-muted mt-2">Automatic deduction from future bonuses</div>
+            <div class="collapse" id="debtCollapse">
+                <div class="card-body p-4 border-top">
+                    <!-- Data View (Hidden if empty) -->
+                    <div class="row g-4" id="debtDataRow">
+                        <!-- Active Debt Summary -->
+                        <div class="col-md-4">
+                            <div class="p-4 rounded-3 bg-secondary bg-opacity-10 h-100">
+                                 <div class="small text-secondary text-opacity-75 text-uppercase fw-bold mb-1">Total Active Debt</div>
+                                 <div class="h2 fw-bold text-dark mb-0" id="totalActiveDebt">0.00 ETB</div>
+                                 <div class="small text-muted mt-2">Automatic deduction from future bonuses</div>
+                            </div>
+                        </div>
+                        <!-- Recent Deductions/Debts Table -->
+                        <div class="col-md-8">
+                            <div class="table-responsive">
+                                <table class="table table-hover mb-0">
+                                    <thead>
+                                        <tr>
+                                            <th class="small text-muted">Date</th>
+                                            <th class="small text-muted">Type</th>
+                                            <th class="small text-muted">Reason</th>
+                                            <th class="small text-muted text-end">Amount</th>
+                                            <th class="small text-muted text-end">Remaining</th>
+                                            <th class="small text-muted text-center">Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="debtTableBody">
+                                        <tr><td colspan="6" class="text-center text-muted py-3">No active debts</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>
-                    <!-- Recent Deductions/Debts Table -->
-                    <div class="col-md-8">
-                        <div class="table-responsive">
-                            <table class="table table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th class="small text-muted">Date</th>
-                                        <th class="small text-muted">Type</th>
-                                        <th class="small text-muted">Reason</th>
-                                        <th class="small text-muted text-end">Amount</th>
-                                        <th class="small text-muted text-end">Remaining</th>
-                                        <th class="small text-muted text-center">Status</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="debtTableBody">
-                                    <tr><td colspan="6" class="text-center text-muted py-3">No active debts</td></tr>
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
 
-                <!-- Empty State View (Shown if no history) -->
-                <div id="debtEmptyState" class="text-center py-5 d-none">
-                    <div class="mb-3">
-                        <i class="fas fa-check-circle fa-3x text-success opacity-25"></i>
+                    <!-- Empty State View (Shown if no history) -->
+                    <div id="debtEmptyState" class="text-center py-5 d-none">
+                        <div class="mb-3">
+                            <i class="fas fa-check-circle fa-3x text-success opacity-25"></i>
+                        </div>
+                        <h6 class="text-secondary fw-bold mb-2">No Active Debts or Liabilities</h6>
+                        <p class="text-muted small mb-4">This driver has no recorded debts or deductions.</p>
+                        <button class="btn btn-outline-secondary shadow-sm px-4 rounded-pill" id="addDebtCentralBtn" style="display: none;">
+                            <i class="fas fa-plus me-2"></i> Add First Debt
+                        </button>
                     </div>
-                    <h6 class="text-secondary fw-bold mb-2">No Active Debts or Liabilities</h6>
-                    <p class="text-muted small mb-4">This driver has no recorded debts or deductions.</p>
-                    <button class="btn btn-outline-secondary shadow-sm px-4 rounded-pill" id="addDebtCentralBtn" style="display: none;">
-                        <i class="fas fa-plus me-2"></i> Add First Debt
-                    </button>
                 </div>
             </div>
         </div>
 
     <!-- Verification Penalties Section (Separate) -->
-        <div class="card-premium mt-4 border-secondary border-start border-4 d-none" id="penaltySection">
+        <div class="card-premium mt-4 border-secondary border-start d-none" id="penaltySection">
             <div class="card-header bg-white border-0 py-3">
                 <h5 class="mb-0 fw-bold text-secondary"><i class="fas fa-exclamation-triangle me-2"></i> Verification Penalties</h5>
                 <p class="mb-0 small text-muted">Historical record of 30% deductions for unverified payouts</p>
@@ -264,27 +323,32 @@
         </div>
 
     <!-- Payment History Section -->
-        <div class="card-premium mt-4 border-primary border-start border-4">
-            <div class="card-header bg-white border-0 p-4">
-                <h5 class="mb-0 fw-bold text-primary"><i class="fas fa-history me-2"></i> Payment History</h5>
+        <div class="card-premium mt-4 border-primary border-start">
+            <div class="card-header bg-white border-0 p-4 d-flex justify-content-between align-items-center" role="button" data-bs-toggle="collapse" data-bs-target="#paymentHistoryCollapse" aria-expanded="false" aria-controls="paymentHistoryCollapse">
+                <div class="d-flex align-items-center">
+                    <i class="fas fa-chevron-right me-3 text-muted transition-transform"></i>
+                    <h5 class="mb-0 fw-bold text-primary"><i class="fas fa-history me-2"></i> Payment History</h5>
+                </div>
             </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped mb-0">
-                        <thead class="bg-light">
-                            <tr>
-                                <th class="px-4 py-3 text-muted small text-uppercase">Date</th>
-                                <th class="px-4 py-3 text-muted small text-uppercase">Amount</th>
-                                <th class="px-4 py-3 text-muted small text-uppercase">Method</th>
-                                <th class="px-4 py-3 text-muted small text-uppercase">Status</th>
-                                <th class="px-4 py-3 text-muted small text-uppercase">Notes / Ref</th>
-                                <th class="px-4 py-3 text-muted small text-uppercase">Processed By</th>
-                            </tr>
-                        </thead>
-                        <tbody id="paymentHistoryTableBody">
-                            <tr><td colspan="6" class="text-center py-4 text-muted">Loading history...</td></tr>
-                        </tbody>
-                    </table>
+            <div class="collapse" id="paymentHistoryCollapse">
+                <div class="card-body p-0 border-top">
+                    <div class="table-responsive">
+                        <table class="table table-hover table-striped mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Date</th>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Amount</th>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Method</th>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Status</th>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Notes / Ref</th>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Processed By</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentHistoryTableBody">
+                                <tr><td colspan="6" class="text-center py-4 text-muted">Loading history...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -558,11 +622,121 @@
             </div>
         </div>
     </div>
+
+    <!-- Phone Verification Modal (Telebirr) -->
+    <div class="modal fade" id="verifyPhoneModal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content border-0 shadow-lg rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold text-warning"><i class="fas fa-mobile-alt me-2"></i> Verify Phone Number</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-4">
+                    <div class="alert alert-warning bg-warning bg-opacity-10 border-0 mb-4">
+                        <i class="fas fa-exclamation-triangle me-2"></i> 
+                        <strong>Phone Number Change Detected</strong>
+                        <p class="mb-0 mt-2 small">Select which phone number should be used for Telebirr payments and provide a reason for your decision.</p>
+                    </div>
+
+                    <div class="row g-3 mb-4" id="modalComparisonRow">
+                        <div class="col-md-6" id="modalCurrentPhoneCol">
+                            <div class="card border-2 border-success h-100" id="currentPhoneCard">
+                                <div class="card-body text-center">
+                                    <div class="small text-muted text-uppercase fw-bold mb-2">Current Phone</div>
+                                    <div class="h4 fw-bold font-monospace mb-0" id="modalCurrentPhone">---</div>
+                                    <div class="badge bg-success mt-2">Active</div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-2 border-warning h-100" id="pendingPhoneCard">
+                                <div class="card-body text-center">
+                                    <div class="small text-muted text-uppercase fw-bold mb-2">New Phone (Import)</div>
+                                    <div class="h4 fw-bold font-monospace mb-0" id="modalPendingPhone">---</div>
+                                    <div class="badge bg-warning mt-2">Pending</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="form-label small fw-bold text-muted text-uppercase">Reason for Decision <span class="text-danger">*</span></label>
+                        <textarea class="form-control bg-light border-0 shadow-sm" id="phoneVerifyReason" rows="3" placeholder="Reason for your decision..."></textarea>
+                        <small class="text-muted">This will be logged in the audit trail</small>
+                    </div>
+
+                    <input type="hidden" id="phoneRecordId" />
+                    <input type="hidden" id="phoneAction" />
+                </div>
+                <div class="modal-footer border-0 pt-0 p-4 d-flex justify-content-between">
+                    <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>
+                    <div class="d-flex gap-2">
+                        <button type="button" class="btn btn-outline-success px-4 rounded-pill" id="approveNewPhoneBtn">
+                            <i class="fas fa-check me-2"></i> Use New Phone
+                        </button>
+                        <button type="button" class="btn btn-outline-danger px-4 rounded-pill" id="rejectNewPhoneBtn">
+                            <i class="fas fa-times me-2"></i> Reject & Keep Current
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notes Modal -->
+    <div class="modal fade" id="notesModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content border-0 rounded-4">
+                <div class="modal-header border-0 pb-0">
+                    <h5 class="modal-title fw-bold"><i class="fas fa-sticky-note me-2 text-info"></i> Driver Notes</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body py-4">
+                    <!-- Notes List -->
+                    <div class="mb-4">
+                        <h6 class="fw-bold mb-3 small text-uppercase text-muted">Previous Notes</h6>
+                        <div id="notesList" class="border rounded-3" style="max-height: 300px; overflow-y: auto;">
+                            <!-- Notes will be rendered here -->
+                            <div class="text-center py-5 text-muted">
+                                <i class="fas fa-clipboard fa-2x mb-2 opacity-25"></i>
+                                <div class="small">No notes yet</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Add Note Section -->
+                    <div class="border-top pt-4">
+                        <h6 class="fw-bold mb-3 small text-uppercase text-muted">Add New Note</h6>
+                        <div class="mb-3">
+                            <textarea 
+                                class="form-control" 
+                                id="noteTextarea" 
+                                rows="3" 
+                                maxlength="1000" 
+                                placeholder="Type your note here... (max 1000 characters)"></textarea>
+                            <div class="text-end small text-muted mt-1">
+                                <span id="charCount">0</span>/1000
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer border-0 pt-0">
+                    <button type="button" class="btn btn-light rounded-pill px-4" data-bs-dismiss="modal">Close</button>
+                    <button type="button" class="btn btn-primary rounded-pill px-4" id="saveNoteBtn">
+                        <i class="fas fa-save me-2"></i> Save Note
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     
     <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
     <script src="../js/api.js"></script>
     <script src="../js/auth.js"></script>
     <script src="../js/ui.js"></script>
+    <script src="../js/phone-verification.js"></script>
+    <script src="../js/driver-notes.js"></script>
     <script src="../js/driver-detail.js"></script>
 </body>
 </html>

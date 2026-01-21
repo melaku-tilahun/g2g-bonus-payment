@@ -24,12 +24,10 @@ class ReportGenerator {
         { header: "Driver Name", key: "full_name", width: 30 },
         { header: "TIN Number", key: "tin", width: 20 },
         { header: "Business Name", key: "business_name", width: 30 },
-        { header: "Gross Amount (ETB)", key: "total_gross", width: 18 },
-        { header: "Tax Withheld (ETB)", key: "total_tax", width: 18 },
-        { header: "Net Amount (ETB)", key: "total_net", width: 18 },
-        { header: "Payment Count", key: "payment_count", width: 15 },
-        { header: "First Payment", key: "first_payment_date", width: 15 },
-        { header: "Last Payment", key: "last_payment_date", width: 15 },
+        { header: "Payment Date", key: "week_date", width: 15 },
+        { header: "Gross Amount (ETB)", key: "gross_payout", width: 18 },
+        { header: "Tax Withheld (ETB)", key: "withholding_tax", width: 18 },
+        { header: "Net Amount (ETB)", key: "net_payout", width: 18 },
       ];
 
       // Style header row
@@ -48,12 +46,10 @@ class ReportGenerator {
           full_name: row.full_name,
           tin: row.tin || "N/A",
           business_name: row.business_name || "N/A",
-          total_gross: parseFloat(row.total_gross).toFixed(2),
-          total_tax: parseFloat(row.total_tax).toFixed(2),
-          total_net: parseFloat(row.total_net).toFixed(2),
-          payment_count: row.payment_count,
-          first_payment_date: row.first_payment_date,
-          last_payment_date: row.last_payment_date,
+          week_date: new Date(row.week_date).toLocaleDateString(),
+          gross_payout: parseFloat(row.gross_payout).toFixed(2),
+          withholding_tax: parseFloat(row.withholding_tax).toFixed(2),
+          net_payout: parseFloat(row.net_payout).toFixed(2),
         });
       });
 
@@ -67,15 +63,15 @@ class ReportGenerator {
       };
 
       const totalGross = taxData.reduce(
-        (sum, row) => sum + parseFloat(row.total_gross),
+        (sum, row) => sum + parseFloat(row.gross_payout),
         0
       );
       const totalTax = taxData.reduce(
-        (sum, row) => sum + parseFloat(row.total_tax),
+        (sum, row) => sum + parseFloat(row.withholding_tax),
         0
       );
       const totalNet = taxData.reduce(
-        (sum, row) => sum + parseFloat(row.total_net),
+        (sum, row) => sum + parseFloat(row.net_payout),
         0
       );
 
@@ -84,12 +80,10 @@ class ReportGenerator {
         "",
         "",
         "TOTALS:",
+        "",
         totalGross.toFixed(2),
         totalTax.toFixed(2),
         totalNet.toFixed(2),
-        "",
-        "",
-        "",
       ];
 
       // Save file

@@ -56,6 +56,55 @@
             </div>
         </div>
 
+        <!-- Quick Tax Reports Section -->
+        <div class="card-premium p-4 mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div>
+                    <h5 class="fw-bold mb-1"><i class="fas fa-bolt me-2 text-warning"></i>Quick Tax Reports</h5>
+                    <p class="text-muted small mb-0">Generate common tax reports with one click</p>
+                </div>
+                <div id="quickReportPeriodInfo" class="text-muted small"></div>
+            </div>
+            <div class="row g-3">
+                <div class="col-md-4">
+                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('this_month')">
+                        <i class="fas fa-calendar-day fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold">This Month</div>
+                        <small class="text-muted" id="thisMonthLabel">...</small>
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('last_month')">
+                        <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold">Last Month</div>
+                        <small class="text-muted" id="lastMonthLabel">...</small>
+                    </button>
+                </div>
+                <div class="col-md-4">
+                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('ytd')">
+                        <i class="fas fa-calendar-check fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold">Year to Date</div>
+                        <small class="text-muted" id="ytdLabel">...</small>
+                    </button>
+                </div>
+            </div>
+            <div class="mt-3 pt-3 border-top">
+                <div class="row g-2">
+                    <div class="col-md-4">
+                        <input type="date" id="customStartDate" class="form-control form-control-sm" placeholder="Start Date">
+                    </div>
+                    <div class="col-md-4">
+                        <input type="date" id="customEndDate" class="form-control form-control-sm" placeholder="End Date">
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-brand btn-sm w-100" onclick="generateQuickTaxReport('custom')">
+                            <i class="fas fa-filter me-2"></i>Custom Range
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
         <!-- Report Generation Center -->
         <h5 class="fw-bold mb-3">Regulatory Report Center</h5>
         <div class="row g-4 mb-5">

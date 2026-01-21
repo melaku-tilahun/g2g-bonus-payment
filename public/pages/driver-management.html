@@ -210,8 +210,12 @@
                         <td>
                             <div class="d-flex flex-column gap-1">
                                 <span class="badge ${d.verified ? 'bg-success bg-opacity-10 text-success' : 'bg-warning bg-opacity-10 text-dark'} rounded-pill px-3 py-2 small w-fit">
-                                    ${d.verified ? 'VERIFIED' : 'UNVERIFIED'}
+                                    ${d.verified ? 'TIN VERIFIED' : 'TIN UNVERIFIED'}
                                 </span>
+                                ${!d.is_telebirr_verified ? 
+                                    '<span class="badge bg-warning text-dark rounded-pill px-3 py-2 small w-fit"><i class="fas fa-exclamation-triangle me-1"></i> TELEBIRR UNVERIFIED</span>' : 
+                                    '<span class="badge bg-success bg-opacity-10 text-success rounded-pill px-3 py-2 small w-fit"><i class="fas fa-check-circle me-1"></i> TELEBIRR VERIFIED</span>'
+                                }
                                 ${d.is_blocked ? '<span class="badge bg-danger bg-opacity-10 text-danger rounded-pill px-3 py-1 x-small w-fit">BLOCKED</span>' : ''}
                             </div>
                         </td>
