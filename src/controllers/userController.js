@@ -50,6 +50,11 @@ const userController = {
     const { id } = req.params;
     const { full_name, email, role, is_active } = req.body;
 
+    // Prevent self-deactivation
+    if (parseInt(id) === req.user.id && is_active === false) {
+      throw new AppError("You cannot deactivate your own account.", 400);
+    }
+
     await pool.query(
       "UPDATE users SET full_name = ?, email = ?, role = ?, is_active = ? WHERE id = ?",
       [full_name, email, role, is_active, id]
@@ -66,6 +71,12 @@ const userController = {
 
   deactivate: catchAsync(async (req, res, next) => {
     const { id } = req.params;
+
+    // Prevent self-deactivation
+    if (parseInt(id) === req.user.id) {
+      throw new AppError("You cannot deactivate your own account.", 400);
+    }
+
     await pool.query("UPDATE users SET is_active = FALSE WHERE id = ?", [id]);
 
     await AuditService.log(req.user.id, "Deactivate User", "user", id, {});

@@ -348,8 +348,8 @@ Once a driver is marked **Verified**, they are in "Direct Payment Mode".
 - **Rule**: The system will **reject** any new Excel bonus rows for verified drivers.
 - **Why**: Prevents double-counting once the driver has moved to direct weekly payments.
 
-### Force Pay Override
-- **Rule**: Bonuses with `force_pay = TRUE` can be processed even for unverified drivers.
+### Unverified Payout Override
+- **Rule**: Bonuses with `is_unverified_payout = TRUE` can be processed even for unverified drivers.
 - **Use Case**: Early payouts for drivers who have completed partial verification.
 
 ### Phone Number Validation
@@ -619,7 +619,7 @@ CREATE TABLE bonuses (
   gross_payout DECIMAL(10, 2) NULL,
   withholding_tax DECIMAL(10, 2) NULL,
   final_payout DECIMAL(10, 2) NULL,
-  force_pay BOOLEAN DEFAULT FALSE,
+  is_unverified_payout BOOLEAN DEFAULT FALSE,
   imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   import_log_id INT,
   payment_id INT,

@@ -9,7 +9,7 @@ document.addEventListener("DOMContentLoaded", () => {
     <nav class="navbar navbar-expand-lg navbar-modern mb-3 sticky-top">
         <div class="container-fluid px-4">
             <a class="navbar-brand d-flex align-items-center" href="/">
-                 BonusTracker
+                 <img src="/assets/shuufare%20logo.png" alt="Shuufare Logo" height="35" style="border-radius: 8px;">
             </a>
             
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
@@ -187,26 +187,45 @@ document.addEventListener("DOMContentLoaded", () => {
                     })()}
                 </ul>
                 
-                <div class="d-flex align-items-center">
-                    <div class="notification-nav me-3 position-relative">
-                        <a href="javascript:void(0)" class="text-dark" id="notificationBtn" onclick="ui.toggleNotifications()">
+                <div class="d-flex align-items-center gap-2">
+                    <div class="notification-nav position-relative">
+                        <a href="javascript:void(0)" class="text-dark p-2 rounded-circle hover-bg-light" id="notificationBtn" onclick="ui.toggleNotifications()">
                             <i class="fas fa-bell fs-5"></i>
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge">0</span>
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notificationBadge" style="margin-left: -5px; margin-top: 5px;">0</span>
                         </a>
                         <div class="dropdown-menu dropdown-menu-end border-0 shadow-lg p-0" id="notificationDropdown" style="width: 300px; max-height: 400px; overflow-y: auto;">
                             <!-- Notifications will be loaded here -->
                         </div>
                     </div>
                     
-                    <div class="user-profile-nav me-3 d-none d-md-flex">
-                        <div class="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; border-radius: 50%; font-weight: 700; font-size: 0.8rem;">
-                            ${user ? user.full_name.charAt(0) : "U"}
-                        </div>
-                        <span class="small fw-semibold text-dark">${
-                          user ? user.full_name : "User"
-                        }</span>
+                    <div class="dropdown d-none d-md-block">
+                        <button class="btn btn-link text-decoration-none dropdown-toggle user-profile-nav d-flex align-items-center gap-2 p-1 pe-3" type="button" id="userDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+                            <div class="avatar-circle bg-primary text-white d-flex align-items-center justify-content-center" style="width: 32px; height: 32px; border-radius: 50%; font-weight: 700; font-size: 0.8rem;">
+                                ${user ? user.full_name.charAt(0) : "U"}
+                            </div>
+                            <span class="small fw-semibold text-dark">${user ? user.full_name : "User"}</span>
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end border-0 shadow-lg mt-2 py-2" aria-labelledby="userDropdown" style="min-width: 200px;">
+                            <li>
+                                <div class="px-3 py-2 border-bottom mb-2">
+                                    <div class="fw-bold small text-dark">${user ? user.full_name : "User"}</div>
+                                    <div class="text-muted" style="font-size: 0.7rem;">${user ? user.role : ""}</div>
+                                </div>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center py-2" href="/pages/profile">
+                                    <i class="fas fa-user-circle me-2 text-muted"></i>
+                                    <span>My Profile</span>
+                                </a>
+                            </li>
+                            <li>
+                                <a class="dropdown-item d-flex align-items-center py-2 text-danger" href="javascript:void(0)" onclick="auth.logout()">
+                                    <i class="fas fa-sign-out-alt me-2"></i>
+                                    <span>Logout</span>
+                                </a>
+                            </li>
+                        </ul>
                     </div>
-                    <button class="btn btn-outline-danger btn-sm rounded-pill px-3" onclick="auth.logout()">Logout</button>
                 </div>
             </div>
         </div>

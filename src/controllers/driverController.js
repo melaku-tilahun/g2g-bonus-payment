@@ -134,15 +134,15 @@ const driverController = {
       licence_number,
       manager_name,
       manager_photo,
-      admin_override,
+      tin_ownership, // New field
     } = req.body;
 
     console.log(`Verifying driver ${id} by user ${req.user.id}`);
 
-    // Admin override allows verification without TIN (for edge cases)
-    if (!admin_override && !tin) {
+    // TIN is now MANDATORY for verification. Admin override removed as per requirements.
+    if (!tin) {
       throw new AppError(
-        "TIN is required for verification. Admins can use override if needed.",
+        "TIN is required for verification.",
         400,
       );
     }
@@ -194,7 +194,8 @@ const driverController = {
       licence_number: licence_number || null,
       manager_name: manager_name || null,
       manager_photo: photoPath,
-      tin_verified_at: tin ? new Date() : null,
+      tin_verified_at: new Date(),
+      tin_ownership: tin_ownership || 'Personal',
     };
 
     await pool.query(
@@ -207,7 +208,8 @@ const driverController = {
           licence_number = ?,
           manager_name = ?,
           manager_photo = ?,
-          tin_verified_at = ?
+          tin_verified_at = ?,
+          tin_ownership = ?
         WHERE driver_id = ?`,
       [
         updateFields.verified,
@@ -219,6 +221,7 @@ const driverController = {
         updateFields.manager_name,
         updateFields.manager_photo,
         updateFields.tin_verified_at,
+        updateFields.tin_ownership,
         id,
       ],
     );
@@ -227,7 +230,7 @@ const driverController = {
       verified_date: updateFields.verified_date,
       tin: updateFields.tin,
       business_name: updateFields.business_name,
-      admin_override: admin_override || false,
+      tin_ownership: updateFields.tin_ownership,
     });
 
     res.json({ message: "Driver verified successfully" });
@@ -370,9 +373,27 @@ const driverController = {
 
       await connection.beginTransaction();
 
+      // 1.5. Check Telebirr Verification Status
+      // Even if we bypass doc verification, we MUST have a verified payment method
+      const [driverStatus] = await connection.query(
+        "SELECT is_telebirr_verified FROM drivers WHERE driver_id = ?",
+        [id],
+      );
+
+      if (driverStatus.length === 0) {
+        throw new AppError("Driver not found", 404);
+      }
+
+      if (!driverStatus[0].is_telebirr_verified) {
+        throw new AppError(
+          "Driver must have a verified Telebirr account to process this payout.",
+          400,
+        );
+      }
+
       // 2. Fetch Pending Bonuses (exclude already force-paid bonuses)
       const [bonuses] = await connection.query(
-        "SELECT * FROM bonuses WHERE driver_id = ? AND payment_id IS NULL AND (force_pay IS NULL OR force_pay = FALSE) FOR UPDATE",
+        "SELECT * FROM bonuses WHERE driver_id = ? AND payment_id IS NULL AND (is_unverified_payout IS NULL OR is_unverified_payout = FALSE) FOR UPDATE",
         [id],
       );
 
@@ -436,36 +457,20 @@ const driverController = {
           }
         }
 
-        // B. Log the Additional Withholding Tax (27% or 0% if below threshold)
-        // We ALWAYS create a record for audit history, even if amount is 0,
-        // so the user knows the logic was applied.
-        const taxReason =
-          additionalTaxNeeded > 0
-            ? "Additional Withholding Tax"
-            : "Tax Threshold Check (Below Limit)";
-        const taxNotes =
-          additionalTaxNeeded > 0
-            ? "Increased from 3% to 30% for unverified payout"
-            : "Gross amount below 10,000 ETB threshold - No additional tax applied";
-
-        // Create a record for the additional tax (or check)
-        const [taxRecordResult] = await connection.query(
-          "INSERT INTO driver_debts (driver_id, amount, remaining_amount, reason, notes, created_by, status) VALUES (?, ?, 0, ?, ?, ?, 'paid')",
-          [id, additionalTaxNeeded, taxReason, taxNotes, req.user.id],
-        );
-        const taxRecordId = taxRecordResult.insertId;
-
-        // Log Deduction (even if 0)
-        await connection.query(
-          "INSERT INTO bonus_deductions (bonus_id, debt_id, amount_deducted) VALUES (?, ?, ?)",
-          [bonus.id, taxRecordId, additionalTaxNeeded],
-        );
+        // B. Apply Additional Withholding Tax (27% or 0% if below threshold)
+        // New Logic: Write to penalty_tax column directly. NO fake debt creation.
+        
+        // Log logic for debug/audit but do NOT create debt record
+        if (additionalTaxNeeded > 0) {
+             console.log(`Applying penalty tax of ${additionalTaxNeeded} to bonus ${bonus.id}`);
+        }
 
         // C. Update Bonus with final numbers
-        // We update withholding_tax to the total 30% for proper reporting
+        // We update withholding_tax to the total 30%
+        // We set penalty_tax to the specific penalty amount
         await connection.query(
-          "UPDATE bonuses SET withholding_tax = ?, final_payout = ?, force_pay = TRUE WHERE id = ?",
-          [totalTaxTarget, available, bonus.id],
+          "UPDATE bonuses SET withholding_tax = ?, penalty_tax = ?, final_payout = ?, is_unverified_payout = TRUE WHERE id = ?",
+          [totalTaxTarget, additionalTaxNeeded, available, bonus.id],
         );
       }
 

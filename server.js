@@ -46,7 +46,8 @@ app.use(RequestContext.middleware);
 app.use(
   express.static(path.join(__dirname, "public"), { extensions: ["html"] })
 );
-app.use("/imports", express.static(path.join(__dirname, "imports")));
+app.use("/imports", express.static(path.join(__dirname, "public/imports")));
+app.use("/reconciliationfile", express.static(path.join(__dirname, "public/reconciliationfile")));
 
 const globalErrorHandler = require("./src/middleware/errorMiddleware");
 const AppError = require("./src/utils/appError");

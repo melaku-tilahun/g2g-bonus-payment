@@ -27,10 +27,10 @@
     <div class="container p-3">
         <div class="login-card card-premium mx-auto shadow-lg bg-white overflow-hidden border-0">
             <div class="bg-primary p-5 text-center text-white">
-                <div class="mb-3 d-inline-flex bg-white bg-opacity-20 rounded-circle p-4 shadow-sm">
-                    <img src="../assets/g2g-logo.png" alt="Logo" height="60">
+                <div class="mb-3 d-inline-flex">
+                    <img src="../assets/shuufare%20logo.png" alt="Shuufare Logo" height="80" style="border-radius: 8px;">
                 </div>
-                <h1 class="h3 fw-bold mb-1">G2G BonusTracker</h1>
+                <!-- <h1 class="h4 fw-bold mb-1">Shuufare BonusTracker</h1> -->
                 <p class="text-white text-opacity-75 small mb-0">Driver Bonus Tracking System</p>
             </div>
             
@@ -87,9 +87,6 @@
                         <div class="text-center">
                             <button type="button" class="btn btn-link btn-sm text-decoration-none" onclick="location.reload()">
                                 <i class="fas fa-arrow-left me-1"></i> Back to Login
-                            </button>
-                            <button type="button" id="devBypassBtn" class="btn btn-link btn-sm text-decoration-none text-muted small ms-2" style="font-size: 0.7rem;">
-                                Dev Bypass
                             </button>
                         </div>
                     </div>
@@ -183,11 +180,6 @@
             }
         });
 
-        document.getElementById('devBypassBtn').addEventListener('click', () => {
-            const otpInput = document.getElementById('otp');
-            otpInput.value = '123456';
-            verifyBtn.click();
-        });
     </script>
 </body>
 </html>

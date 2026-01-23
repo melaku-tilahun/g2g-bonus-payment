@@ -370,13 +370,15 @@ const excelParser = {
 
       // Calculations
       if (rowData.fleet_net_payout !== null) {
-        // Step 1: Reverse to gross (assuming 3% withholding was applied)
-        rowData.gross_payout = rowData.fleet_net_payout / 0.97;
-
-        // Step 2: Calculate withholding tax from gross (3% if > 10000 ETB threshold)
-        if (rowData.gross_payout > 10000) {
+        // Only gross up if the net payout is greater than 10,000 ETB
+        if (rowData.fleet_net_payout > 10000) {
+          // Step 1: Reverse to gross (assuming 3% withholding was applied)
+          rowData.gross_payout = rowData.fleet_net_payout / 0.97;
+          // Step 2: Calculate withholding tax from gross (3%)
           rowData.withholding_tax = rowData.gross_payout * 0.03;
         } else {
+          // No gross-up for amounts <= 10,000
+          rowData.gross_payout = rowData.fleet_net_payout;
           rowData.withholding_tax = 0;
         }
 

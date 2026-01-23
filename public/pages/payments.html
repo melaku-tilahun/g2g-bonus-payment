@@ -45,14 +45,25 @@
                         </select>
                     </div>
 
-                    <!-- Payment Status -->
-                    <div class="col-md-2">
-                        <label class="form-label small text-muted">Status</label>
-                        <select class="form-select form-select-sm" id="paymentStatus">
+                    <!-- Payout Type / Status -->
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Filter by Status/Type</label>
+                        <select class="form-select form-select-sm" id="payoutFilter">
                             <option value="All">All Transactions</option>
-                            <option value="paid">Paid</option>
-                            <option value="processing">Processing</option>
+                            <option value="paid">Status: Paid</option>
+                            <option value="processing">Status: Processing</option>
+                            <option value="Standard">Type: Standard Payout</option>
+                            <option value="Exception (70%)">Type: Exceptions (70%)</option>
                         </select>
+                    </div>
+
+                    <!-- Search -->
+                    <div class="col-md-3">
+                        <label class="form-label small text-muted">Search Driver</label>
+                        <div class="input-group input-group-sm">
+                            <span class="input-group-text"><i class="fas fa-search"></i></span>
+                            <input type="text" class="form-control" id="searchQuery" placeholder="Name, ID, or Phone">
+                        </div>
                     </div>
 
                     <!-- Sorting -->
@@ -86,9 +97,10 @@
                         <thead>
                             <tr>
                                 <th>#</th>
-                                <th role="button" onclick="toggleSort('payment_date')">Date <i class="fas fa-sort small ms-1 text-muted"></i></th>
+                                <th>Date <i class="fas fa-sort small ms-1 text-muted"></i></th>
                                 <th role="button" onclick="toggleSort('driver_name')">Driver Name <i class="fas fa-sort small ms-1 text-muted"></i></th>
                                 <th>Driver ID</th>
+                                <th>Type</th>
                                 <th role="button" onclick="toggleSort('total_amount')">Amount <i class="fas fa-sort small ms-1 text-muted"></i></th>
                                 <th>Status</th>
                                 <th>Method</th>
@@ -129,7 +141,8 @@
                     minAmount: document.getElementById('minAmount').value,
                     maxAmount: document.getElementById('maxAmount').value,
                     method: document.getElementById('paymentMethod').value,
-                    status: document.getElementById('paymentStatus').value,
+                    filter: document.getElementById('payoutFilter').value,
+                    q: document.getElementById('searchQuery').value,
                     sortBy: currentSort.column,
                     sortOrder: currentSort.order
                 };
@@ -169,6 +182,11 @@
                             <div class="fw-bold">${p.driver_name || 'Unknown'}</div>
                         </td>
                         <td><small class="text-muted font-monospace">${p.driver_id}</small></td>
+                        <td>
+                            <span class="badge ${p.payout_type === 'Standard' ? 'bg-info bg-opacity-10 text-info' : 'bg-danger bg-opacity-10 text-danger'} small fw-bold">
+                                ${p.payout_type || 'Standard'}
+                            </span>
+                        </td>
                         <td class="fw-bold text-dark">${parseFloat(p.total_amount).toLocaleString()} ETB</td>
                         <td>
                             <span class="badge ${statusClass} rounded-pill px-3">${statusLabel}</span>

@@ -9,8 +9,8 @@ const multer = require("multer");
 const path = require("path");
 const fs = require("fs");
 
-// Ensure uploads directory exists
-const importDir = path.join(__dirname, "../../imports");
+// Ensure reconciliation directory exists
+const importDir = path.join(__dirname, "../../public/reconciliationfile");
 if (!fs.existsSync(importDir)) {
   fs.mkdirSync(importDir, { recursive: true });
 }

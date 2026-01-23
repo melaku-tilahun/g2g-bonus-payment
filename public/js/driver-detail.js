@@ -264,7 +264,6 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // 3. Reset Inputs & State
     document.getElementById("tinInput").value = "";
-    document.getElementById("adminOverrideCheck").checked = false;
     document.getElementById("businessDataSection").classList.add("d-none");
     document.getElementById("tinInputSection").classList.remove("d-none");
     document.getElementById("confirmVerifyBtn").disabled = true;
@@ -273,16 +272,11 @@ document.addEventListener("DOMContentLoaded", async () => {
     document.getElementById("confirmDataCheck").checked = false;
     document.getElementById("driverLicenseCheck").checked = false;
     document.getElementById("libreraCheck").checked = false;
+    document.getElementById("ownershipPersonalCheck").checked = false;
 
     fetchedBusinessData = null;
 
-    // 4. Handle Admin Override Visibility
-    const overrideSection = document.getElementById("adminOverrideSection");
-    if (canOverride) {
-      overrideSection.classList.remove("d-none");
-    } else {
-      overrideSection.classList.add("d-none");
-    }
+
 
     // 5. Handle Partial Payout Visibility
     const partialPaymentBtn = document.getElementById("partialPayoutBtn");
@@ -382,8 +376,6 @@ document.addEventListener("DOMContentLoaded", async () => {
     }
 
     document.getElementById("businessDataSection").classList.remove("d-none");
-    // Hide Admin Override if we have actual TIN data
-    document.getElementById("adminOverrideSection").classList.add("d-none");
 
     // Reset checkboxes
     document.getElementById("confirmDataCheck").checked = false;
@@ -400,16 +392,12 @@ document.addEventListener("DOMContentLoaded", async () => {
       document.getElementById("driverLicenseCheck")?.checked || false;
     const libreraCheck =
       document.getElementById("libreraCheck")?.checked || false;
-    const adminOverride =
-      document.getElementById("adminOverrideCheck")?.checked || false;
     const hasBusinessData = fetchedBusinessData !== null;
 
     // Enable button if:
-    // 1. Business data is fetched AND user confirmed AND both documents checked, OR
-    // 2. Admin override is checked
+    // 1. Business data is fetched AND user confirmed AND both documents checked
     const allDocumentsChecked = driverLicenseCheck && libreraCheck;
-    const shouldEnable =
-      (hasBusinessData && confirmCheck && allDocumentsChecked) || adminOverride;
+    const shouldEnable = hasBusinessData && confirmCheck && allDocumentsChecked;
     document.getElementById("confirmVerifyBtn").disabled = !shouldEnable;
   }
 
@@ -424,27 +412,16 @@ document.addEventListener("DOMContentLoaded", async () => {
     .getElementById("libreraCheck")
     ?.addEventListener("change", updateVerifyButtonState);
 
-  document
-    .getElementById("adminOverrideCheck")
-    ?.addEventListener("change", (e) => {
-      const tinInputSection = document.getElementById("tinInputSection");
-      if (e.target.checked) {
-        tinInputSection.classList.add("d-none");
-        // Clear TIN input if override is selected
-        document.getElementById("tinInput").value = "";
-      } else {
-        tinInputSection.classList.remove("d-none");
-      }
-      updateVerifyButtonState();
-    });
+  // Initialize default state
+  document.getElementById('ownershipPersonalCheck').checked = false;
 
   // Confirm Verification Button
   document.getElementById("confirmVerifyBtn").onclick = async () => {
     const date = document.getElementById("verificationDate").value;
-    const adminOverride =
-      document.getElementById("adminOverrideCheck")?.checked || false;
+    const isPersonal = document.getElementById("ownershipPersonalCheck").checked;
+    const tinOwnership = isPersonal ? 'Personal' : 'Other';
 
-    if (!adminOverride && !fetchedBusinessData) {
+    if (!fetchedBusinessData) {
       ui.toast("Please lookup TIN first", "error");
       return;
     }
@@ -457,7 +434,7 @@ document.addEventListener("DOMContentLoaded", async () => {
 
       const payload = {
         verified_date: date,
-        admin_override: adminOverride,
+        tin_ownership: tinOwnership,
       };
 
       // Add TIN data if available
@@ -759,7 +736,7 @@ async function loadPaymentHistory(driverId) {
 
     if (history.length === 0) {
       tbody.innerHTML =
-        '<tr><td colspan="6" class="text-center py-4 text-muted">No payment history found</td></tr>';
+        '<tr><td colspan="7" class="text-center py-4 text-muted">No payment history found</td></tr>';
       return;
     }
 
@@ -790,6 +767,11 @@ async function loadPaymentHistory(driverId) {
                 <td class="px-4 py-3 align-middle">${new Date(
                   p.payment_date,
                 ).toLocaleDateString()}</td>
+                <td class="px-4 py-3 align-middle">
+                    <span class="badge ${p.payout_type === 'Standard' ? 'bg-info bg-opacity-10 text-info' : 'bg-danger bg-opacity-10 text-danger'} small fw-bold">
+                        ${p.payout_type || 'Standard'}
+                    </span>
+                </td>
                 <td class="px-4 py-3 align-middle fw-bold text-dark">${parseFloat(
                   p.total_amount,
                 ).toLocaleString()} ETB</td>
@@ -943,6 +925,8 @@ function renderDriver(driver, bonuses, currentUser) {
         driver.licence_number || "N/A";
       document.getElementById("managerNameInfo").textContent =
         driver.manager_name || "N/A";
+      document.getElementById("tinOwnershipInfo").textContent =
+        driver.tin_ownership || "Personal";
 
       if (driver.manager_photo) {
         const photoImg = document.getElementById("managerPhotoInfoImg");

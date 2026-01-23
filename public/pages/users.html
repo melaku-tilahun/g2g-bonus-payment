@@ -247,6 +247,7 @@
             document.getElementById('saveUserBtn').textContent = 'Create Account';
             document.getElementById('passwordField').classList.remove('d-none');
             document.getElementById('password').required = true;
+            document.getElementById('isActive').disabled = false;
         }
 
         function editUser(user) {
@@ -255,6 +256,16 @@
             document.getElementById('email').value = user.email;
             document.getElementById('role').value = user.role;
             document.getElementById('isActive').checked = !!user.is_active;
+            
+            // Disable active toggle for self-edit
+            const activeToggle = document.getElementById('isActive');
+            if (user.id === currentUser.id) {
+                activeToggle.disabled = true;
+                activeToggle.title = "You cannot deactivate your own account";
+            } else {
+                activeToggle.disabled = false;
+                activeToggle.title = "";
+            }
             
             document.getElementById('modalTitle').textContent = 'Edit User Settings';
             document.getElementById('saveUserBtn').textContent = 'Save Changes';

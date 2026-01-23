@@ -36,10 +36,11 @@ const paymentHistoryController = {
       }
 
       // 2. Record the payment using the CALCULATED total
+      // Standard for manual recording
       const [result] = await connection.query(
         `INSERT INTO payments 
-        (driver_id, total_amount, payment_date, payment_method, notes, bonus_period_start, bonus_period_end, processed_by) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        (driver_id, total_amount, payout_type, payment_date, payment_method, notes, bonus_period_start, bonus_period_end, processed_by) 
+        VALUES (?, ?, 'Standard', ?, ?, ?, ?, ?, ?)`,
         [
           driver_id,
           actualTotal,
@@ -82,7 +83,8 @@ const paymentHistoryController = {
 
   getHistory: catchAsync(async (req, res, next) => {
     const {
-      driver_id,
+      driver_id, // Specific driver filter
+      q, // Search query (Name, ID, Phone)
       page = 1,
       limit = 25,
       startDate,
@@ -90,7 +92,7 @@ const paymentHistoryController = {
       minAmount,
       maxAmount,
       method,
-      status, // New: Allow status filtering
+      filter, // Status OR Payout Type
       sortBy = "payment_date",
       sortOrder = "DESC",
     } = req.query;
@@ -102,17 +104,29 @@ const paymentHistoryController = {
     const params = [];
 
     // Default status handling: If no status provided, show both paid and processing
-    if (status && status !== "All") {
-      whereClause = " WHERE p.status = ?";
-      params.push(status);
+    if (filter && filter !== "All") {
+      if (['paid', 'processing'].includes(filter)) {
+        whereClause = " WHERE p.status = ?";
+        params.push(filter);
+      } else {
+        // Assume it's a payout_type filter
+        whereClause = " WHERE p.payout_type = ?";
+        params.push(filter);
+      }
     } else {
       whereClause = " WHERE p.status IN ('paid', 'processing')";
     }
 
-    // FILTERS
+    // Driver Specific Filter
     if (driver_id) {
-      whereClause += " AND p.driver_id LIKE ?";
-      params.push(`%${driver_id}%`);
+      whereClause += " AND p.driver_id = ?";
+      params.push(driver_id);
+    }
+
+    // SEARCH (Name, ID, Phone)
+    if (q) {
+      whereClause += " AND (d.full_name LIKE ? OR p.driver_id LIKE ? OR d.phone_number LIKE ?)";
+      params.push(`%${q}%`, `%${q}%`, `%${q}%`);
     }
 
     if (startDate) {
@@ -248,49 +262,33 @@ const paymentHistoryController = {
       const payment = payments[0];
 
       // 2. Full Revert Logic for Partial Payouts
-      // Check if this payment involved 'force_pay' bonuses
+      // Check if this payment involved 'is_unverified_payout' bonuses
       const [revertBonuses] = await connection.query(
-        "SELECT id FROM bonuses WHERE payment_id = ? AND force_pay = TRUE",
+        "SELECT id FROM bonuses WHERE payment_id = ? AND is_unverified_payout = TRUE",
         [paymentId],
       );
 
       if (revertBonuses.length > 0) {
-        // A. Reset Bonuses (Clear final_payout and force_pay)
+        // NEW ARCHITECTURE: Revert based on penalty_tax column
+        // 1. Restore amounts for bonuses with new penalty_tax record
         await connection.query(
-          "UPDATE bonuses SET final_payout = NULL, force_pay = FALSE WHERE payment_id = ?",
-          [paymentId],
+          `UPDATE bonuses 
+           SET 
+             final_payout = final_payout + penalty_tax,
+             withholding_tax = withholding_tax - penalty_tax,
+             penalty_tax = 0,
+             is_unverified_payout = FALSE 
+           WHERE payment_id = ? AND is_unverified_payout = TRUE`,
+          [paymentId]
         );
-
-        // B. Find and Void associated Additional Withholding Tax Debts
-        // We find debts linked to these bonuses with reason 'Additional Withholding Tax'
-        const bonusIds = revertBonuses.map((b) => b.id);
-        const placeholder = bonusIds.map(() => "?").join(",");
-
-        // Find penalty debts linked to these bonuses
-        const [penaltyDebts] = await connection.query(
-          `SELECT DISTINCT d.id 
-           FROM driver_debts d
-           JOIN bonus_deductions bd ON d.id = bd.debt_id
-           WHERE bd.bonus_id IN (${placeholder}) AND d.reason = 'Additional Withholding Tax'`,
-          [...bonusIds],
-        );
-
-        if (penaltyDebts.length > 0) {
-          const debtIds = penaltyDebts.map((d) => d.id);
-          const debtPlaceholder = debtIds.map(() => "?").join(",");
-
-          // Delete Deduction Links
-          await connection.query(
-            `DELETE FROM bonus_deductions WHERE debt_id IN (${debtPlaceholder})`,
-            [...debtIds],
-          );
-
-          // Delete/Void Debt Records
-          await connection.query(
-            `DELETE FROM driver_debts WHERE id IN (${debtPlaceholder})`,
-            [...debtIds],
-          );
-        }
+        
+        // Legacy "fake debt" logic removed as per user request. 
+        // Data migration ensures all records use penalty_tax column now.
+        
+        // NOTE: For regular debts in the NEW architecture, we do NOTHING. 
+        // We do NOT delete their bonus_deductions.
+        // We do NOT reset their debt status.
+        // They remain paid.
       }
 
       // 3. Unlink Bonuses (Set payment_id = NULL)
@@ -305,9 +303,17 @@ const paymentHistoryController = {
 
       // 4. Update Batch Totals (if part of a batch)
       if (payment.batch_internal_id) {
+        // Check if this is the last payment for this driver in this batch
+        const [remaining] = await connection.query(
+          "SELECT id FROM payments WHERE batch_internal_id = ? AND driver_id = ? AND id != ? LIMIT 1",
+          [payment.batch_internal_id, payment.driver_id, paymentId],
+        );
+
+        const driverCountChange = remaining.length === 0 ? 1 : 0;
+
         await connection.query(
-          "UPDATE payment_batches SET total_amount = total_amount - ?, driver_count = driver_count - 1 WHERE id = ?",
-          [payment.total_amount, payment.batch_internal_id],
+          "UPDATE payment_batches SET total_amount = total_amount - ?, driver_count = driver_count - ? WHERE id = ?",
+          [payment.total_amount, driverCountChange, payment.batch_internal_id],
         );
       }
 

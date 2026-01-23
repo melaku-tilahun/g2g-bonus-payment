@@ -436,13 +436,7 @@ const importController = {
       throw error;
     } finally {
       if (connection) connection.release();
-      if (fs.existsSync(filePath)) {
-        try {
-          fs.unlinkSync(filePath);
-        } catch (cleanupError) {
-          console.error("Failed to cleanup file:", cleanupError);
-        }
-      }
+      // File is now kept for history downloads
     }
   }),
 

@@ -25,10 +25,6 @@ async function loadComplianceDashboard() {
       ).toLocaleString()} ETB`;
       document.getElementById("verifiedDrivers").textContent =
         s.verification_stats.verified_drivers.toLocaleString();
-      document.getElementById("pendingVerifications").textContent =
-        s.pending_verifications.toLocaleString();
-      document.getElementById("recentAlerts").textContent =
-        s.recent_alerts.toLocaleString();
 
       updateVerificationChart(s.verification_stats);
     }
@@ -175,7 +171,23 @@ async function generateQuickTaxReport(period) {
   const now = new Date();
   let startDate, endDate;
 
-  if (period === "this_month") {
+  if (period === "this_week") {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+    startDate = new Date(now.setDate(diff));
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+  } else if (period === "last_week") {
+    const day = now.getDay();
+    const diff = now.getDate() - day + (day === 0 ? -6 : 1) - 7;
+    startDate = new Date(now.setDate(diff));
+    startDate.setHours(0, 0, 0, 0);
+    endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+  } else if (period === "this_month") {
     startDate = new Date(now.getFullYear(), now.getMonth(), 1);
     endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0);
   } else if (period === "last_month") {
@@ -293,6 +305,27 @@ async function generateTaxReport() {
 // Helper to update button labels
 function updateQuickReportLabels() {
   const now = new Date();
+
+  // This Week
+  const day = now.getDay();
+  const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+  const thisWeekStart = new Date(now.getFullYear(), now.getMonth(), diff);
+  const thisWeekEnd = new Date(thisWeekStart);
+  thisWeekEnd.setDate(thisWeekStart.getDate() + 6);
+  const thisWeekLabel = document.getElementById("thisWeekLabel");
+  if (thisWeekLabel) {
+    thisWeekLabel.textContent = `${thisWeekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${thisWeekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  }
+
+  // Last Week
+  const lastWeekStart = new Date(thisWeekStart);
+  lastWeekStart.setDate(thisWeekStart.getDate() - 7);
+  const lastWeekEnd = new Date(lastWeekStart);
+  lastWeekEnd.setDate(lastWeekStart.getDate() + 6);
+  const lastWeekLabel = document.getElementById("lastWeekLabel");
+  if (lastWeekLabel) {
+    lastWeekLabel.textContent = `${lastWeekStart.toLocaleDateString(undefined, { month: "short", day: "numeric" })} - ${lastWeekEnd.toLocaleDateString(undefined, { month: "short", day: "numeric" })}`;
+  }
 
   // This Month
   const thisMonthName = now.toLocaleString("default", {

@@ -385,7 +385,7 @@ This does not appear to be a valid Telebirr reconciliation file.`,
 
     // Fix: Create persistent copy BEFORE response
     // Use a unique name to prevent collisions and ensure persistence
-    const importDir = path.join(__dirname, "../../imports"); // Absolute path
+    const importDir = path.join(__dirname, "../../../public/reconciliationfile"); // Absolute path
     const persistentFileName = "validated_" + req.file.filename;
     const persistentPath = path.join(importDir, persistentFileName);
 
@@ -417,7 +417,7 @@ This does not appear to be a valid Telebirr reconciliation file.`,
       throw new AppError("File name is required", 400);
     }
 
-    const importDir = path.join(__dirname, "../../imports");
+    const importDir = path.join(__dirname, "../../../public/reconciliationfile");
     const filePath = path.join(importDir, fileName);
     if (!fs.existsSync(filePath)) {
       throw new AppError(

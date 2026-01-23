@@ -89,18 +89,12 @@ const authController = {
 
     const user = rows[0];
 
-    // Check for developer bypass
-    const bypassCode = process.env.DEV_OTP_BYPASS;
-    const isBypass = bypassCode && otp === bypassCode;
+    if (!user.otp_code || user.otp_code !== otp) {
+      throw new AppError("Invalid OTP code", 403);
+    }
 
-    if (!isBypass) {
-      if (!user.otp_code || user.otp_code !== otp) {
-        throw new AppError("Invalid OTP code", 403);
-      }
-
-      if (new Date() > new Date(user.otp_expires_at)) {
-        throw new AppError("OTP has expired", 403);
-      }
+    if (new Date() > new Date(user.otp_expires_at)) {
+      throw new AppError("OTP has expired", 403);
     }
 
     // Clear OTP after successful verification

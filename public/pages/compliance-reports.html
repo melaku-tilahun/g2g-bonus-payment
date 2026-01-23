@@ -18,7 +18,7 @@
         
         <!-- KPI Cards -->
         <div class="row g-4 mb-5">
-            <div class="col-md-3">
+            <div class="col-md-6">
                 <div class="card-premium metric-card">
                     <div class="icon-wrapper" style="background-color: #eff6ff; color: var(--primary-blue);">
                         <i class="fas fa-file-invoice-dollar"></i>
@@ -27,31 +27,13 @@
                     <div class="value" id="totalTaxWithheld">0 ETB</div>
                 </div>
             </div>
-            <div class="col-md-3">
+            <div class="col-md-6">
                 <div class="card-premium metric-card">
                     <div class="icon-wrapper" style="background-color: #f0fdf4; color: var(--success-green);">
                         <i class="fas fa-user-check"></i>
                     </div>
                     <div class="text-muted small fw-bold text-uppercase mb-1">Drivers Verified</div>
                     <div class="value" id="verifiedDrivers">0</div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card-premium metric-card">
-                    <div class="icon-wrapper" style="background-color: #fff7ed; color: var(--warning-orange);">
-                        <i class="fas fa-clock"></i>
-                    </div>
-                    <div class="text-muted small fw-bold text-uppercase mb-1">Pending TIN Verif</div>
-                    <div class="value" id="pendingVerifications">0</div>
-                </div>
-            </div>
-            <div class="col-md-3">
-                <div class="card-premium metric-card">
-                    <div class="icon-wrapper" style="background-color: #fef2f2; color: var(--error-red);">
-                        <i class="fas fa-exclamation-triangle"></i>
-                    </div>
-                    <div class="text-muted small fw-bold text-uppercase mb-1">Compliance Alerts</div>
-                    <div class="value" id="recentAlerts">0</div>
                 </div>
             </div>
         </div>
@@ -66,24 +48,38 @@
                 <div id="quickReportPeriodInfo" class="text-muted small"></div>
             </div>
             <div class="row g-3">
-                <div class="col-md-4">
-                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('this_month')">
+                <div class="col-lg col-md-4">
+                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('this_week')">
                         <i class="fas fa-calendar-day fa-2x mb-2 d-block"></i>
-                        <div class="fw-bold">This Month</div>
+                        <div class="fw-bold text-nowrap">This Week</div>
+                        <small class="text-muted" id="thisWeekLabel">...</small>
+                    </button>
+                </div>
+                <div class="col-lg col-md-4">
+                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('last_week')">
+                        <i class="fas fa-calendar-week fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold text-nowrap">Last Week</div>
+                        <small class="text-muted" id="lastWeekLabel">...</small>
+                    </button>
+                </div>
+                <div class="col-lg col-md-4">
+                    <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('this_month')">
+                        <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold text-nowrap">This Month</div>
                         <small class="text-muted" id="thisMonthLabel">...</small>
                     </button>
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg col-md-6">
                     <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('last_month')">
-                        <i class="fas fa-calendar-alt fa-2x mb-2 d-block"></i>
-                        <div class="fw-bold">Last Month</div>
+                        <i class="fas fa-calendar-check fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold text-nowrap">Last Month</div>
                         <small class="text-muted" id="lastMonthLabel">...</small>
                     </button>
                 </div>
-                <div class="col-md-4">
+                <div class="col-lg col-md-6">
                     <button class="btn btn-outline-primary w-100 py-3" onclick="generateQuickTaxReport('ytd')">
-                        <i class="fas fa-calendar-check fa-2x mb-2 d-block"></i>
-                        <div class="fw-bold">Year to Date</div>
+                        <i class="fas fa-calendar fa-2x mb-2 d-block"></i>
+                        <div class="fw-bold text-nowrap">Year to Date</div>
                         <small class="text-muted" id="ytdLabel">...</small>
                     </button>
                 </div>

@@ -193,6 +193,10 @@
                                     <div class="small text-muted text-uppercase fw-bold mb-1">Manager Name</div>
                                     <div class="fw-bold fs-6" id="managerNameInfo">---</div>
                                 </div>
+                                <div class="col-md-4">
+                                    <div class="small text-muted text-uppercase fw-bold mb-1">TIN Ownership</div>
+                                    <div class="fw-bold fs-6" id="tinOwnershipInfo">---</div>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -337,6 +341,7 @@
                             <thead class="bg-light">
                                 <tr>
                                     <th class="px-4 py-3 text-muted small text-uppercase">Date</th>
+                                    <th class="px-4 py-3 text-muted small text-uppercase">Type</th>
                                     <th class="px-4 py-3 text-muted small text-uppercase">Amount</th>
                                     <th class="px-4 py-3 text-muted small text-uppercase">Method</th>
                                     <th class="px-4 py-3 text-muted small text-uppercase">Status</th>
@@ -502,11 +507,19 @@
                                         <i class="fas fa-id-card text-primary me-2"></i> Driver License verified and valid
                                     </label>
                                 </div>
-                                <div class="form-check mb-2">
+                                <div class="form-check mb-3">
                                     <input class="form-check-input" type="checkbox" id="libreraCheck">
                                     <label class="form-check-label fw-bold" for="libreraCheck">
                                         <i class="fas fa-file-alt text-primary me-2"></i> Libra document verified and valid
                                     </label>
+                                </div>
+
+                                <div class="form-check mb-2 mt-3 pt-3 border-top">
+                                    <input class="form-check-input" type="checkbox" id="ownershipPersonalCheck">
+                                    <label class="form-check-label fw-bold" for="ownershipPersonalCheck">
+                                        <i class="fas fa-user-check text-primary me-2"></i> This TIN/License is owned by the driver (Personal)
+                                    </label>
+                                    <div class="small text-muted ms-4">Uncheck if the driver is using someone else's business license.</div>
                                 </div>
                             </div>
                         </div>
@@ -529,19 +542,7 @@
                         </div>
                     </div>
 
-                    <!-- Admin Override Section (for admins only) -->
-                    <div id="adminOverrideSection" class="d-none mt-4">
-                        <hr>
-                        <div class="alert alert-warning border-0 bg-warning bg-opacity-10">
-                            <strong>Admin Override:</strong> You can verify without TIN in exceptional cases.
-                        </div>
-                        <div class="form-check">
-                            <input class="form-check-input" type="checkbox" id="adminOverrideCheck">
-                            <label class="form-check-label text-danger fw-bold" for="adminOverrideCheck">
-                                Verify without TIN (Admin Override)
-                            </label>
-                        </div>
-                    </div>
+
                 </div>
                 <div class="modal-footer border-0 pt-0 p-4">
                     <button type="button" class="btn btn-light px-4 rounded-pill border" data-bs-dismiss="modal">Cancel</button>

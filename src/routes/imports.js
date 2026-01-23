@@ -7,8 +7,8 @@ const path = require("path");
 const fs = require("fs");
 
 // Ensure uploads directory exists
-// Ensure uploads directory exists
-const importDir = path.join(__dirname, "../../imports");
+// Ensure imports directory exists
+const importDir = path.join(__dirname, "../../public/imports");
 if (!fs.existsSync(importDir)) {
   fs.mkdirSync(importDir, { recursive: true });
 }

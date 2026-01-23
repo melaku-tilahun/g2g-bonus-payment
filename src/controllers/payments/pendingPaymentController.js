@@ -13,7 +13,7 @@ const pendingPaymentController = {
     let whereClause = "";
     if (status === "processing") {
       whereClause =
-        "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND p.status = 'processing'";
+        "WHERE (d.verified = TRUE OR b.is_unverified_payout = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND p.status = 'processing'";
     } else if (status === "verification_needed") {
       // Drivers who are Verified (Docs) but NOT Telebirr Verified, and have pending bonuses
       whereClause =
@@ -22,7 +22,7 @@ const pendingPaymentController = {
       // Default to 'pending' (bonuses with no payment_id yet)
       // Allow Verified OR Force Pay, AND Telebirr Verified
       whereClause =
-        "WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND b.payment_id IS NULL";
+        "WHERE (d.verified = TRUE OR b.is_unverified_payout = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND b.payment_id IS NULL";
     }
 
     const params = [];
@@ -70,7 +70,7 @@ const pendingPaymentController = {
          SELECT d.driver_id 
          FROM drivers d 
          JOIN bonuses b ON d.driver_id = b.driver_id 
-         WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND b.payment_id IS NULL
+         WHERE (d.verified = TRUE OR b.is_unverified_payout = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND b.payment_id IS NULL
          GROUP BY d.driver_id
          HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
        ) as valid_drivers`,
@@ -81,7 +81,7 @@ const pendingPaymentController = {
        FROM drivers d 
        JOIN bonuses b ON d.driver_id = b.driver_id 
        JOIN payments p ON b.payment_id = p.id
-       WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND p.status = 'processing'`,
+       WHERE (d.verified = TRUE OR b.is_unverified_payout = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND p.status = 'processing'`,
     );
 
     const [verificationNeededCount] = await pool.query(
@@ -189,10 +189,10 @@ const pendingPaymentController = {
           b.withholding_tax,
           d.phone_number,
           d.verified,
-          b.force_pay
+          b.is_unverified_payout
         FROM bonuses b
         JOIN drivers d ON b.driver_id = d.driver_id
-        WHERE (d.verified = TRUE OR b.force_pay = TRUE) 
+        WHERE (d.verified = TRUE OR b.is_unverified_payout = TRUE) 
           AND d.is_blocked = FALSE 
           AND d.is_telebirr_verified = TRUE
           AND b.payment_id IS NULL
@@ -248,11 +248,14 @@ const pendingPaymentController = {
         }
 
         // Create ONE payment per bonus
+        const payoutType = bonus.is_unverified_payout ? 'Exception (70%)' : 'Standard';
+
         const [pResult] = await connection.query(
-          "INSERT INTO payments (driver_id, total_amount, payment_date, payment_method, status, processed_by, notes, batch_id, batch_internal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+          "INSERT INTO payments (driver_id, total_amount, payout_type, payment_date, payment_method, status, processed_by, notes, batch_id, batch_internal_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
           [
             bonus.driver_id,
             bonus.amount,
+            payoutType,
             now,
             "Telebirr",
             "processing",

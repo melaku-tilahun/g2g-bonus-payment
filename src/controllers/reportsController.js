@@ -93,17 +93,13 @@ const reportsController = {
          FROM drivers`
     );
 
-    // 3. Pending TIN Verifications (Unverified drivers with a TIN)
-    const [pendingRows] = await pool.query(
-      "SELECT COUNT(*) as pending FROM drivers WHERE verified = 0 AND tin IS NOT NULL AND tin != ''"
-    );
-
-    // 4. Recent Compliance Alerts (e.g., failed verifications in last 7 days)
-    const [alertRows] = await pool.query(
-      `SELECT COUNT(*) as recent_alerts 
-         FROM audit_logs 
-         WHERE (action LIKE '%FAIL%' OR action LIKE '%REJECT%') 
-         AND created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)`
+    // 3. Compliance Exception Stats (70% payouts)
+    const [exceptionRows] = await pool.query(
+      `SELECT 
+          COUNT(*) as exception_count,
+          SUM(final_payout) as exception_total_amount
+         FROM bonuses 
+         WHERE is_unverified_payout = TRUE AND payment_id IS NOT NULL`
     );
 
     res.json({
@@ -111,8 +107,10 @@ const reportsController = {
       summary: {
         total_tax_collected: parseFloat(taxRows[0].total_tax || 0).toFixed(2),
         verification_stats: verificationRows[0],
-        pending_verifications: pendingRows[0].pending,
-        recent_alerts: alertRows[0].recent_alerts,
+        exception_stats: {
+          count: exceptionRows[0].exception_count || 0,
+          total_amount: parseFloat(exceptionRows[0].exception_total_amount || 0).toFixed(2)
+        }
       },
     });
   }),
