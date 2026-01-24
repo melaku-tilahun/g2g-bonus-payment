@@ -18,10 +18,10 @@ const EmailService = {
     const mailOptions = {
       from: `"G2G-SUUFARE Bonus" <${process.env.EMAIL_FROM}>`,
       to,
-      subject: "Your Login OTP - G2G BonusTracker",
+      subject: "Your Login OTP - G2G-SUUFARE Bonus",
       html: `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #e5e7eb; border-radius: 8px;">
-          <h2 style="color: #4f46e5; text-align: center;">Shuufare BonusTracker</h2>
+          <h2 style="color: #4f46e5; text-align: center;">G2G-SUUFARE BONUS</h2>
           <p>Hello,</p>
           <p>You requested a login to the G2G Bonus Tracking system. Please use the following One-Time Password (OTP) to complete your sign-in:</p>
           <div style="font-size: 32px; font-weight: bold; text-align: center; padding: 20px; background-color: #f3f4f6; border-radius: 8px; margin: 20px 0; color: #111827;">
