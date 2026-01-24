@@ -41,8 +41,8 @@ const systemHealthController = {
           };
 
     // Storage status
-    const importsDir = path.join(__dirname, "../../imports");
-    const photosDir = path.join(__dirname, "../../public/photos");
+    const importsDir = path.join(__dirname, "../../public/imports");
+    const photosDir = path.join(__dirname, "../../public/imports/driver_photos");
 
     const [uploadsSize, photosSize] = await Promise.all([
       getDirSize(importsDir),
@@ -103,7 +103,7 @@ const systemHealthController = {
    * Get Storage Status
    */
   getStorageStatus: catchAsync(async (req, res, next) => {
-    const importsDir = path.join(__dirname, "../../imports");
+    const importsDir = path.join(__dirname, "../../public/imports");
     const size = await getDirSize(importsDir);
 
     res.json({

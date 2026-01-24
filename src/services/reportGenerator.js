@@ -89,7 +89,7 @@ class ReportGenerator {
       // Save file
       const filename = path.join(
         __dirname,
-        "../../imports",
+        "../../public/imports",
         `withholding_tax_${Date.now()}.xlsx`
       );
       await workbook.xlsx.writeFile(filename);
@@ -111,7 +111,7 @@ class ReportGenerator {
       try {
         const filename = path.join(
           __dirname,
-          "../../imports",
+          "../../public/imports",
           `statement_${driver.driver_id}_${Date.now()}.pdf`
         );
         const doc = new PDFDocument({ margin: 50 });
@@ -329,7 +329,7 @@ class ReportGenerator {
       // Save file
       const filename = path.join(
         __dirname,
-        "../../imports",
+        "../../public/imports",
         `tin_verification_${Date.now()}.xlsx`
       );
       await workbook.xlsx.writeFile(filename);
@@ -380,7 +380,7 @@ class ReportGenerator {
 
       const filename = path.join(
         __dirname,
-        "../../imports",
+        "../../public/imports",
         `debt_report_${Date.now()}.xlsx`
       );
       await workbook.xlsx.writeFile(filename);
@@ -427,7 +427,7 @@ class ReportGenerator {
 
       const filename = path.join(
         __dirname,
-        "../../imports",
+        "../../public/imports",
         `compliance_summary_${Date.now()}.xlsx`
       );
       await workbook.xlsx.writeFile(filename);
