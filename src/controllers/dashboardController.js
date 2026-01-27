@@ -7,7 +7,7 @@ const dashboardController = {
 
     // 1. Pending Amount & Growth
     const [pendingRows] = await pool.query(`
-        SELECT SUM(net_payout) as total 
+        SELECT SUM(COALESCE(final_payout, calculated_net_payout)) as total 
         FROM bonuses 
         WHERE payment_id IS NULL
       `);
@@ -16,8 +16,8 @@ const dashboardController = {
     // Calculate Growth (this month vs last month)
     const [growthRows] = await pool.query(`
         SELECT 
-          SUM(CASE WHEN MONTH(imported_at) = MONTH(CURDATE()) AND YEAR(imported_at) = YEAR(CURDATE()) THEN net_payout ELSE 0 END) as this_month,
-          SUM(CASE WHEN MONTH(imported_at) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND YEAR(imported_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) THEN net_payout ELSE 0 END) as last_month
+          SUM(CASE WHEN MONTH(imported_at) = MONTH(CURDATE()) AND YEAR(imported_at) = YEAR(CURDATE()) THEN COALESCE(final_payout, calculated_net_payout) ELSE 0 END) as this_month,
+          SUM(CASE WHEN MONTH(imported_at) = MONTH(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) AND YEAR(imported_at) = YEAR(DATE_SUB(CURDATE(), INTERVAL 1 MONTH)) THEN COALESCE(final_payout, calculated_net_payout) ELSE 0 END) as last_month
         FROM bonuses
       `);
 

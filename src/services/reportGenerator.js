@@ -25,8 +25,8 @@ class ReportGenerator {
         { header: "TIN Number", key: "tin", width: 20 },
         { header: "Business Name", key: "business_name", width: 30 },
         { header: "Payment Date", key: "week_date", width: 15 },
-        { header: "Gross Amount (ETB)", key: "gross_payout", width: 18 },
-        { header: "Tax Withheld (ETB)", key: "withholding_tax", width: 18 },
+        { header: "Gross Amount (ETB)", key: "calculated_gross_payout", width: 18 },
+        { header: "Tax Withheld (ETB)", key: "calculated_withholding_tax", width: 18 },
         { header: "Net Amount (ETB)", key: "net_payout", width: 18 },
       ];
 
@@ -47,8 +47,8 @@ class ReportGenerator {
           tin: row.tin || "N/A",
           business_name: row.business_name || "N/A",
           week_date: new Date(row.week_date).toLocaleDateString(),
-          gross_payout: parseFloat(row.gross_payout).toFixed(2),
-          withholding_tax: parseFloat(row.withholding_tax).toFixed(2),
+          gross_payout: parseFloat(row.calculated_gross_payout).toFixed(2),
+          withholding_tax: parseFloat(row.calculated_withholding_tax).toFixed(2),
           net_payout: parseFloat(row.net_payout).toFixed(2),
         });
       });
@@ -63,11 +63,11 @@ class ReportGenerator {
       };
 
       const totalGross = taxData.reduce(
-        (sum, row) => sum + parseFloat(row.gross_payout),
+        (sum, row) => sum + parseFloat(row.calculated_gross_payout),
         0
       );
       const totalTax = taxData.reduce(
-        (sum, row) => sum + parseFloat(row.withholding_tax),
+        (sum, row) => sum + parseFloat(row.calculated_withholding_tax),
         0
       );
       const totalNet = taxData.reduce(
@@ -143,19 +143,19 @@ class ReportGenerator {
         doc.moveDown(0.5);
 
         const totalGross = bonuses.reduce(
-          (sum, b) => sum + parseFloat(b.gross_payout || 0),
+          (sum, b) => sum + parseFloat(b.calculated_gross_payout || 0),
           0
         );
         const totalTax = bonuses.reduce(
-          (sum, b) => sum + parseFloat(b.withholding_tax || 0),
+          (sum, b) => sum + parseFloat(b.calculated_withholding_tax || 0),
           0
         );
         const totalNet = bonuses.reduce(
-          (sum, b) => sum + parseFloat(b.net_payout || 0),
+          (sum, b) => sum + parseFloat(b.calculated_net_payout || 0),
           0
         );
         const totalFinal = bonuses.reduce(
-          (sum, b) => sum + parseFloat(b.final_payout || b.net_payout || 0),
+          (sum, b) => sum + parseFloat(b.final_payout || b.calculated_net_payout || 0),
           0
         );
 

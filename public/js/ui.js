@@ -167,7 +167,8 @@ document.addEventListener("DOMContentLoaded", () => {
                                     ${
                                       canViewUserMgmt
                                         ? `<li><a class="dropdown-item" href="/pages/users">User Management</a></li>
-                                           <li><a class="dropdown-item" href="/pages/driver-management">Driver Management</a></li>`
+                                           <li><a class="dropdown-item" href="/pages/driver-management">Driver Management</a></li>
+                                           <li><a class="dropdown-item" href="/pages/driver-import">Driver Migration</a></li>`
                                         : ""
                                     }
                                     ${

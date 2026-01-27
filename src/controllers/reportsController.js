@@ -33,9 +33,9 @@ const reportsController = {
           d.tin,
           d.business_name,
           b.week_date,
-          b.gross_payout,
-          b.withholding_tax,
-          b.net_payout
+          b.calculated_gross_payout,
+          b.calculated_withholding_tax,
+          b.calculated_net_payout
          FROM drivers d
          JOIN bonuses b ON d.driver_id = b.driver_id
          JOIN payments p ON b.payment_id = p.id
@@ -81,7 +81,7 @@ const reportsController = {
   getComplianceSummary: catchAsync(async (req, res, next) => {
     // 1. Total Tax Withheld (All time)
     const [taxRows] = await pool.query(
-      "SELECT SUM(withholding_tax) as total_tax FROM bonuses"
+      "SELECT SUM(calculated_withholding_tax) as total_tax FROM bonuses"
     );
 
     // 2. Driver Verification Stats

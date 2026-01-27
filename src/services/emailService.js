@@ -40,6 +40,11 @@ const EmailService = {
       return true;
     } catch (error) {
       console.error("Error sending OTP email:", error);
+      if (error.code === 'ETIMEDOUT') {
+        console.warn("SMTP CONNECTION TIMEOUT: Check if your host/ISP blocks port 587. Consider trying port 465 with secure: true.");
+      } else if (error.code === 'ESOCKET') {
+        console.warn("SMTP NETWORK ERROR: Check your internet connection or DNS settings.");
+      }
       return false;
     }
   },

@@ -79,9 +79,9 @@ class SchedulerService {
         const [taxData] = await pool.query(
           `SELECT 
               d.driver_id, d.full_name, d.tin, d.business_name,
-              SUM(b.gross_payout) as total_gross,
-              SUM(b.withholding_tax) as total_tax,
-              SUM(b.net_payout) as total_net,
+              SUM(b.calculated_gross_payout) as total_gross,
+              SUM(b.calculated_withholding_tax) as total_tax,
+              SUM(b.calculated_net_payout) as total_net,
               COUNT(b.id) as payment_count,
               MIN(b.week_date) as first_payment_date,
               MAX(b.week_date) as last_payment_date
@@ -127,7 +127,7 @@ class SchedulerService {
       } else if (reportType === "compliance") {
         // Build summary for compliance
         const [taxRows] = await pool.query(
-          "SELECT SUM(withholding_tax) as total_tax FROM bonuses WHERE week_date BETWEEN ? AND ?",
+          "SELECT SUM(calculated_withholding_tax) as total_tax FROM bonuses WHERE week_date BETWEEN ? AND ?",
           [startDate, endDate]
         );
         const [verificationRows] = await pool.query(

@@ -1,0 +1,248 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Bulk Driver Import - Driver Bonus Platform</title>
+    <link href="../vendor/bootstrap/bootstrap.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="../css/styles.css" />
+    <link rel="stylesheet" href="../vendor/fontawesome/css/all.min.css" />
+  </head>
+  <body class="bg-light">
+    <!-- Header injected by ui.js -->
+
+    <div class="main-wrapper">
+      <div class="row justify-content-center">
+        <div class="col-lg-10">
+          <div class="d-flex justify-content-between align-items-end mb-4">
+            <div>
+              <h1 class="display-6 mb-1">Bulk Driver Migration</h1>
+              <p class="text-muted fs-5 mb-0">
+                Import verified drivers from the old system. This will mark them
+                as Document & Telebirr verified.
+              </p>
+            </div>
+          </div>
+
+          <div class="row g-4">
+            <!-- Left Column: Upload Form -->
+            <div class="col-md-7">
+              <div class="card-premium p-4 h-100">
+                <h3 class="h5 mb-4 d-flex align-items-center">
+                  <span
+                    class="bg-primary text-white rounded-circle d-inline-flex align-items-center justify-content-center me-2"
+                    style="width: 24px; height: 24px; font-size: 0.8rem"
+                    >1</span
+                  >
+                  Select Migration File
+                </h3>
+
+                <form id="importForm">
+                  <div
+                    id="dropZone"
+                    class="mb-4 text-center p-5 border-2 border-dashed rounded-3 bg-light"
+                    style="
+                      border-color: #cbd5e1;
+                      cursor: pointer;
+                      transition: all 0.2s;
+                    "
+                  >
+                    <div class="mb-3 fs-1 text-primary">
+                      <i class="fas fa-file-excel"></i>
+                    </div>
+                    <h5 class="fw-bold">Drop Migration Excel here</h5>
+                    <p class="text-muted small">
+                      or click to browse your computer
+                    </p>
+                    <p
+                      class="text-muted smaller mt-2"
+                      style="font-size: 0.75rem"
+                    >
+                      Columns: ID, Name, Phone, DL Number, TIN (optional), Valid
+                      before, Re-validation
+                    </p>
+                    <input
+                      type="file"
+                      id="excelFile"
+                      accept=".xlsx,.xls"
+                      class="d-none"
+                    />
+                  </div>
+
+                  <div
+                    id="fileSelectionInfo"
+                    class="d-none mb-4 p-3 rounded-3 bg-white border d-flex align-items-center justify-content-between"
+                  >
+                    <div class="d-flex align-items-center">
+                      <i class="fas fa-check-circle text-success fs-4 me-3"></i>
+                      <div>
+                        <div id="selectedFileName" class="fw-bold text-dark">
+                          filename.xlsx
+                        </div>
+                        <div id="selectedFileSize" class="small text-muted">
+                          0.0 MB
+                        </div>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      id="removeFileBtn"
+                      class="btn btn-link text-danger p-0"
+                    >
+                      <i class="fas fa-times"></i>
+                    </button>
+                  </div>
+
+                  <button
+                    type="submit"
+                    id="importBtn"
+                    class="btn btn-brand w-100 py-3 shadow-none mt-2"
+                    disabled
+                  >
+                    <i class="fas fa-upload me-2"></i> Start Migration Import
+                  </button>
+                </form>
+              </div>
+            </div>
+
+            <!-- Right Column: Info -->
+            <div class="col-md-5">
+              <div class="card-premium p-4 h-100">
+                <h3 class="h5 mb-4">Migration Details</h3>
+                <ul class="list-group list-group-flush">
+                  <li class="list-group-item px-0 py-3 border-0">
+                    <div class="d-flex align-items-start">
+                      <i class="fas fa-check-double text-success me-3 mt-1"></i>
+                      <div>
+                        <div class="fw-bold">Auto-Verification</div>
+                        <div class="small text-muted">
+                          Drivers will be marked as Document and Telebirr
+                          verified upon import.
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="list-group-item px-0 py-3 border-0">
+                    <div class="d-flex align-items-start">
+                      <i class="fas fa-history text-primary me-3 mt-1"></i>
+                      <div>
+                        <div class="fw-bold">History Preservation</div>
+                        <div class="small text-muted">
+                          "Valid before" and "Re-validation" names will be
+                          stored in driver notes.
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                  <li class="list-group-item px-0 py-3 border-0">
+                    <div class="d-flex align-items-start">
+                      <i class="fas fa-id-card text-info me-3 mt-1"></i>
+                      <div>
+                        <div class="fw-bold">TIN & DL Number</div>
+                        <div class="small text-muted">
+                          Existing TINs and DLs will be updated if provided in
+                          the file.
+                        </div>
+                      </div>
+                    </div>
+                  </li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <!-- Results Section -->
+          <div id="importResults" class="mt-5 d-none">
+            <div class="card-premium p-5 border-0 bg-white">
+              <div class="text-center mb-5">
+                <div
+                  id="resultIcon"
+                  class="bg-success text-white rounded-circle d-inline-flex align-items-center justify-content-center mb-3 shadow-lg"
+                  style="width: 80px; height: 80px; font-size: 2.5rem"
+                >
+                  <i class="fas fa-check"></i>
+                </div>
+                <h2 class="h3 fw-bold" id="resultTitle">
+                  Migration Completed!
+                </h2>
+                <p class="text-muted" id="resultSubtitle">
+                  Check the summary below.
+                </p>
+              </div>
+
+              <div class="row g-4 mb-5 justify-content-center">
+                <div class="col-md-3">
+                  <div class="p-3 bg-light rounded-3 text-center border">
+                    <div class="text-muted small fw-bold text-uppercase mb-1">
+                      Processed
+                    </div>
+                    <div class="h3 mb-0 fw-bold" id="resTotal">0</div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div
+                    class="p-3 bg-light rounded-3 text-center border border-success"
+                    style="
+                      border-left: 4px solid var(--success-green) !important;
+                    "
+                  >
+                    <div class="text-muted small fw-bold text-uppercase mb-1">
+                      Successful
+                    </div>
+                    <div class="h3 mb-0 fw-bold text-success" id="resSuccess">
+                      0
+                    </div>
+                  </div>
+                </div>
+                <div class="col-md-3">
+                  <div
+                    class="p-3 bg-light rounded-3 text-center border border-danger"
+                    style="border-left: 4px solid var(--error-red) !important"
+                  >
+                    <div class="text-muted small fw-bold text-uppercase mb-1">
+                      Errors
+                    </div>
+                    <div class="h3 mb-0 fw-bold text-danger" id="resErrors">
+                      0
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div id="errorDetailsSection" class="d-none">
+                <h4 class="h6 text-uppercase fw-bold text-danger mb-3">
+                  Error Details
+                </h4>
+                <div class="table-responsive rounded-3 border">
+                  <table class="table table-hover mb-0">
+                    <tbody id="errorTableBody"></tbody>
+                  </table>
+                </div>
+              </div>
+
+              <div class="text-center mt-5">
+                <button
+                  onclick="window.location.reload()"
+                  class="btn btn-outline-secondary me-3 px-4 rounded-pill"
+                >
+                  Import More
+                </button>
+                <a
+                  href="/index.html"
+                  class="btn btn-brand px-5 rounded-pill shadow-none"
+                  >Go to Dashboard</a
+                >
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script src="../vendor/bootstrap/bootstrap.bundle.min.js"></script>
+    <script src="../js/api.js"></script>
+    <script src="../js/auth.js"></script>
+    <script src="../js/ui.js"></script>
+    <script src="../js/driver-import.js"></script>
+  </body>
+</html>

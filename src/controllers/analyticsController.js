@@ -46,8 +46,8 @@ const analyticsController = {
     const getMetrics = async (filter, p) => {
       const [rows] = await pool.query(
         `SELECT 
-            SUM(COALESCE(b.final_payout, b.net_payout)) as total_revenue,
-            SUM(b.withholding_tax) as total_tax,
+            SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_revenue,
+            SUM(b.calculated_withholding_tax) as total_tax,
             COUNT(DISTINCT b.driver_id) as active_drivers,
             COUNT(b.id) as total_bonuses
            FROM bonuses b ${filter}`,
@@ -126,8 +126,8 @@ const analyticsController = {
     const [trends] = await pool.query(
       `SELECT 
           DATE_FORMAT(b.week_date, ?) as period,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as revenue,
-          SUM(b.withholding_tax) as tax,
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as revenue,
+          SUM(b.calculated_withholding_tax) as tax,
           COUNT(DISTINCT b.driver_id) as drivers,
           COUNT(b.id) as bonuses
          FROM bonuses b
@@ -161,11 +161,11 @@ const analyticsController = {
     // Tax breakdown
     const [taxBreakdown] = await pool.query(
       `SELECT 
-          SUM(CASE WHEN b.withholding_tax > 0 THEN b.withholding_tax ELSE 0 END) as total_tax,
-          SUM(CASE WHEN b.withholding_tax > 0 THEN 1 ELSE 0 END) as taxable_bonuses,
-          SUM(CASE WHEN b.withholding_tax = 0 THEN 1 ELSE 0 END) as tax_exempt_bonuses,
-          SUM(CASE WHEN b.withholding_tax > 0 THEN b.gross_payout ELSE 0 END) as taxable_gross,
-          SUM(CASE WHEN b.withholding_tax = 0 THEN b.net_payout ELSE 0 END) as exempt_gross
+          SUM(CASE WHEN b.calculated_withholding_tax > 0 THEN b.calculated_withholding_tax ELSE 0 END) as total_tax,
+          SUM(CASE WHEN b.calculated_withholding_tax > 0 THEN 1 ELSE 0 END) as taxable_bonuses,
+          SUM(CASE WHEN b.calculated_withholding_tax = 0 THEN 1 ELSE 0 END) as tax_exempt_bonuses,
+          SUM(CASE WHEN b.calculated_withholding_tax > 0 THEN b.calculated_gross_payout ELSE 0 END) as taxable_gross,
+          SUM(CASE WHEN b.calculated_withholding_tax = 0 THEN b.calculated_net_payout ELSE 0 END) as exempt_gross
          FROM bonuses b ${dateFilter}`,
       params
     );
@@ -174,7 +174,7 @@ const analyticsController = {
     const [monthlyTax] = await pool.query(
       `SELECT 
           DATE_FORMAT(b.week_date, '%Y-%m') as month,
-          SUM(b.withholding_tax) as tax_collected
+          SUM(b.calculated_withholding_tax) as tax_collected
          FROM bonuses b ${dateFilter}
          GROUP BY DATE_FORMAT(b.week_date, '%Y-%m')
          ORDER BY month ASC`,
@@ -238,9 +238,9 @@ const analyticsController = {
           d.driver_id,
           d.full_name,
           d.verified,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_earnings,
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_earnings,
           COUNT(b.id) as bonus_count,
-          AVG(COALESCE(b.final_payout, b.net_payout)) as avg_bonus
+          AVG(COALESCE(b.final_payout, b.calculated_net_payout)) as avg_bonus
          FROM drivers d
          JOIN bonuses b ON d.driver_id = b.driver_id
          WHERE b.week_date >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
@@ -256,7 +256,7 @@ const analyticsController = {
           d.driver_id,
           d.full_name,
           COUNT(DISTINCT YEARWEEK(b.week_date, 1)) as weeks_active,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_earnings
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_earnings
          FROM drivers d
          JOIN bonuses b ON d.driver_id = b.driver_id
          WHERE b.week_date >= DATE_SUB(CURDATE(), INTERVAL 1 MONTH)
@@ -293,8 +293,8 @@ const analyticsController = {
          FROM (
            SELECT 
              d.driver_id,
-             AVG(COALESCE(b.final_payout, b.net_payout)) as avg_earnings,
-             SUM(COALESCE(b.final_payout, b.net_payout)) as total_earnings
+             AVG(COALESCE(b.final_payout, b.calculated_net_payout)) as avg_earnings,
+             SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_earnings
            FROM drivers d
            JOIN bonuses b ON d.driver_id = b.driver_id
            WHERE b.week_date >= DATE_SUB(CURDATE(), INTERVAL 3 MONTH)
@@ -336,7 +336,7 @@ const analyticsController = {
           END as bucket,
           COUNT(*) as driver_count
          FROM (
-           SELECT driver_id, SUM(COALESCE(final_payout, net_payout)) as total_earnings
+           SELECT driver_id, SUM(COALESCE(final_payout, calculated_net_payout)) as total_earnings
            FROM bonuses b
            ${dateFilter}
            GROUP BY driver_id

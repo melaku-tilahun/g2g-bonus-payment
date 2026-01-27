@@ -49,7 +49,7 @@ const pendingPaymentController = {
         COUNT(DISTINCT b.id) as pending_weeks,
         MIN(b.week_date) as earliest_bonus_date,
         MAX(b.week_date) as latest_bonus_date,
-        SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
+        SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_pending_amount,
         COALESCE(p.status, 'pending') as status,
         p.batch_id,
         (SELECT dp.phone_number FROM driver_phones dp WHERE dp.driver_id = d.driver_id AND dp.status = 'pending' ORDER BY dp.added_at DESC LIMIT 1) as pending_phone
@@ -72,7 +72,7 @@ const pendingPaymentController = {
          JOIN bonuses b ON d.driver_id = b.driver_id 
          WHERE (d.verified = TRUE OR b.is_unverified_payout = TRUE) AND d.is_blocked = FALSE AND d.is_telebirr_verified = TRUE AND b.payment_id IS NULL
          GROUP BY d.driver_id
-         HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
+         HAVING SUM(COALESCE(b.final_payout, b.calculated_net_payout)) > 0
        ) as valid_drivers`,
     );
 
@@ -90,7 +90,7 @@ const pendingPaymentController = {
         JOIN bonuses b ON d.driver_id = b.driver_id 
         WHERE d.verified = TRUE AND d.is_telebirr_verified = FALSE AND d.is_blocked = FALSE AND b.payment_id IS NULL
         GROUP BY d.driver_id
-        HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0`,
+        HAVING SUM(COALESCE(b.final_payout, b.calculated_net_payout)) > 0`,
     );
 
     // verificationNeededCount might return multiple rows (one per driver), we want total rows
@@ -140,7 +140,7 @@ const pendingPaymentController = {
           d.full_name, 
           d.phone_number,
           COUNT(b.id) as pending_weeks,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_pending_amount,
           MIN(b.week_date) as earliest_bonus_date,
           MAX(b.week_date) as latest_bonus_date
       FROM drivers d
@@ -184,9 +184,9 @@ const pendingPaymentController = {
           b.id as bonus_id,
           b.driver_id,
           b.week_date,
-          COALESCE(b.final_payout, b.net_payout) as amount,
-          b.gross_payout,
-          b.withholding_tax,
+          COALESCE(b.final_payout, b.calculated_net_payout) as amount,
+          b.calculated_gross_payout,
+          b.calculated_withholding_tax,
           d.phone_number,
           d.verified,
           b.is_unverified_payout
@@ -196,7 +196,7 @@ const pendingPaymentController = {
           AND d.is_blocked = FALSE 
           AND d.is_telebirr_verified = TRUE
           AND b.payment_id IS NULL
-          AND COALESCE(b.final_payout, b.net_payout) > 0
+          AND COALESCE(b.final_payout, b.calculated_net_payout) > 0
         ORDER BY d.driver_id, b.week_date
       `);
 
@@ -293,8 +293,8 @@ const pendingPaymentController = {
             b.week_date,
             d.phone_number,
             p.total_amount,
-            b.gross_payout,
-            b.withholding_tax
+            b.calculated_gross_payout,
+            b.calculated_withholding_tax
         FROM bonuses b
         JOIN drivers d ON b.driver_id = d.driver_id
         JOIN payments p ON b.payment_id = p.id

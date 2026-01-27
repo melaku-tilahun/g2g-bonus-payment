@@ -154,7 +154,7 @@ const searchDrivers = catchAsync(async (filters, res, next) => {
   const [drivers] = await pool.query(
     `SELECT d.*, 
       COUNT(b.id) as bonus_count,
-      SUM(COALESCE(b.final_payout, b.net_payout)) as total_bonuses
+      SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_bonuses
      FROM drivers d
      LEFT JOIN bonuses b ON d.driver_id = b.driver_id
      ${whereClause}

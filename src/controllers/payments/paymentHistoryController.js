@@ -25,7 +25,7 @@ const paymentHistoryController = {
 
       // 1. Calculate the actual total from pending bonuses
       const [bonusRows] = await connection.query(
-        "SELECT SUM(COALESCE(final_payout, net_payout)) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
+        "SELECT SUM(COALESCE(final_payout, calculated_net_payout)) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
         [driver_id],
       );
 
@@ -275,7 +275,7 @@ const paymentHistoryController = {
           `UPDATE bonuses 
            SET 
              final_payout = final_payout + penalty_tax,
-             withholding_tax = withholding_tax - penalty_tax,
+             calculated_withholding_tax = calculated_withholding_tax - penalty_tax,
              penalty_tax = 0,
              is_unverified_payout = FALSE 
            WHERE payment_id = ? AND is_unverified_payout = TRUE`,
@@ -373,7 +373,7 @@ const paymentHistoryController = {
             d.driver_id as driver_ref_id, 
             d.full_name, 
             'pending' COLLATE utf8mb4_general_ci as status, 
-            SUM(COALESCE(b.final_payout, b.net_payout)) as total_amount, 
+            SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_amount, 
             MAX(b.week_date) as payment_date
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id

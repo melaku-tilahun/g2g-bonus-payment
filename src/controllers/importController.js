@@ -244,17 +244,17 @@ const importController = {
         bonusesToInsert.push([
           row.driver_id,
           effectiveDate,
-          row.net_payout, // Keep for backward compatibility
+          row.calculated_net_payout,        // Index 2: Base payment (our 3% calculated net)
           row.work_terms,
           row.status,
           row.balance,
-          row.payout,
-          row.bank_fee,
-          row.gross_payout,
-          row.withholding_tax,
+          row.fleet_gross_payout,           // Fleet gross (renamed from payout)
+          row.fleet_withholding_tax,        // Fleet tax (renamed from bank_fee)
+          row.calculated_gross_payout,      // Our gross (renamed from gross_payout)
+          row.calculated_withholding_tax,   // Our tax (renamed from withholding_tax)
           importLogId,
-          row.calculated_net || row.net_payout, // Initialize final_payout with calculated net
-          row.fleet_net_payout, // Store original Excel value (index 12)
+          null,                             // Index 11: final_payout = NULL (no adjustments yet)
+          row.fleet_net_payout,             // Index 12: Audit trail
         ]);
       }
 
@@ -326,7 +326,7 @@ const importController = {
         // 2. Apply Deductions
         for (const bonusRow of bonusesToInsert) {
           const dId = bonusRow[0];
-          const calculatedNet = parseFloat(bonusRow[11]); // Use calculated_net from index 11
+          const calculatedNet = parseFloat(bonusRow[2]); // Use calculated_net from index 2
 
           if (debtsMap[dId]) {
             let available = calculatedNet;
@@ -352,7 +352,7 @@ const importController = {
 
         // 3. Bulk Insert
         await connection.query(
-          "INSERT INTO bonuses (driver_id, week_date, net_payout, work_terms, status, balance, payout, bank_fee, gross_payout, withholding_tax, import_log_id, final_payout, fleet_net_payout) VALUES ?",
+          "INSERT INTO bonuses (driver_id, week_date, calculated_net_payout, work_terms, status, balance, fleet_gross_payout, fleet_withholding_tax, calculated_gross_payout, calculated_withholding_tax, import_log_id, final_payout, fleet_net_payout) VALUES ?",
           [bonusesToInsert],
         );
 

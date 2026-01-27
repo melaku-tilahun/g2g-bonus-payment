@@ -374,7 +374,7 @@ function displayTaxReport(reportData) {
 
   // Calculate totals for verification
   const totalGross = reportData.data.reduce(
-    (sum, row) => sum + parseFloat(row.gross_payout || 0),
+    (sum, row) => sum + parseFloat(row.calculated_gross_payout || 0),
     0,
   );
   const totalNet = reportData.data.reduce(
@@ -425,9 +425,9 @@ function displayTaxReport(reportData) {
 
   reportData.data.forEach((row, index) => {
     const taxRate =
-      parseFloat(row.gross_payout) > 0
+      parseFloat(row.calculated_gross_payout) > 0
         ? (
-            (parseFloat(row.withholding_tax) / parseFloat(row.gross_payout)) *
+            (parseFloat(row.calculated_withholding_tax) / parseFloat(row.calculated_gross_payout)) *
             100
           ).toFixed(1) + "%"
         : "0%";
@@ -440,10 +440,10 @@ function displayTaxReport(reportData) {
                 <div class="x-small text-muted font-monospace">${row.driver_id}</div>
             </td>
             <td><code class="text-primary small">${row.tin || "MISSING-TIN"}</code></td>
-            <td class="text-end font-monospace small">${parseFloat(row.gross_payout).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td class="text-end font-monospace small">${parseFloat(row.calculated_gross_payout).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
             <td class="text-end small text-muted">${taxRate}</td>
-            <td class="text-end fw-bold text-danger font-monospace small">${parseFloat(row.withholding_tax).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
-            <td class="text-end pe-3 font-monospace small text-dark">${parseFloat(row.net_payout).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td class="text-end fw-bold text-danger font-monospace small">${parseFloat(row.calculated_withholding_tax).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+            <td class="text-end pe-3 font-monospace small text-dark">${parseFloat(row.calculated_net_payout).toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
         </tr>`;
   });
 

@@ -22,13 +22,15 @@ const excelParser = {
     if (singleSheet) {
       const worksheet = workbook.worksheets[0];
       const headerRow = worksheet.getRow(1);
-      headerRow.eachCell((cell) => {
-        if (cell.value) {
-          columnsFound.push(cell.value.toString());
-        }
-      });
+      // Use absolute indices instead of skipping empty cells to avoid "gap" bug
+      for (let i = 1; i <= headerRow.cellCount; i++) {
+        const cell = headerRow.getCell(i);
+        const val = cell.value ? cell.value.toString() : "";
+        columnsFound.push(val);
+      }
 
       const normalizedHeaders = columnsFound.map((c) => c.toLowerCase().trim());
+      
       const required = [
         "id",
         "full name",
@@ -45,6 +47,8 @@ const excelParser = {
       missingColumns = required.filter(
         (col) => !normalizedHeaders.includes(col)
       );
+      
+      console.log("Missing columns:", missingColumns);
 
       // Fuzzy match suggestions for missing columns
       if (missingColumns.length > 0) {
@@ -71,6 +75,9 @@ const excelParser = {
         const payoutIdx = normalizedHeaders.indexOf("payout") + 1;
         const bankFeeIdx = normalizedHeaders.indexOf("bank fee") + 1;
         const dateIdx = normalizedHeaders.indexOf("date") + 1;
+        
+        console.log("=== COLUMN INDICES ===");
+        console.log("Date column index:", dateIdx);
 
         let firstDateStr = null;
 
@@ -116,19 +123,17 @@ const excelParser = {
             if (dateVal) {
               let rowDateStr = null;
               try {
-                // Attempt to standardize date to YYYY-MM-DD for comparison
-                // ExcelJS might give a Date object or a string
                 const d = new Date(dateVal);
                 if (!isNaN(d)) {
                   rowDateStr = d.toISOString().split("T")[0];
                 }
               } catch (e) {
-                // ignore invalid dates here, handled by null check below or parser
+                // ignore invalid dates
               }
 
               if (rowDateStr) {
                 if (!detectedDate) {
-                  detectedDate = rowDateStr; // First valid date found becomes the reference
+                  detectedDate = rowDateStr;
                   firstDateStr = rowDateStr;
                 } else if (rowDateStr !== detectedDate) {
                   suggestions.push(
@@ -321,25 +326,6 @@ const excelParser = {
         referenceDate = rowDateStr;
       }
 
-      const rowData = {
-        rowNumber,
-        driver_id: rawId ? rawId.toString().trim() : null,
-        full_name: getVal(nameIdx) ? getVal(nameIdx).toString().trim() : null,
-        phone_number: phoneVal ? phoneVal.toString().trim() : null,
-        week_date: dateVal,
-        net_payout: null,
-        work_terms: getVal(workTermsIdx)
-          ? getVal(workTermsIdx).toString()
-          : null,
-        status: getVal(statusIdx) ? getVal(statusIdx).toString() : null,
-        balance: null,
-        payout: null,
-        bank_fee: null,
-        gross_payout: null,
-        withholding_tax: null,
-        errors: [],
-      };
-
       // Helper to parse numeric
       const parseNum = (val) => {
         const v =
@@ -351,45 +337,72 @@ const excelParser = {
           : parseFloat(v);
       };
 
-      // Parse the Excel "Net Payout" column - this is the fleet's original value
-      rowData.fleet_net_payout = parseNum(getVal(payoutIdx)); // Store original
-      rowData.net_payout = parseNum(getVal(payoutIdx)); // Keep for backward compatibility
-      rowData.balance = parseNum(getVal(balanceIdx));
-      rowData.payout = parseNum(getVal(actualPayoutIdx));
-      rowData.bank_fee = parseNum(getVal(bankFeeIdx));
+      const rowData = {
+        rowNumber,
+        driver_id: rawId ? rawId.toString().trim() : null,
+        full_name: getVal(nameIdx) ? getVal(nameIdx).toString().trim() : null,
+        phone_number: phoneVal ? phoneVal.toString().trim() : null,
+        week_date: dateVal,
+        net_payout: parseNum(getVal(payoutIdx)),
+        work_terms: getVal(workTermsIdx)
+          ? getVal(workTermsIdx).toString()
+          : null,
+        status: getVal(statusIdx) ? getVal(statusIdx).toString() : null,
+        balance: parseNum(getVal(balanceIdx)),
+        payout: null,
+        bank_fee: null,
+        gross_payout: null,
+        withholding_tax: null,
+        errors: [],
+      };
 
+      // Parse the Excel "Net Payout" column - this is the fleet's original value
+      // Parse Fleet values from Excel
+      const fleetGross = parseNum(getVal(actualPayoutIdx)); // "Payout" column = Fleet Gross
+      const fleetNet = parseNum(getVal(payoutIdx));         // "Net payout" column = Fleet Net
+      const fleetTax = parseNum(getVal(bankFeeIdx));        // "Bank fee" column = Fleet Tax (3.1%)
+
+      // Store fleet's values for audit
+      rowData.fleet_gross_payout = fleetGross;
+      rowData.fleet_net_payout = fleetNet;
+      rowData.fleet_withholding_tax = fleetTax;
+      rowData.payout = fleetGross; // Keep for backward compatibility temporarily
+      rowData.bank_fee = fleetTax; // Keep for backward compatibility temporarily
+
+      // Validations
       if (!rowData.driver_id) rowData.errors.push("Missing ID");
       if (!rowData.full_name) rowData.errors.push("Missing Full Name");
       if (!rowData.phone_number) rowData.errors.push("Missing Phone Number");
 
-      if (rowData.net_payout === null)
+      if (rowData.fleet_net_payout === null)
         rowData.errors.push(`Invalid Net payout`);
       if (rowData.balance === null) rowData.errors.push(`Invalid Balance`);
-      if (rowData.payout === null) rowData.errors.push(`Invalid Payout`);
-      if (rowData.bank_fee === null) rowData.errors.push(`Invalid Bank fee`);
+      if (rowData.fleet_gross_payout === null) rowData.errors.push(`Invalid Payout`);
+      if (rowData.fleet_withholding_tax === null) rowData.errors.push(`Invalid Bank fee`);
 
-      // Calculations
-      if (rowData.fleet_net_payout !== null) {
-        // Only gross up if the net payout is greater than 10,000 ETB
-        if (rowData.fleet_net_payout > 10000) {
-          // Step 1: Reverse to gross (assuming 3% withholding was applied)
-          rowData.gross_payout = rowData.fleet_net_payout / 0.97;
-          // Step 2: Calculate withholding tax from gross (3%)
-          rowData.withholding_tax = rowData.gross_payout * 0.03;
+      // Calculations - Use Fleet Gross for 10,000 threshold decision
+      if (rowData.fleet_gross_payout !== null && rowData.fleet_net_payout !== null) {
+        // Decision: Use Fleet Gross (10,000 threshold)
+        if (rowData.fleet_gross_payout > 10000) {
+          // Taxable: Reconstruct OUR gross from fleet net
+          rowData.calculated_gross_payout = rowData.fleet_net_payout / 0.97;
+          rowData.calculated_withholding_tax = rowData.calculated_gross_payout * 0.03;
         } else {
-          // No gross-up for amounts <= 10,000
-          rowData.gross_payout = rowData.fleet_net_payout;
-          rowData.withholding_tax = 0;
+          // Not taxable
+          rowData.calculated_gross_payout = rowData.fleet_net_payout;
+          rowData.calculated_withholding_tax = 0;
         }
 
-        // Step 3: Calculate proper net (gross - withholding)
-        rowData.calculated_net = rowData.gross_payout - rowData.withholding_tax;
+        // Calculate OUR net (with correct 3% tax)
+        const calculated_net = rowData.calculated_gross_payout - rowData.calculated_withholding_tax;
 
-        // Round to 2 decimals
-        rowData.gross_payout = Math.round(rowData.gross_payout * 100) / 100;
-        rowData.withholding_tax =
-          Math.round(rowData.withholding_tax * 100) / 100;
-        rowData.calculated_net = Math.round(rowData.calculated_net * 100) / 100;
+        // CRITICAL: Store our calculated net as calculated_net_payout (base payment amount)
+        rowData.calculated_net_payout = Math.round(calculated_net * 100) / 100;
+
+        // Round other values for Reporting
+        rowData.calculated_gross_payout = Math.round(rowData.calculated_gross_payout * 100) / 100;
+        rowData.calculated_withholding_tax =
+          Math.round(rowData.calculated_withholding_tax * 100) / 100;
       }
 
       if (referenceDate && rowDateStr && rowDateStr !== referenceDate) {

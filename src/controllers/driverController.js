@@ -50,7 +50,7 @@ const driverController = {
     const [rows] = await pool.query(
       `SELECT 
           d.*, 
-          COALESCE(SUM(COALESCE(b.final_payout, b.net_payout)), 0) as total_pending,
+          COALESCE(SUM(COALESCE(b.final_payout, b.calculated_net_payout)), 0) as total_pending,
           COUNT(b.id) as weeks_pending
          FROM drivers d
          LEFT JOIN bonuses b ON d.driver_id = b.driver_id AND b.payment_id IS NULL
@@ -417,10 +417,10 @@ const driverController = {
       // We need to process bonuses one by one to record deductions accurately
       for (const bonus of bonuses) {
         // Calculate proper tax values
-        const gross = parseFloat(bonus.gross_payout || 0);
-        const currentTax = parseFloat(bonus.withholding_tax || 0);
+        const gross = parseFloat(bonus.calculated_gross_payout || 0);
+        const currentTax = parseFloat(bonus.calculated_withholding_tax || 0);
 
-        // Target: Total 30% tax on Gross (Only if > 10,000 ETB, same as standard)
+        // Target: Total 30% tax on Gross 
         const totalTaxTarget =
           gross > 10000 ? Math.round(gross * 0.3 * 100) / 100 : 0;
         const additionalTaxNeeded = Math.max(0, totalTaxTarget - currentTax);
@@ -466,10 +466,10 @@ const driverController = {
         }
 
         // C. Update Bonus with final numbers
-        // We update withholding_tax to the total 30%
+        // We update calculated_withholding_tax to the total 30%
         // We set penalty_tax to the specific penalty amount
         await connection.query(
-          "UPDATE bonuses SET withholding_tax = ?, penalty_tax = ?, final_payout = ?, is_unverified_payout = TRUE WHERE id = ?",
+          "UPDATE bonuses SET calculated_withholding_tax = ?, penalty_tax = ?, final_payout = ?, is_unverified_payout = TRUE WHERE id = ?",
           [totalTaxTarget, additionalTaxNeeded, available, bonus.id],
         );
       }

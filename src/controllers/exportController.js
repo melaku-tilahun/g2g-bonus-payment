@@ -40,8 +40,8 @@ const exportController = {
       `SELECT 
           d.*,
           COUNT(b.id) as total_bonuses,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_earnings,
-          SUM(CASE WHEN b.payment_id IS NULL THEN COALESCE(b.final_payout, b.net_payout) ELSE 0 END) as pending_amount
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_earnings,
+          SUM(CASE WHEN b.payment_id IS NULL THEN COALESCE(b.final_payout, b.calculated_net_payout) ELSE 0 END) as pending_amount
          FROM drivers d
          LEFT JOIN bonuses b ON d.driver_id = b.driver_id
          ${whereClause}

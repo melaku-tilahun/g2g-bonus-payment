@@ -81,8 +81,8 @@ const debtController = {
           available = parseFloat(bonus.final_payout);
         } else {
           // Calculate net from gross - withholding (for old records without final_payout)
-          const gross = parseFloat(bonus.gross_payout || 0);
-          const withholding = parseFloat(bonus.withholding_tax || 0);
+          const gross = parseFloat(bonus.calculated_gross_payout || 0);
+          const withholding = parseFloat(bonus.calculated_withholding_tax || 0);
           available = gross - withholding;
         }
 

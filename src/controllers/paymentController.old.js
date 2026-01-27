@@ -25,7 +25,7 @@ const paymentController = {
 
       // 1. Calculate the actual total from pending bonuses
       const [bonusRows] = await connection.query(
-        "SELECT SUM(COALESCE(final_payout, net_payout)) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
+        "SELECT SUM(COALESCE(final_payout, calculated_net_payout)) as actual_total FROM bonuses WHERE driver_id = ? AND payment_id IS NULL",
         [driver_id],
       );
 
@@ -232,7 +232,7 @@ const paymentController = {
         COUNT(DISTINCT b.id) as pending_weeks,
         MIN(b.week_date) as earliest_bonus_date,
         MAX(b.week_date) as latest_bonus_date,
-        SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
+        SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_pending_amount,
         COALESCE(p.status, 'pending') as status,
         p.batch_id
       FROM drivers d
@@ -254,7 +254,7 @@ const paymentController = {
          JOIN bonuses b ON d.driver_id = b.driver_id 
          WHERE (d.verified = TRUE OR b.force_pay = TRUE) AND d.is_blocked = FALSE AND b.payment_id IS NULL
          GROUP BY d.driver_id
-         HAVING SUM(COALESCE(b.final_payout, b.net_payout)) > 0
+         HAVING SUM(COALESCE(b.final_payout, b.calculated_net_payout)) > 0
        ) as valid_drivers`,
     );
 
@@ -309,7 +309,7 @@ const paymentController = {
           d.full_name, 
           d.phone_number,
           COUNT(b.id) as pending_weeks,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending_amount,
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_pending_amount,
           MIN(b.week_date) as earliest_bonus_date,
           MAX(b.week_date) as latest_bonus_date
       FROM drivers d
@@ -353,9 +353,9 @@ const paymentController = {
           b.id as bonus_id,
           b.driver_id,
           b.week_date,
-          COALESCE(b.final_payout, b.net_payout) as amount,
-          b.gross_payout,
-          b.withholding_tax,
+          COALESCE(b.final_payout, b.calculated_net_payout) as amount,
+          b.calculated_gross_payout,
+          b.calculated_withholding_tax,
           d.phone_number,
           d.verified,
           b.force_pay
@@ -364,7 +364,7 @@ const paymentController = {
         WHERE (d.verified = TRUE OR b.force_pay = TRUE) 
           AND d.is_blocked = FALSE 
           AND b.payment_id IS NULL
-          AND COALESCE(b.final_payout, b.net_payout) > 0
+          AND COALESCE(b.final_payout, b.calculated_net_payout) > 0
         ORDER BY d.driver_id, b.week_date
       `);
 
@@ -458,8 +458,8 @@ const paymentController = {
             b.week_date,
             d.phone_number,
             p.total_amount,
-            b.gross_payout,
-            b.withholding_tax
+            b.calculated_gross_payout,
+            b.calculated_withholding_tax
         FROM bonuses b
         JOIN drivers d ON b.driver_id = d.driver_id
         JOIN payments p ON b.payment_id = p.id
@@ -1551,7 +1551,7 @@ This does not appear to be a valid Telebirr reconciliation file.`,
             d.driver_id as driver_ref_id, 
             d.full_name, 
             'pending' COLLATE utf8mb4_general_ci as status, 
-            SUM(COALESCE(b.final_payout, b.net_payout)) as total_amount, 
+            SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_amount, 
             MAX(b.week_date) as payment_date
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id

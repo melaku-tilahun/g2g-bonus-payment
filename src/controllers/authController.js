@@ -54,10 +54,15 @@ const authController = {
     const emailSent = await EmailService.sendOTP(user.email, otp);
 
     if (!emailSent) {
-      throw new AppError(
-        "Failed to send verification email. Please try again.",
-        500
-      );
+      // If email fails, check for bypass in development
+      if (process.env.DEV_OTP_BYPASS) {
+        console.warn(`[DEV] Email failed for ${user.email}, but DEV_OTP_BYPASS is active. Use bypass code to login.`);
+      } else {
+        throw new AppError(
+          "Failed to send verification email. Please try again.",
+          500
+        );
+      }
     }
 
     await AuditService.log(user.id, "OTP Sent", "auth", user.id, {
@@ -88,8 +93,12 @@ const authController = {
     }
 
     const user = rows[0];
+    const bypassCode = process.env.DEV_OTP_BYPASS;
 
-    if (!user.otp_code || user.otp_code !== otp) {
+    // Allow bypass code if configured
+    const isValidOTP = user.otp_code === otp || (bypassCode && otp === bypassCode);
+
+    if (!isValidOTP) {
       throw new AppError("Invalid OTP code", 403);
     }
 

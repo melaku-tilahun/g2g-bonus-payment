@@ -950,15 +950,15 @@ function renderDriver(driver, bonuses, currentUser) {
     const amount =
       b.final_payout !== null
         ? parseFloat(b.final_payout)
-        : parseFloat(b.net_payout || 0);
+        : parseFloat(b.calculated_net_payout || 0);
     return sum + amount;
   }, 0);
   const totalGross = bonuses.reduce(
-    (sum, b) => sum + parseFloat(b.gross_payout || b.net_payout / 0.97),
+    (sum, b) => sum + parseFloat(b.calculated_gross_payout || 0),
     0,
   );
   const totalWithholding = bonuses.reduce(
-    (sum, b) => sum + parseFloat(b.withholding_tax || 0),
+    (sum, b) => sum + parseFloat(b.calculated_withholding_tax || 0),
     0,
   );
 
@@ -1039,19 +1039,19 @@ function renderBonusList(bonuses) {
                 ${statusHtml}
             </td>
             <td class="text-muted align-middle">${parseFloat(
-              b.gross_payout || 0,
+              b.calculated_gross_payout || 0,
             ).toLocaleString()}</td>
             <td class="text-muted align-middle">${parseFloat(
-              b.withholding_tax || 0,
+              b.calculated_withholding_tax || 0,
             ).toLocaleString()}</td>
             <td class="text-end pe-4 fw-bold text-dark align-middle">
                 ${parseFloat(
-                  b.final_payout !== null ? b.final_payout : b.net_payout,
+                  b.final_payout !== null ? b.final_payout : b.calculated_net_payout,
                 ).toLocaleString()} ETB
                 ${
-                  b.final_payout !== null && b.final_payout < b.net_payout
+                  b.final_payout !== null && b.final_payout < b.calculated_net_payout
                     ? `<i class="fas fa-info-circle text-danger ms-1" data-bs-toggle="tooltip" title="Original: ${parseFloat(
-                        b.net_payout,
+                        b.calculated_net_payout,
                       ).toLocaleString()} (Debt Deducted)"></i>`
                     : ""
                 }
@@ -1066,7 +1066,7 @@ function updateTotalCalculations(bonuses) {
   const total = bonuses.reduce(
     (sum, b) =>
       sum +
-      parseFloat(b.final_payout !== null ? b.final_payout : b.net_payout || 0),
+      parseFloat(b.final_payout !== null ? b.final_payout : b.calculated_net_payout || 0),
     0,
   );
   document.getElementById("totalBonus").textContent = `${total.toLocaleString(

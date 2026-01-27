@@ -241,9 +241,9 @@ const statementController = {
 
     if (bonuses.length > 0) {
       const rows = bonuses.slice(0, type === "full" ? 10 : 500).map((b) => {
-        const gross = parseFloat(b.gross_payout || b.net_payout / 0.97 || 0);
-        const withholding = parseFloat(b.withholding_tax || 0);
-        const net = parseFloat(b.net_payout || 0);
+        const gross = parseFloat(b.calculated_gross_payout || b.calculated_net_payout / 0.97 || 0);
+        const withholding = parseFloat(b.calculated_withholding_tax || 0);
+        const net = parseFloat(b.calculated_net_payout || 0);
         const final = parseFloat(
           b.final_payout !== null ? b.final_payout : net
         );

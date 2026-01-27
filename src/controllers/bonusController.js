@@ -8,7 +8,7 @@ const bonusController = {
 
     const validSortColumns = {
       date: "week_date",
-      amount: "net_payout",
+      amount: "calculated_net_payout",
     };
     const sortCol = validSortColumns[sortBy] || "week_date";
     const sortOrder = order.toLowerCase() === "asc" ? "ASC" : "DESC";
@@ -29,7 +29,7 @@ const bonusController = {
     const { driverId } = req.params;
     const [rows] = await pool.query(
       `SELECT 
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_bonus,
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_bonus,
           COUNT(b.id) as weeks_count,
           MIN(b.week_date) as first_week,
           MAX(b.week_date) as last_week
@@ -84,7 +84,7 @@ const bonusController = {
       `
         SELECT 
           COUNT(DISTINCT d.driver_id) as total_drivers,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_amount
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_amount
         FROM drivers d
         JOIN bonuses b ON d.driver_id = b.driver_id
         WHERE ${whereClause}
@@ -105,7 +105,7 @@ const bonusController = {
           d.driver_id,
           d.full_name,
           d.phone_number,
-          SUM(COALESCE(b.final_payout, b.net_payout)) as total_pending,
+          SUM(COALESCE(b.final_payout, b.calculated_net_payout)) as total_pending,
           COUNT(b.id) as weeks_pending,
           MAX(b.week_date) as latest_bonus_date
         FROM drivers d
